@@ -153,6 +153,105 @@
   このパターンの問題文を構成する **Token** の配列。
   Token は後述の `type` によって、文字列・フィールド参照・穴埋め・ルビなどになる。
 
+### 4.2 Pattern への Tips 追加仕様
+
+Pattern には、既存の `tokens` に加えて **回答後に表示する Tips（解説）** を記述できる `tips` プロパティを追加します。
+
+#### 4.2.1 Pattern における `tips` の位置づけ
+
+```jsonc
+{
+    "id": "p_rgroup_to_name_ruby_choice",
+    "label": "R group → name (ruby choice)",
+    "tokens": [ /* Token[]（従来通り） */ ],
+
+    "tips": [ /* TipBlock[]（★新規） */ ]
+}
+```
+
+* `tokens`: 従来どおり、問題本文を構成する Token 配列。
+* `tips`: 回答後（正誤判定後）に表示される Tips を定義する配列。
+
+#### 4.2.2 TipBlock の構造
+
+```jsonc
+{
+    "id": "t_example",
+    "when": "always",        // "always" | "correct" | "incorrect"（省略可）
+    "tokens": [ /* Token[]（表示専用） */ ]
+}
+```
+
+* `id: string`
+  Pattern 内で一意であればよい。UI には表示しない（ロギング・デバッグ用）。
+
+* `when: "always" | "correct" | "incorrect"`（省略可）
+
+  Tips の表示条件を指定する：
+
+  | 値             | 意味                      |
+  | ------------- | ----------------------- |
+  | `"always"`    | 正解・不正解にかかわらず常に表示（デフォルト） |
+  | `"correct"`   | 正解時のみ表示                 |
+  | `"incorrect"` | 不正解時のみ表示                |
+
+  省略時は `"always"` とみなす。
+
+* `tokens: Token[]`
+  Tips の表示内容を構成する Token 配列。
+
+  * 既存の Token 仕様（`text`, `key`, `ruby`, `hideruby`, `hide` など）をそのまま使用可能
+  * Tips は **表示専用** であるため、Token に `answer` を書いても採点には使われない
+  * 実務上は `text` / `key` / `ruby` / `hideruby` などの「表示専用」Token を使うことを推奨
+
+#### 4.2.3 Tips の表示ルール（アプリ側想定）
+
+1. ユーザーが回答を行い、正誤判定（`isCorrect: boolean`）を行う。
+2. 現在の Pattern の `tips` 配列を走査し、各 TipBlock について次の条件で表示可否を判定する。
+
+```ts
+shouldShowTip = (
+    tip.when === 'always' ||
+    (tip.when === 'correct' && isCorrect) ||
+    (tip.when === 'incorrect' && !isCorrect)
+);
+```
+
+3. `shouldShowTip` が `true` の TipBlock について、その `tokens` を問題本文と同じロジックでレンダリングする（`key` などは同じ entity を参照）。
+4. Tips の表示位置は、例えば以下のように UI 側で決める：
+
+   * 正誤ハイライトの直下
+   * 間違いノート（復習画面）で再表示
+
+#### 4.2.4 Tips の利用例
+
+```jsonc
+"tips": [
+  {
+    "id": "t_incorrect_polar",
+    "when": "incorrect",
+    "tokens": [
+      {
+        "type": "text",
+        "value": "This amino acid has a polar uncharged side chain.",
+        "styles": []
+      }
+    ]
+  },
+  {
+    "id": "t_name_ruby",
+    "when": "always",
+    "tokens": [
+      {
+        "type": "ruby",
+        "base": { "source": "key", "field": "nameEnCap", "styles": ["bold"] },
+        "ruby": { "source": "key", "field": "nameJa" }
+      }
+    ]
+  }
+]
+```
+
 ---
 
 ## 5. Mode（出題モード & pattern比率）
@@ -304,8 +403,7 @@
 
 ### 6.5 type: "ruby"（表示専用ルビ）
 
-**Ruby notation**（英語 ruby, 小さな注釈文字）は、
-英語名（base）と日本語名（ruby）を上下に並べて表示するために使う。
+**Ruby notation**（英語 ruby, 小さな注釈文字）は、英語名（base）と日本語名（ruby）を上下に並べて表示するために使う。
 
 ```jsonc
 {
@@ -408,8 +506,7 @@
 
 * `mode: "choice_ruby_pair"`
 
-  * **4択クイズ** の選択肢を
-    「base + ruby のペア」として表示・採点するモード。
+  * **4択クイズ** の選択肢を「base + ruby のペア」として表示・採点するモード。
   * すべての選択肢ボタンに
     `<ruby><rb>base</rb><rt>ruby</rt></ruby>` のイメージで表示。
 
@@ -421,26 +518,21 @@
 * 選択肢生成 (`choice.distractorSource`)：
 
   * `from: "entitySet"`
-
-    * ダミー候補は `entitySet.entities` から取る。
+    ダミー候補は `entitySet.entities` から取る。
 
   * `filter: "same_entity_type"`
-
-    * 同じ種類のエンティティに絞るためのフィルタ（実装側ルール）。
+    同じ種類のエンティティに絞るためのフィルタ（実装側ルール）。
 
   * `count: 3`
-
-    * 誤答（ダミー）をいくつ作るか。
-      → 正解1 + 誤答3 = 4択。
+    誤答（ダミー）をいくつ作るか。
+    → 正解1 + 誤答3 = 4択。
 
   * `avoidSameId: true`
-
-    * 正解と同じ `entityId` をダミーに含めない。
+    正解と同じ `entityId` をダミーに含めない。
 
   * `avoidSameText: true`
-
-    * **表示テキストが正解と同じになるダミー** を除外する。
-    * 別フィールドでも、`baseText + "|" + rubyText` などで正規化した結果が同じなら除外する。
+    **表示テキストが正解と同じになるダミー** を除外する。
+    別フィールドでも、`baseText + "|" + rubyText` などで正規化した結果が同じなら除外する。
 
 ---
 
@@ -519,8 +611,13 @@ Token は、
 * `"hideruby"` と `answer.mode: "choice_ruby_pair"` で
   **base+ruby ペアを使った4択問題** を構成します。
 
-`avoidSameId` と `avoidSameText` によって、
-同一IDや同一表示テキストの誤答を避けることもできます。
+さらに本仕様では、Pattern に `tips: TipBlock[]` を追加することで：
 
-この枠組みの中で、アミノ酸以外の分野（化合物、英単語、歴史人物など）も、
-entity の fields と patterns を差し替えるだけで同じエンジンを使って 4択クイズ化できます。
+* 「間違えたときだけ詳しい解説」
+* 「正解でも必ず一言メモ」
+
+といった形で、正誤に応じた柔軟な Tips 表示が可能になります。
+
+`avoidSameId` と `avoidSameText` によって、同一IDや同一表示テキストの誤答を避けることもできます。
+
+この枠組みの中で、アミノ酸以外の分野（化合物、英単語、歴史人物など）も、entity の fields と patterns を差し替えるだけで同じエンジンを使って 4択クイズ化できます。
