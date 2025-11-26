@@ -164,6 +164,7 @@ export function showOptionFeedback(question, selectedIndex) {
         if (idx === correctIndex) {
             btn.classList.add(
                 'border-emerald-400',
+                'dark:border-emerald-400',
                 'bg-emerald-50',
                 'dark:bg-emerald-900/40'
             );
@@ -171,6 +172,7 @@ export function showOptionFeedback(question, selectedIndex) {
         if (idx === selectedIndex && idx !== correctIndex) {
             btn.classList.add(
                 'border-red-400',
+                'dark:border-red-400',
                 'bg-red-50',
                 'dark:bg-red-900/40'
             );
