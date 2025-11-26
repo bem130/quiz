@@ -1,11 +1,18 @@
 // js/main.js
-import { initThemeFromStorage, toggleTheme } from './theme.js';
+import { initThemeFromStorage, toggleTheme, setSize, initAppHeightObserver } from './theme.js';
 import { dom } from './dom-refs.js';
 import { loadQuizDefinition } from './quiz-model.js';
 import { loadQuizEntries } from './entry-model.js';
 import { renderQuizMenu } from './menu-renderer.js';
 import { QuizEngine } from './quiz-engine.js';
-import { renderQuestionText, renderOptions, renderProgress, showOptionFeedback } from './quiz-renderer.js';
+import {
+    renderQuestionText,
+    renderOptions,
+    renderProgress,
+    showOptionFeedback,
+    resetReviewList,
+    addReviewItem
+} from './quiz-renderer.js';
 
 let quizDef = null;
 let quizEntries = [];
@@ -17,14 +24,35 @@ let currentScore = 0;
 let currentQuestion = null;
 let hasAnswered = false;
 
+// 画面切り替え: "menu" / "quiz" / "result"
 function showScreen(name) {
-    dom.startScreen.classList.add('hidden');
-    dom.quizScreen.classList.add('hidden');
+    // メイン
+    dom.mainMenu.classList.add('hidden');
+    dom.mainQuiz.classList.add('hidden');
+
+    // サイド
+    dom.sideMenu.classList.add('hidden');
+    dom.sideQuiz.classList.add('hidden');
+
+    // ヘッダスコア
+    dom.quizHeaderScore.classList.add('hidden');
+
+    // 結果パネル
     dom.resultScreen.classList.add('hidden');
 
-    if (name === 'start') dom.startScreen.classList.remove('hidden');
-    if (name === 'quiz') dom.quizScreen.classList.remove('hidden');
-    if (name === 'result') dom.resultScreen.classList.remove('hidden');
+    if (name === 'menu') {
+        dom.mainMenu.classList.remove('hidden');
+        dom.sideMenu.classList.remove('hidden');
+    } else if (name === 'quiz') {
+        dom.mainQuiz.classList.remove('hidden');
+        dom.sideQuiz.classList.remove('hidden');
+        dom.quizHeaderScore.classList.remove('hidden');
+    } else if (name === 'result') {
+        dom.mainQuiz.classList.remove('hidden');
+        dom.sideQuiz.classList.remove('hidden');
+        dom.quizHeaderScore.classList.remove('hidden');
+        dom.resultScreen.classList.remove('hidden');
+    }
 }
 
 function populateModeSelect() {
@@ -50,6 +78,8 @@ function startQuiz() {
 
     engine.setMode(modeId);
     renderProgress(currentIndex, totalQuestions, currentScore);
+    resetReviewList();
+
     showScreen('quiz');
     loadNextQuestion();
 }
@@ -78,7 +108,11 @@ function handleSelectOption(selectedIndex) {
     const correctIndex = currentQuestion.answer.correctIndex;
     if (selectedIndex === correctIndex) {
         currentScore += 1;
+    } else {
+        // 間違えた問題をサブエリアに追加
+        addReviewItem(currentQuestion, quizDef.entitySet, currentIndex + 1);
     }
+
     showOptionFeedback(currentQuestion, selectedIndex);
     renderProgress(currentIndex, totalQuestions, currentScore);
 
@@ -92,10 +126,7 @@ function showResult() {
 
 async function bootstrap() {
     initThemeFromStorage();
-
-    dom.themeToggle.addEventListener('click', () => {
-        toggleTheme();
-    });
+    initAppHeightObserver();
 
     try {
         const [def, entries] = await Promise.all([
@@ -105,20 +136,33 @@ async function bootstrap() {
         quizDef = def;
         quizEntries = entries;
 
-        // set header
         document.title = quizDef.meta.title || '4-choice Quiz';
         dom.appTitle.textContent = quizDef.meta.title || '4-choice Quiz';
         dom.appDescription.textContent = quizDef.meta.description || '';
 
-        // menu list
         renderQuizMenu(quizEntries);
 
-        // engine
         engine = new QuizEngine(quizDef);
         populateModeSelect();
 
-        // UI event handlers
+        // メニュー側設定ボタン
+        if (dom.menuThemeToggle) {
+            dom.menuThemeToggle.addEventListener('click', () => {
+                toggleTheme();
+            });
+        }
+        if (dom.menuSizeSmall) {
+            dom.menuSizeSmall.addEventListener('click', () => setSize('s'));
+        }
+        if (dom.menuSizeMedium) {
+            dom.menuSizeMedium.addEventListener('click', () => setSize('m'));
+        }
+        if (dom.menuSizeLarge) {
+            dom.menuSizeLarge.addEventListener('click', () => setSize('l'));
+        }
+
         dom.startButton.addEventListener('click', startQuiz);
+
         dom.nextButton.addEventListener('click', () => {
             if (!hasAnswered) return;
             currentIndex += 1;
@@ -126,7 +170,7 @@ async function bootstrap() {
         });
 
         dom.retryButton.addEventListener('click', () => {
-            // retry same quiz with same mode & question count
+            // 同じ設定で再チャレンジ
             currentIndex = 0;
             currentScore = 0;
             hasAnswered = false;
@@ -136,10 +180,10 @@ async function bootstrap() {
         });
 
         dom.backToMenuButton.addEventListener('click', () => {
-            showScreen('start');
+            showScreen('menu');
         });
 
-        showScreen('start');
+        showScreen('menu');
     } catch (e) {
         console.error(e);
         dom.appDescription.textContent = 'Failed to load quiz definition.';

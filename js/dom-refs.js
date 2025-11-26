@@ -1,18 +1,30 @@
 // js/dom-refs.js
 
 export const dom = {
-    startScreen: document.getElementById('start-screen'),
-    quizScreen: document.getElementById('quiz-screen'),
-    resultScreen: document.getElementById('result-screen'),
-
+    // 共通ヘッダ
     appTitle: document.getElementById('app-title'),
     appDescription: document.getElementById('app-description'),
+    quizHeaderScore: document.getElementById('quiz-header-score'),
 
+    // メイン側（左パネル）
+    mainMenu: document.getElementById('main-menu'),
+    mainQuiz: document.getElementById('main-quiz'),
+
+    // メニュー（メイン）
     quizList: document.getElementById('quiz-list'),
     modeSelect: document.getElementById('mode-select'),
-    questionCountInput: document.getElementById('question-count'),
     startButton: document.getElementById('start-button'),
 
+    // メニュー（サイド）
+    sideMenu: document.getElementById('side-menu'),
+    questionCountInput: document.getElementById('question-count'),
+    menuThemeToggle: document.getElementById('theme-toggle-menu'),
+    menuSizeSmall: document.getElementById('size-small-menu'),
+    menuSizeMedium: document.getElementById('size-medium-menu'),
+    menuSizeLarge: document.getElementById('size-large-menu'),
+
+    // クイズ（メイン）
+    mainQuizSection: document.getElementById('main-quiz'),
     currentQNum: document.getElementById('current-q-num'),
     totalQNum: document.getElementById('total-q-num'),
     currentScore: document.getElementById('current-score'),
@@ -21,9 +33,15 @@ export const dom = {
     optionsContainer: document.getElementById('options-container'),
     nextButton: document.getElementById('next-button'),
 
+    // クイズ（サイド）
+    sideQuiz: document.getElementById('side-quiz'),
+    reviewEmpty: document.getElementById('review-empty'),
+    reviewList: document.getElementById('review-list'),
+    mistakeCount: document.getElementById('mistake-count'),
+
+    // 結果
+    resultScreen: document.getElementById('result-screen'),
     resultScore: document.getElementById('result-score'),
     retryButton: document.getElementById('retry-button'),
-    backToMenuButton: document.getElementById('back-to-menu-button'),
-
-    themeToggle: document.getElementById('theme-toggle')
+    backToMenuButton: document.getElementById('back-to-menu-button')
 };
