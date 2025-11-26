@@ -2,6 +2,6 @@
     "name": "quiz",
     "type": "module",
     "scripts": {
-        "test": "node --test tests/answer-state.test.mjs"
+        "test": "node --test tests/*.mjs"
     }
 }

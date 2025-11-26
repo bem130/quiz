@@ -171,6 +171,7 @@ export class QuizEngine {
         return {
             patternId: pattern.id,
             patternTokens: pattern.tokens,
+            patternTips: pattern.tips || [],
             entityId,
             answers
         };
