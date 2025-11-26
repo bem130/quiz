@@ -12,19 +12,17 @@ export const dom = {
 
     // メニュー（メイン）
     quizList: document.getElementById('quiz-list'),
-    modeSelect: document.getElementById('mode-select'),
+    // ★ ここを変更
+    modeList: document.getElementById('mode-list'),
     startButton: document.getElementById('start-button'),
 
-    // サイド: 共通 Settings
-    sideSettings: document.getElementById('side-settings'),
+    // メニュー（サイド）
+    sideMenu: document.getElementById('side-menu'),
+    questionCountInput: document.getElementById('question-count'),
     menuThemeToggle: document.getElementById('theme-toggle-menu'),
     menuSizeSmall: document.getElementById('size-small-menu'),
     menuSizeMedium: document.getElementById('size-medium-menu'),
     menuSizeLarge: document.getElementById('size-large-menu'),
-
-    // サイド: メニュー専用
-    sideMenu: document.getElementById('side-menu'),
-    questionCountInput: document.getElementById('question-count'),
 
     // クイズ（メイン）
     mainQuizSection: document.getElementById('main-quiz'),
@@ -36,11 +34,17 @@ export const dom = {
     optionsContainer: document.getElementById('options-container'),
     nextButton: document.getElementById('next-button'),
 
-    // クイズ（サイド専用）
+    // クイズ（サイド）
     sideQuiz: document.getElementById('side-quiz'),
     reviewEmpty: document.getElementById('review-empty'),
     reviewList: document.getElementById('review-list'),
     mistakeCount: document.getElementById('mistake-count'),
+
+    // クイズ中の設定（サイド）
+    quizThemeToggle: document.getElementById('theme-toggle-quiz'),
+    quizSizeSmall: document.getElementById('size-small-quiz'),
+    quizSizeMedium: document.getElementById('size-medium-quiz'),
+    quizSizeLarge: document.getElementById('size-large-quiz'),
 
     // 結果
     resultScreen: document.getElementById('result-screen'),
