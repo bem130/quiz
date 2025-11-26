@@ -15,6 +15,7 @@ import {
     renderTips,
     resetTips
 } from './quiz-renderer.js';
+import { selectAnswer, resetSelections } from './answer-state.js';
 
 let quizDef = null;
 let quizEntries = [];
@@ -155,9 +156,7 @@ function loadNextQuestion() {
     resetTips();
 
     currentQuestion = engine.generateQuestion();
-
-    // 複数回答用に、ユーザーの穴埋め回答配列を常に初期化しておく
-    currentQuestion.userFillAnswers = [];
+    resetSelections(currentQuestion);
 
     const entity = quizDef.entitySet.entities[currentQuestion.entityId];
 
@@ -166,72 +165,38 @@ function loadNextQuestion() {
     renderProgress(currentIndex, totalQuestions, currentScore);
 }
 
-function handleSelectOption(selectedIndex) {
-    if (!currentQuestion) return;
+function handleSelectOption(answerIndex, optionIndex) {
+    if (!currentQuestion || !Array.isArray(currentQuestion.answers)) return;
 
-    const correctIndex = currentQuestion.answer.correctIndex;
+    const selectionState = selectAnswer(currentQuestion, answerIndex, optionIndex);
 
-    // 既に答えたあとに「正答のボタン」を再度押したら、そのまま次の問題へ
+    // 既に採点済みの場合は、正答をクリックしたら次の問題へ
     if (hasAnswered) {
-        if (selectedIndex === correctIndex) {
+        if (selectionState.fullyCorrect && selectionState.lastSelectionIsCorrect) {
             goToNextQuestion();
         }
         return;
     }
 
-    // まだ答えていないときの通常処理
+    // 未選択のパーツがある場合は、まだ採点しない
+    if (!selectionState.allSelected) {
+        return;
+    }
+
     hasAnswered = true;
 
-    // --- 複数回答: fill_in_blank の採点 ---
-    let fillCorrect = true;
-
-    // 常に配列として扱えるように保証
-    if (!Array.isArray(currentQuestion.userFillAnswers)) {
-        currentQuestion.userFillAnswers = [];
-    } else {
-        currentQuestion.userFillAnswers.length = 0;
-    }
-
-    if (currentQuestion.fillBlanks && currentQuestion.fillBlanks.length > 0) {
-        const inputs = dom.questionText.querySelectorAll('input[data-fill-blank="1"]');
-
-        // 複数の穴埋めに対して、1つでも違えば fillCorrect = false
-        currentQuestion.fillBlanks.forEach((fb, idx) => {
-            const input = inputs[idx];
-            const userRaw = input ? input.value : '';
-            const user = (userRaw || '').trim();
-            currentQuestion.userFillAnswers.push(user);
-
-            const correctText = (fb.correctText || '').trim();
-            if (user !== correctText) {
-                fillCorrect = false;
-            }
-        });
-    }
-
-    const isChoiceCorrect = selectedIndex === correctIndex;
-    // 「複数回答」の全体正解: choice も fill も全部正しい
-    const isFullyCorrect = isChoiceCorrect && fillCorrect;
-
-    if (isFullyCorrect) {
+    if (selectionState.fullyCorrect) {
         currentScore += 1;
     } else {
-        // 誤答の index も Mistakes に渡す
-        addReviewItem(
-            currentQuestion,
-            quizDef.entitySet,
-            currentIndex + 1,
-            selectedIndex
-        );
+        addReviewItem(currentQuestion, quizDef.entitySet, currentIndex + 1);
     }
 
-    showOptionFeedback(currentQuestion, selectedIndex);
+    showOptionFeedback(currentQuestion);
     renderProgress(currentIndex, totalQuestions, currentScore);
 
-    // Tips 表示（正誤に応じて）
     const entity = quizDef.entitySet.entities[currentQuestion.entityId];
     if (currentQuestion.patternTips && currentQuestion.patternTips.length && entity) {
-        renderTips(currentQuestion.patternTips, entity, isFullyCorrect);
+        renderTips(currentQuestion.patternTips, entity, selectionState.fullyCorrect);
     } else {
         resetTips();
     }
@@ -262,13 +227,19 @@ function setupKeyboardShortcuts() {
         }
         if (!currentQuestion) return;
 
-        // 数字キー 1〜4 → 選択肢 0〜3
+        // 数字キー 1〜4 → 未回答パーツ（なければ先頭パーツ）に適用
         if (e.key >= '1' && e.key <= '4') {
+            const answers = currentQuestion.answers || [];
+            if (!answers.length) return;
+
+            const targetIdx = answers.findIndex((ans) => ans.userSelectedIndex == null);
+            const answerIndex = targetIdx >= 0 ? targetIdx : 0;
+            const answer = answers[answerIndex];
             const index = Number(e.key) - 1;
-            const optionsLen = currentQuestion.answer.options.length;
+            const optionsLen = (answer && answer.options && answer.options.length) || 0;
             if (index >= 0 && index < optionsLen) {
                 e.preventDefault();
-                handleSelectOption(index);
+                handleSelectOption(answerIndex, index);
             }
             return;
         }
