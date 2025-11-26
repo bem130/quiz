@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "quizzes": [
+        {
+            "id": "amino-acids-v1",
+            "file": "data/quizzes/amino-acids-v1.json",
+            "title": "Alpha Amino Acid Quiz",
+            "description": "Quiz to learn the correspondence between amino acid names and side chains",
+            "color": 130,
+            "tags": ["amino_acid", "biology", "chemistry"],
+            "difficulty": "normal",
+            "recommended": true
+        }
+    ]
+}
