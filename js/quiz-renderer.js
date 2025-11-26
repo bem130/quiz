@@ -91,7 +91,15 @@ export function renderQuestionText(
     });
 }
 
-function createRubyOptionButton(hiderubyToken, entity, onClick) {
+/**
+ * Create option button with numeric label (1–4) and ruby text.
+ * @param {*} hiderubyToken 
+ * @param {*} entity 
+ * @param {number} index option index (0-based)
+ * @param {*} onClick 
+ * @returns {HTMLButtonElement}
+ */
+function createRubyOptionButton(hiderubyToken, entity, index, onClick) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = [
@@ -102,8 +110,26 @@ function createRubyOptionButton(hiderubyToken, entity, onClick) {
         'hover:bg-slate-100 dark:hover:bg-slate-800'
     ].join(' ');
 
+    // Wrapper for label + ruby text
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center gap-2';
+
+    // Numeric label (1–4)
+    const label = document.createElement('span');
+    label.textContent = String(index + 1);
+    label.className = [
+        'inline-flex items-center justify-center',
+        'w-5 h-5 rounded-full border',
+        'border-slate-300 dark:border-slate-600',
+        'text-[0.75rem] text-slate-500 dark:text-slate-300'
+    ].join(' ');
+
     const rubyEl = renderRubyToken(hiderubyToken, entity);
-    btn.appendChild(rubyEl);
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(rubyEl);
+
+    btn.appendChild(wrapper);
     btn.addEventListener('click', onClick);
     return btn;
 }
@@ -117,6 +143,7 @@ export function renderOptions(question, entitySet, onSelectOption) {
         const btn = createRubyOptionButton(
             question.answer.hiderubyToken,
             ent,
+            idx,
             () => {
                 onSelectOption(idx);
             }

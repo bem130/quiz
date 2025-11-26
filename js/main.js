@@ -27,8 +27,13 @@ let hasAnswered = false;
 // 現在選択中の modeId
 let currentModeId = null;
 
+// 現在の画面状態 ("menu" | "quiz" | "result")
+let currentScreen = 'menu';
+
 // 画面切り替え: "menu" / "quiz" / "result"
 function showScreen(name) {
+    currentScreen = name;
+
     // メイン
     dom.mainMenu.classList.add('hidden');
     dom.mainQuiz.classList.add('hidden');
@@ -56,6 +61,13 @@ function showScreen(name) {
         dom.quizHeaderScore.classList.remove('hidden');
         dom.resultScreen.classList.remove('hidden');
     }
+}
+
+// Next ボタンと Space / Enter / 正答再クリックから共通で使う「次の問題へ」処理
+function goToNextQuestion() {
+    if (!hasAnswered) return;
+    currentIndex += 1;
+    loadNextQuestion();
 }
 
 // Mode ボタン生成
@@ -145,10 +157,21 @@ function loadNextQuestion() {
 }
 
 function handleSelectOption(selectedIndex) {
-    if (hasAnswered) return;
-    hasAnswered = true;
+    if (!currentQuestion) return;
 
     const correctIndex = currentQuestion.answer.correctIndex;
+
+    // 既に答えたあとに「正答のボタン」を再度押したら、そのまま次の問題へ
+    if (hasAnswered) {
+        if (selectedIndex === correctIndex) {
+            goToNextQuestion();
+        }
+        return;
+    }
+
+    // まだ答えていないときの通常処理
+    hasAnswered = true;
+
     if (selectedIndex === correctIndex) {
         currentScore += 1;
     } else {
@@ -164,6 +187,45 @@ function handleSelectOption(selectedIndex) {
 function showResult() {
     dom.resultScore.textContent = `${currentScore} / ${totalQuestions}`;
     showScreen('result');
+}
+
+// キーボード操作のセットアップ
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        // 入力フィールドにフォーカスがあるときは邪魔しない
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea') {
+            return;
+        }
+
+        if (currentScreen !== 'quiz') {
+            return;
+        }
+        if (!currentQuestion) return;
+
+        // 数字キー 1〜4 → 選択肢 0〜3
+        if (e.key >= '1' && e.key <= '4') {
+            const index = Number(e.key) - 1;
+            const optionsLen = currentQuestion.answer.options.length;
+            if (index >= 0 && index < optionsLen) {
+                e.preventDefault();
+                handleSelectOption(index);
+            }
+            return;
+        }
+
+        // Space / Enter → 解答済みなら次の問題へ（Next と同じ）
+        if (
+            e.key === ' ' ||
+            e.code === 'Space' ||
+            e.key === 'Spacebar' ||
+            e.key === 'Enter'
+        ) {
+            if (!hasAnswered) return;
+            e.preventDefault();
+            goToNextQuestion();
+        }
+    });
 }
 
 async function bootstrap() {
@@ -207,9 +269,7 @@ async function bootstrap() {
         dom.startButton.addEventListener('click', startQuiz);
 
         dom.nextButton.addEventListener('click', () => {
-            if (!hasAnswered) return;
-            currentIndex += 1;
-            loadNextQuestion();
+            goToNextQuestion();
         });
 
         dom.retryButton.addEventListener('click', () => {
@@ -225,6 +285,7 @@ async function bootstrap() {
             showScreen('menu');
         });
 
+        setupKeyboardShortcuts();
         showScreen('menu');
     } catch (e) {
         console.error(e);
