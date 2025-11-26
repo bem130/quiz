@@ -15,122 +15,184 @@
 
     <link rel="stylesheet" href="css/app.css" />
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-    <div class="min-h-screen flex items-center justify-center px-4">
-        <div class="max-w-3xl w-full">
-            <!-- Header -->
-            <header class="flex items-center justify-between mb-4">
+<body class="bg-slate-950 text-slate-100">
+    <!-- 画面いっぱい 2 分割レイアウト -->
+    <div id="app" class="layout-container">
+        <!-- 左: メインエリア（メニュー or クイズ） -->
+        <main class="main-panel bg-slate-900 flex flex-col">
+            <!-- 共通ヘッダ -->
+            <header class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <div>
-                    <h1 id="app-title" class="text-xl font-semibold">4-choice Quiz</h1>
-                    <p id="app-description" class="text-xs text-slate-400">
+                    <h1 id="app-title" class="text-lg font-semibold">4-choice Quiz</h1>
+                    <p id="app-description" class="text-xs text-slate-400 mt-1">
                         Loading quiz definition...
                     </p>
                 </div>
-                <button id="theme-toggle" class="text-xs px-3 py-1 rounded-full border border-slate-600 hover:border-emerald-400">
-                    Toggle Theme
-                </button>
+                <!-- クイズ中に右上にスコア表示 -->
+                <div id="quiz-header-score" class="hidden text-right text-xs">
+                    <div class="uppercase text-[10px] tracking-wide text-slate-500">Score</div>
+                    <div class="text-lg font-semibold text-emerald-400" id="current-score">0</div>
+                </div>
             </header>
 
-            <!-- Main card -->
-            <div class="bg-slate-900/80 border border-slate-700 rounded-2xl shadow-xl overflow-hidden">
-                <!-- Start Screen -->
-                <div id="start-screen" class="p-6 space-y-6">
+            <!-- メイン: メニュー画面 -->
+            <section id="main-menu" class="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+                <!-- Available Quizzes -->
+                <section>
+                    <h2 class="text-sm font-semibold mb-2">Available Quizzes</h2>
+                    <div id="quiz-list" class="space-y-2">
+                        <!-- JS で埋め込み -->
+                    </div>
+                </section>
+
+                <!-- Mode -->
+                <section>
+                    <h2 class="text-sm font-semibold mb-2">Mode</h2>
+                    <select id="mode-select" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs">
+                        <!-- JS で埋め込み -->
+                    </select>
+                </section>
+
+                <div class="pt-2 flex justify-end">
+                    <button id="start-button" class="px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400">
+                        Start Quiz
+                    </button>
+                </div>
+            </section>
+
+            <!-- メイン: クイズ画面 -->
+            <section id="main-quiz" class="hidden flex-1 overflow-y-auto flex flex-col">
+                <!-- 進捗バー -->
+                <div class="px-6 py-3 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
                     <div>
-                        <h2 class="text-lg font-semibold mb-1">Start Quiz</h2>
-                        <p class="text-xs text-slate-400">
-                            Select quiz mode and number of questions, then press Start.
-                        </p>
-                    </div>
-
-                    <!-- Quiz selector from entry.json -->
-                    <div>
-                        <h3 class="text-sm font-semibold mb-2">Available Quizzes</h3>
-                        <div id="quiz-list" class="space-y-2 text-xs">
-                            <!-- filled by JS -->
+                        <div class="uppercase text-[10px] tracking-wide text-slate-500">Progress</div>
+                        <div class="text-lg font-semibold text-slate-100">
+                            <span id="current-q-num">1</span>
+                            <span class="text-xs text-slate-500 mx-1">/</span>
+                            <span id="total-q-num" class="text-slate-400">10</span>
                         </div>
-                    </div>
-
-                    <!-- Mode & settings -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                        <div>
-                            <label class="block mb-1 font-medium">
-                                Mode
-                            </label>
-                            <select id="mode-select" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs">
-                                <!-- filled by JS -->
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block mb-1 font-medium">
-                                Number of questions
-                            </label>
-                            <input id="question-count" type="number" min="1" max="50" value="10"
-                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs" />
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-end">
-                        <button id="start-button" class="px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400">
-                            Start Quiz
-                        </button>
                     </div>
                 </div>
 
-                <!-- Quiz Screen -->
-                <div id="quiz-screen" class="hidden p-6 space-y-4">
-                    <div class="flex items-center justify-between text-xs text-slate-400">
-                        <div>
-                            Question <span id="current-q-num">1</span> / <span id="total-q-num">10</span>
-                        </div>
-                        <div>
-                            Score: <span id="current-score">0</span>
-                        </div>
-                    </div>
-
-                    <div class="mt-2">
+                <!-- 問題 + 選択肢 -->
+                <div class="flex-1 overflow-y-auto p-6 flex flex-col justify-center">
+                    <div class="max-w-2xl mx-auto w-full space-y-4">
                         <div id="question-text" class="text-sm leading-relaxed space-y-1">
-                            <!-- question here -->
+                            <!-- question -->
+                        </div>
+                        <div id="options-container" class="mt-4 space-y-2">
+                            <!-- options -->
                         </div>
                     </div>
-
-                    <div id="options-container" class="mt-4 space-y-2">
-                        <!-- option buttons -->
-                    </div>
-
-                    <div class="flex justify-end mt-4">
-                        <button id="next-button" class="px-4 py-2 text-xs rounded-xl border border-slate-700 text-slate-200 hover:border-emerald-400 disabled:opacity-40" disabled>
-                            Next
-                        </button>
-                    </div>
                 </div>
 
-                <!-- Result Screen -->
-                <div id="result-screen" class="hidden p-6 space-y-4">
-                    <div>
-                        <h2 class="text-lg font-semibold mb-1">Quiz Result</h2>
-                        <p class="text-xs text-slate-400">
-                            Good job! You can try another mode or another quiz.
+                <!-- Nextボタン -->
+                <footer class="px-6 py-3 border-t border-slate-800 flex justify-end">
+                    <button id="next-button" class="px-4 py-2 text-xs rounded-xl border border-slate-700 text-slate-200 hover:border-emerald-400 disabled:opacity-40" disabled>
+                        Next
+                    </button>
+                </footer>
+            </section>
+        </main>
+
+        <!-- 右: サブエリア（共通 Settings + メニュー/クイズで切り替え） -->
+        <aside class="side-panel bg-slate-950 text-xs">
+            <!-- ① 共通: Settings（メニュー/クイズ共通） -->
+            <section id="side-settings" class="border-b border-slate-800">
+                <div class="px-4 py-3">
+                    <h2 class="font-semibold text-slate-200 text-sm">Settings</h2>
+                </div>
+                <div class="px-4 pb-3 space-y-3">
+                    <!-- Text size -->
+                    <section class="space-y-1">
+                        <div class="text-[11px] text-slate-400">Text size</div>
+                        <div class="inline-flex rounded-full border border-slate-700 bg-slate-900 overflow-hidden">
+                            <button id="size-small-menu" class="px-3 py-1 text-[10px] font-bold text-slate-400 hover:bg-slate-800">
+                                A
+                            </button>
+                            <button id="size-medium-menu" class="px-3 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
+                                A
+                            </button>
+                            <button id="size-large-menu" class="px-3 py-1 text-[12px] font-bold text-slate-50 hover:bg-slate-800">
+                                A
+                            </button>
+                        </div>
+                    </section>
+
+                    <!-- Theme -->
+                    <section class="space-y-1">
+                        <div class="text-[11px] text-slate-400">Theme</div>
+                        <button id="theme-toggle-menu" class="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 hover:border-emerald-400 text-[11px] w-full text-left">
+                            Toggle Dark / Light
+                        </button>
+                    </section>
+                </div>
+            </section>
+
+            <!-- ② メニュー専用: Number of questions -->
+            <section id="side-menu" class="flex-1 flex flex-col">
+                <div class="px-4 py-3 border-b border-slate-800">
+                    <h2 class="font-semibold text-slate-200 text-sm">Quiz options</h2>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <!-- Number of questions -->
+                    <section class="space-y-2">
+                        <label for="question-count" class="block text-[11px] text-slate-400">
+                            Number of questions
+                        </label>
+                        <input id="question-count" type="number" min="1" max="50" value="10"
+                               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs" />
+                        <p class="text-[10px] text-slate-500">
+                            You can change the number of questions between 1 and 50.
                         </p>
+                    </section>
+                </div>
+            </section>
+
+            <!-- ③ クイズ専用: Mistakes + Result -->
+            <section id="side-quiz" class="hidden flex-1 flex flex-col">
+                <!-- Mistakes ヘッダー -->
+                <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Mistakes</span>
                     </div>
-                    <div class="text-2xl font-bold">
-                        Score: <span id="result-score">0</span>
+                    <span id="mistake-count" class="hidden bg-red-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                        0
+                    </span>
+                </div>
+
+                <!-- Mistakes リスト -->
+                <div class="flex-1 overflow-y-auto p-3" id="review-container">
+                    <div id="review-empty" class="h-full flex flex-col items-center justify-center text-slate-500 text-[11px]">
+                        No mistakes yet.
                     </div>
-                    <div class="flex justify-between text-xs">
-                        <button id="retry-button" class="px-4 py-2 rounded-xl border border-slate-700 hover:border-emerald-400">
-                            Retry same quiz
-                        </button>
-                        <button id="back-to-menu-button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">
-                            Back to menu
-                        </button>
+                    <ul id="review-list" class="space-y-2 hidden">
+                        <!-- mistake items -->
+                    </ul>
+                </div>
+
+                <!-- Result footer (クイズ終了後に表示) -->
+                <div id="result-screen" class="px-4 py-3 border-t border-slate-800 hidden">
+                    <div class="space-y-2">
+                        <div class="text-[11px] text-slate-400 uppercase tracking-wide">
+                            Result
+                        </div>
+                        <div class="text-sm font-semibold">
+                            Score: <span id="result-score">0</span>
+                        </div>
+                        <div class="flex gap-2 mt-2">
+                            <button id="retry-button" class="flex-1 px-3 py-1.5 rounded-lg border border-slate-700 text-[11px] hover:border-emerald-400">
+                                Retry
+                            </button>
+                            <button id="back-to-menu-button" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-800 text-[11px] hover:bg-slate-700">
+                                Menu
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
+        </aside>
 
-            <!-- Footer -->
-            <footer class="mt-4 text-[10px] text-slate-500 text-right">
-                JSON-driven 4-choice quiz engine
-            </footer>
-        </div>
     </div>
 
     <script type="module" src="js/main.js"></script>

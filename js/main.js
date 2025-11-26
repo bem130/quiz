@@ -30,7 +30,7 @@ function showScreen(name) {
     dom.mainMenu.classList.add('hidden');
     dom.mainQuiz.classList.add('hidden');
 
-    // サイド
+    // サイド（下半分だけ切り替える）
     dom.sideMenu.classList.add('hidden');
     dom.sideQuiz.classList.add('hidden');
 
@@ -145,7 +145,7 @@ async function bootstrap() {
         engine = new QuizEngine(quizDef);
         populateModeSelect();
 
-        // メニュー側設定ボタン
+        // --- 共通 Settings エリアのボタン ---
         if (dom.menuThemeToggle) {
             dom.menuThemeToggle.addEventListener('click', () => {
                 toggleTheme();
@@ -161,6 +161,7 @@ async function bootstrap() {
             dom.menuSizeLarge.addEventListener('click', () => setSize('l'));
         }
 
+        // --- クイズ開始 / 進行系 ---
         dom.startButton.addEventListener('click', startQuiz);
 
         dom.nextButton.addEventListener('click', () => {
@@ -170,7 +171,6 @@ async function bootstrap() {
         });
 
         dom.retryButton.addEventListener('click', () => {
-            // 同じ設定で再チャレンジ
             currentIndex = 0;
             currentScore = 0;
             hasAnswered = false;

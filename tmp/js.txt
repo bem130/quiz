@@ -62,6 +62,12 @@ export const dom = {
     reviewList: document.getElementById('review-list'),
     mistakeCount: document.getElementById('mistake-count'),
 
+    // クイズ中の設定（サイド）
+    quizThemeToggle: document.getElementById('theme-toggle-quiz'),
+    quizSizeSmall: document.getElementById('size-small-quiz'),
+    quizSizeMedium: document.getElementById('size-medium-quiz'),
+    quizSizeLarge: document.getElementById('size-large-quiz'),
+
     // 結果
     resultScreen: document.getElementById('result-screen'),
     resultScore: document.getElementById('result-score'),
@@ -236,7 +242,7 @@ async function bootstrap() {
         engine = new QuizEngine(quizDef);
         populateModeSelect();
 
-        // メニュー側設定ボタン
+        // --- メニュー側の設定ボタン ---
         if (dom.menuThemeToggle) {
             dom.menuThemeToggle.addEventListener('click', () => {
                 toggleTheme();
@@ -252,6 +258,23 @@ async function bootstrap() {
             dom.menuSizeLarge.addEventListener('click', () => setSize('l'));
         }
 
+        // --- クイズ中（サイドパネル）の設定ボタン ---
+        if (dom.quizThemeToggle) {
+            dom.quizThemeToggle.addEventListener('click', () => {
+                toggleTheme();
+            });
+        }
+        if (dom.quizSizeSmall) {
+            dom.quizSizeSmall.addEventListener('click', () => setSize('s'));
+        }
+        if (dom.quizSizeMedium) {
+            dom.quizSizeMedium.addEventListener('click', () => setSize('m'));
+        }
+        if (dom.quizSizeLarge) {
+            dom.quizSizeLarge.addEventListener('click', () => setSize('l'));
+        }
+
+        // --- クイズ開始 / 進行系 ---
         dom.startButton.addEventListener('click', startQuiz);
 
         dom.nextButton.addEventListener('click', () => {
@@ -261,7 +284,6 @@ async function bootstrap() {
         });
 
         dom.retryButton.addEventListener('click', () => {
-            // 同じ設定で再チャレンジ
             currentIndex = 0;
             currentScore = 0;
             hasAnswered = false;

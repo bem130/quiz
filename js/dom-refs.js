@@ -15,13 +15,16 @@ export const dom = {
     modeSelect: document.getElementById('mode-select'),
     startButton: document.getElementById('start-button'),
 
-    // メニュー（サイド）
-    sideMenu: document.getElementById('side-menu'),
-    questionCountInput: document.getElementById('question-count'),
+    // サイド: 共通 Settings
+    sideSettings: document.getElementById('side-settings'),
     menuThemeToggle: document.getElementById('theme-toggle-menu'),
     menuSizeSmall: document.getElementById('size-small-menu'),
     menuSizeMedium: document.getElementById('size-medium-menu'),
     menuSizeLarge: document.getElementById('size-large-menu'),
+
+    // サイド: メニュー専用
+    sideMenu: document.getElementById('side-menu'),
+    questionCountInput: document.getElementById('question-count'),
 
     // クイズ（メイン）
     mainQuizSection: document.getElementById('main-quiz'),
@@ -33,7 +36,7 @@ export const dom = {
     optionsContainer: document.getElementById('options-container'),
     nextButton: document.getElementById('next-button'),
 
-    // クイズ（サイド）
+    // クイズ（サイド専用）
     sideQuiz: document.getElementById('side-quiz'),
     reviewEmpty: document.getElementById('review-empty'),
     reviewList: document.getElementById('review-list'),
