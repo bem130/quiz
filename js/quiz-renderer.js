@@ -33,12 +33,12 @@ function renderRubyToken(token, entity) {
 
     const baseText =
         base.source === 'key'
-            ? (entity[base.field] ?? '')
+            ? (entity?.[base.field] ?? '')
             : (base.value ?? '');
 
     const rubyText =
         ruby.source === 'key'
-            ? (entity[ruby.field] ?? '')
+            ? (entity?.[ruby.field] ?? '')
             : (ruby.value ?? '');
 
     const rubyEl = document.createElement('ruby');
@@ -77,7 +77,7 @@ export function renderQuestionText(
             const span = createStyledSpan(token.value ?? '', token.styles || []);
             targetElement.appendChild(span);
         } else if (token.type === 'key') {
-            const value = entity[token.field] ?? '';
+            const value = entity?.[token.field] ?? '';
             const span = createStyledSpan(value, token.styles || []);
             targetElement.appendChild(span);
         } else if (token.type === 'ruby') {
@@ -93,11 +93,6 @@ export function renderQuestionText(
 
 /**
  * Create option button with numeric label (1–4) and ruby text.
- * @param {*} hiderubyToken 
- * @param {*} entity 
- * @param {number} index option index (0-based)
- * @param {*} onClick 
- * @returns {HTMLButtonElement}
  */
 function createRubyOptionButton(hiderubyToken, entity, index, onClick) {
     const btn = document.createElement('button');
@@ -193,10 +188,24 @@ export function resetReviewList() {
     dom.mistakeCount.classList.add('hidden');
 }
 
-export function addReviewItem(question, entitySet, questionNumber) {
+/**
+ * Mistakes リストに 1 件追加する（2段構成）
+ * 1段目: [Q4 Incorrect] | [Question text...]
+ * 2段目: [Your answer ...] | [Correct ...]
+ */
+export function addReviewItem(question, entitySet, questionNumber, selectedIndex) {
     const entities = entitySet.entities || {};
     const entity = entities[question.entityId];
     if (!entity) return;
+
+    const options = question.answer.options || [];
+    const correctIndex = question.answer.correctIndex;
+
+    const selectedOpt = options[selectedIndex];
+    const correctOpt = options[correctIndex];
+
+    const selectedEntity = selectedOpt ? entities[selectedOpt.entityId] : null;
+    const correctEntity = correctOpt ? entities[correctOpt.entityId] : null;
 
     // 最初のミスなら「No mistakes yet.」を消す
     dom.reviewEmpty.classList.add('hidden');
@@ -207,25 +216,85 @@ export function addReviewItem(question, entitySet, questionNumber) {
         'rounded-lg border border-slate-300 dark:border-slate-700',
         'bg-white dark:bg-slate-900',
         'px-3 py-2',
-        'text-xs',
-        'space-y-1'
+        'text-xs'
     ].join(' ');
 
-    const header = document.createElement('div');
-    header.className = 'flex justify-between items-center';
+    /* --- 1段目: ヘッダ + 問題文（横並び） --- */
+    const topRow = document.createElement('div');
+    topRow.className = 'flex items-start gap-3 justify-between';
+
+    // 左側: Q4 + Incorrect
+    const headerBox = document.createElement('div');
+    headerBox.className = 'flex flex-col gap-1 min-w-[3.5rem]';
+
+    const headerLine = document.createElement('div');
+    headerLine.className = 'flex items-center gap-2';
 
     const qLabel = document.createElement('span');
     qLabel.className = 'font-semibold text-slate-800 dark:text-slate-100';
     qLabel.textContent = `Q${questionNumber}`;
 
-    header.appendChild(qLabel);
-    li.appendChild(header);
+    const badge = document.createElement('span');
+    badge.className =
+        'text-[0.7rem] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-300 border border-red-300/60 dark:border-red-500/50';
+    badge.textContent = 'Incorrect';
 
-    // 問題文（hide/hideruby も含めて再表示）
+    headerLine.appendChild(qLabel);
+    headerLine.appendChild(badge);
+    headerBox.appendChild(headerLine);
+
+    // 右側: 問題文（flex-1 で広く取る）
     const qText = document.createElement('div');
-    qText.className = 'text-slate-700 dark:text-slate-200';
+    qText.className = 'flex-1 text-slate-700 dark:text-slate-200';
     renderQuestionText(question.patternTokens, entity, false, qText);
-    li.appendChild(qText);
+
+    topRow.appendChild(headerBox);
+    topRow.appendChild(qText);
+    li.appendChild(topRow);
+
+    /* --- 2段目: Your answer / Correct（横並び） --- */
+    const bottomRow = document.createElement('div');
+    bottomRow.className = 'mt-2 flex flex-wrap gap-4';
+
+    if (selectedEntity) {
+        const yourCol = document.createElement('div');
+        yourCol.className = 'flex-1 min-w-[8rem]';
+
+        const label = document.createElement('div');
+        label.className =
+            'text-[0.7rem] uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-0.5';
+        label.textContent = 'Your answer';
+
+        const rubyBox = document.createElement('div');
+        rubyBox.className = 'text-slate-800 dark:text-slate-100';
+        const rubyEl = renderRubyToken(question.answer.hiderubyToken, selectedEntity);
+        rubyBox.appendChild(rubyEl);
+
+        yourCol.appendChild(label);
+        yourCol.appendChild(rubyBox);
+        bottomRow.appendChild(yourCol);
+    }
+
+    if (correctEntity) {
+        const correctCol = document.createElement('div');
+        correctCol.className = 'flex-1 min-w-[8rem]';
+
+        const label = document.createElement('div');
+        label.className =
+            'text-[0.7rem] uppercase tracking-wide text-emerald-600 dark:text-emerald-300 mb-0.5';
+        label.textContent = 'Correct';
+
+        const rubyBox = document.createElement('div');
+        rubyBox.className = 'text-slate-800 dark:text-slate-100';
+        const rubyEl = renderRubyToken(question.answer.hiderubyToken, correctEntity);
+        rubyBox.appendChild(rubyEl);
+
+        correctCol.appendChild(label);
+        correctCol.appendChild(rubyBox);
+        bottomRow.appendChild(correctCol);
+    }
+
+    li.appendChild(bottomRow);
 
     dom.reviewList.appendChild(li);
 

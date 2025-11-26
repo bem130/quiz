@@ -175,7 +175,13 @@ function handleSelectOption(selectedIndex) {
     if (selectedIndex === correctIndex) {
         currentScore += 1;
     } else {
-        addReviewItem(currentQuestion, quizDef.entitySet, currentIndex + 1);
+        // ★ 誤答の index も Mistakes に渡す
+        addReviewItem(
+            currentQuestion,
+            quizDef.entitySet,
+            currentIndex + 1,
+            selectedIndex
+        );
     }
 
     showOptionFeedback(currentQuestion, selectedIndex);
