@@ -11,7 +11,9 @@ import {
     renderProgress,
     showOptionFeedback,
     resetReviewList,
-    addReviewItem
+    addReviewItem,
+    renderTips,
+    resetTips
 } from './quiz-renderer.js';
 
 let quizDef = null;
@@ -134,6 +136,7 @@ function startQuiz() {
     engine.setMode(modeId);
     renderProgress(currentIndex, totalQuestions, currentScore);
     resetReviewList();
+    resetTips();
 
     showScreen('quiz');
     loadNextQuestion();
@@ -148,7 +151,14 @@ function loadNextQuestion() {
     hasAnswered = false;
     dom.nextButton.disabled = true;
 
+    // 前の問題の Tips をクリア
+    resetTips();
+
     currentQuestion = engine.generateQuestion();
+
+    // 複数回答用に、ユーザーの穴埋め回答配列を常に初期化しておく
+    currentQuestion.userFillAnswers = [];
+
     const entity = quizDef.entitySet.entities[currentQuestion.entityId];
 
     renderQuestionText(currentQuestion.patternTokens, entity, true);
@@ -172,10 +182,41 @@ function handleSelectOption(selectedIndex) {
     // まだ答えていないときの通常処理
     hasAnswered = true;
 
-    if (selectedIndex === correctIndex) {
+    // --- 複数回答: fill_in_blank の採点 ---
+    let fillCorrect = true;
+
+    // 常に配列として扱えるように保証
+    if (!Array.isArray(currentQuestion.userFillAnswers)) {
+        currentQuestion.userFillAnswers = [];
+    } else {
+        currentQuestion.userFillAnswers.length = 0;
+    }
+
+    if (currentQuestion.fillBlanks && currentQuestion.fillBlanks.length > 0) {
+        const inputs = dom.questionText.querySelectorAll('input[data-fill-blank="1"]');
+
+        // 複数の穴埋めに対して、1つでも違えば fillCorrect = false
+        currentQuestion.fillBlanks.forEach((fb, idx) => {
+            const input = inputs[idx];
+            const userRaw = input ? input.value : '';
+            const user = (userRaw || '').trim();
+            currentQuestion.userFillAnswers.push(user);
+
+            const correctText = (fb.correctText || '').trim();
+            if (user !== correctText) {
+                fillCorrect = false;
+            }
+        });
+    }
+
+    const isChoiceCorrect = selectedIndex === correctIndex;
+    // 「複数回答」の全体正解: choice も fill も全部正しい
+    const isFullyCorrect = isChoiceCorrect && fillCorrect;
+
+    if (isFullyCorrect) {
         currentScore += 1;
     } else {
-        // ★ 誤答の index も Mistakes に渡す
+        // 誤答の index も Mistakes に渡す
         addReviewItem(
             currentQuestion,
             quizDef.entitySet,
@@ -187,11 +228,23 @@ function handleSelectOption(selectedIndex) {
     showOptionFeedback(currentQuestion, selectedIndex);
     renderProgress(currentIndex, totalQuestions, currentScore);
 
+    // Tips 表示（正誤に応じて）
+    const entity = quizDef.entitySet.entities[currentQuestion.entityId];
+    if (currentQuestion.patternTips && currentQuestion.patternTips.length && entity) {
+        renderTips(currentQuestion.patternTips, entity, isFullyCorrect);
+    } else {
+        resetTips();
+    }
+
     dom.nextButton.disabled = false;
 }
 
 function showResult() {
     dom.resultScore.textContent = `${currentScore} / ${totalQuestions}`;
+
+    // 結果画面では Tips を消す
+    resetTips();
+
     showScreen('result');
 }
 
@@ -283,6 +336,7 @@ async function bootstrap() {
             currentScore = 0;
             hasAnswered = false;
             dom.nextButton.disabled = true;
+            resetTips();
             showScreen('quiz');
             loadNextQuestion();
         });

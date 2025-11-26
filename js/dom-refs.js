@@ -36,6 +36,9 @@ export const dom = {
     optionsContainer: document.getElementById('options-container'),
     nextButton: document.getElementById('next-button'),
 
+    // Tips コンテナ
+    tipContainer: document.getElementById('tip-container'),
+
     // クイズ（サイド専用）
     sideQuiz: document.getElementById('side-quiz'),
     reviewEmpty: document.getElementById('review-empty'),
