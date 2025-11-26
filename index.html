@@ -8,6 +8,22 @@
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- Tailwind config: darkMode を class に -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#1e293b'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+
     <!-- KaTeX CSS & JS (with mhchem for \ce) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" crossorigin="anonymous">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js" crossorigin="anonymous"></script>
@@ -15,23 +31,24 @@
 
     <link rel="stylesheet" href="css/app.css" />
 </head>
-<body class="bg-slate-950 text-slate-100">
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-300">
+
     <!-- 画面いっぱい 2 分割レイアウト -->
     <div id="app" class="layout-container">
         <!-- 左: メインエリア（メニュー or クイズ） -->
-        <main class="main-panel bg-slate-900 flex flex-col">
+        <main class="main-panel bg-white dark:bg-slate-850 flex flex-col transition-colors duration-300">
             <!-- 共通ヘッダ -->
-            <header class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+            <header class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-850/90 flex items-center justify-between transition-colors duration-300">
                 <div>
                     <h1 id="app-title" class="text-lg font-semibold">4-choice Quiz</h1>
-                    <p id="app-description" class="text-xs text-slate-400 mt-1">
+                    <p id="app-description" class="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         Loading quiz definition...
                     </p>
                 </div>
                 <!-- クイズ中に右上にスコア表示 -->
                 <div id="quiz-header-score" class="hidden text-right text-xs">
-                    <div class="uppercase text-[10px] tracking-wide text-slate-500">Score</div>
-                    <div class="text-lg font-semibold text-emerald-400" id="current-score">0</div>
+                    <div class="uppercase text-[0.7rem] tracking-wide text-slate-500 dark:text-slate-400">Score</div>
+                    <div class="text-lg font-semibold text-emerald-500" id="current-score">0</div>
                 </div>
             </header>
 
@@ -39,22 +56,28 @@
             <section id="main-menu" class="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
                 <!-- Available Quizzes -->
                 <section>
-                    <h2 class="text-sm font-semibold mb-2">Available Quizzes</h2>
+                    <h2 class="text-sm font-semibold mb-2 text-slate-800 dark:text-slate-100">Available Quizzes</h2>
                     <div id="quiz-list" class="space-y-2">
                         <!-- JS で埋め込み -->
                     </div>
                 </section>
 
-                <!-- Mode -->
+                <!-- Mode（ボタンリスト） -->
                 <section>
-                    <h2 class="text-sm font-semibold mb-2">Mode</h2>
+                    <h2 class="text-sm font-semibold mb-2 text-slate-800 dark:text-slate-100">Mode</h2>
                     <div id="mode-list" class="space-y-2">
                         <!-- JS でボタンを生成 -->
                     </div>
                 </section>
 
                 <div class="pt-2 flex justify-end">
-                    <button id="start-button" class="px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400">
+                    <button
+                        id="start-button"
+                        class="px-4 py-2 text-sm font-semibold rounded-xl
+                               bg-emerald-500 text-slate-950 hover:bg-emerald-400
+                               dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400
+                               transition-colors"
+                    >
                         Start Quiz
                     </button>
                 </div>
@@ -63,13 +86,13 @@
             <!-- メイン: クイズ画面 -->
             <section id="main-quiz" class="hidden flex-1 overflow-y-auto flex flex-col">
                 <!-- 進捗バー -->
-                <div class="px-6 py-3 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                <div class="px-6 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-900/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 transition-colors duration-300">
                     <div>
-                        <div class="uppercase text-[10px] tracking-wide text-slate-500">Progress</div>
-                        <div class="text-lg font-semibold text-slate-100">
+                        <div class="uppercase text-[0.7rem] tracking-wide">Progress</div>
+                        <div class="text-lg font-semibold text-slate-900 dark:text-slate-100">
                             <span id="current-q-num">1</span>
-                            <span class="text-xs text-slate-500 mx-1">/</span>
-                            <span id="total-q-num" class="text-slate-400">10</span>
+                            <span class="text-xs text-slate-400 mx-1">/</span>
+                            <span id="total-q-num" class="text-slate-500 dark:text-slate-300">10</span>
                         </div>
                     </div>
                 </div>
@@ -87,8 +110,18 @@
                 </div>
 
                 <!-- Nextボタン -->
-                <footer class="px-6 py-3 border-t border-slate-800 flex justify-end">
-                    <button id="next-button" class="px-4 py-2 text-xs rounded-xl border border-slate-700 text-slate-200 hover:border-emerald-400 disabled:opacity-40" disabled>
+                <footer class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end transition-colors duration-300">
+                    <button
+                        id="next-button"
+                        class="px-4 py-2 text-xs rounded-xl
+                               border border-slate-300 dark:border-slate-700
+                               text-slate-700 dark:text-slate-200
+                               bg-white dark:bg-slate-900
+                               hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800
+                               disabled:opacity-40
+                               transition-colors"
+                        disabled
+                    >
                         Next
                     </button>
                 </footer>
@@ -96,53 +129,63 @@
         </main>
 
         <!-- 右: サブエリア（共通 Settings + メニュー/クイズで切り替え） -->
-        <aside class="side-panel bg-slate-950 text-xs">
-            <!-- ① 共通: Settings（メニュー/クイズ共通） -->
-            <section id="side-settings" class="border-b border-slate-800">
-                <div class="px-4 py-3">
-                    <h2 class="font-semibold text-slate-200 text-sm">Settings</h2>
-                </div>
-                <div class="px-4 pb-3 space-y-3">
+        <aside class="side-panel bg-slate-50 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 text-xs transition-colors duration-300">
+            <!-- ① 共通: Settings（コンパクト） -->
+            <section id="side-settings" class="border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 transition-colors duration-300">
+                <div class="px-3 py-2 flex items-center justify-between gap-3">
                     <!-- Text size -->
-                    <section class="space-y-1">
-                        <div class="text-[11px] text-slate-400">Text size</div>
-                        <div class="inline-flex rounded-full border border-slate-700 bg-slate-900 overflow-hidden">
-                            <button id="size-small-menu" class="px-3 py-1 text-[10px] font-bold text-slate-400 hover:bg-slate-800">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[0.7rem] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                            Text
+                        </span>
+                        <div class="inline-flex rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden">
+                            <button id="size-small-menu" class="px-2 py-0.5 text-[0.7rem] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700">
                                 A
                             </button>
-                            <button id="size-medium-menu" class="px-3 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
+                            <button id="size-medium-menu" class="px-2 py-0.5 text-[0.8rem] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
                                 A
                             </button>
-                            <button id="size-large-menu" class="px-3 py-1 text-[12px] font-bold text-slate-50 hover:bg-slate-800">
+                            <button id="size-large-menu" class="px-2 py-0.5 text-[0.9rem] font-bold text-slate-900 dark:text-slate-50 hover:bg-slate-100 dark:hover:bg-slate-700">
                                 A
                             </button>
                         </div>
-                    </section>
+                    </div>
 
                     <!-- Theme -->
-                    <section class="space-y-1">
-                        <div class="text-[11px] text-slate-400">Theme</div>
-                        <button id="theme-toggle-menu" class="px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 hover:border-emerald-400 text-[11px] w-full text-left">
-                            Toggle Dark / Light
+                    <div class="flex items-center gap-2">
+                        <span class="text-[0.7rem] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                            Theme
+                        </span>
+                        <button
+                            id="theme-toggle-menu"
+                            type="button"
+                            class="px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[0.8rem] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                        >
+                            Dark / Light
                         </button>
-                    </section>
+                    </div>
                 </div>
             </section>
 
             <!-- ② メニュー専用: Number of questions -->
             <section id="side-menu" class="flex-1 flex flex-col">
-                <div class="px-4 py-3 border-b border-slate-800">
-                    <h2 class="font-semibold text-slate-200 text-sm">Quiz options</h2>
+                <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 transition-colors duration-300">
+                    <h2 class="font-semibold text-slate-800 dark:text-slate-100 text-sm">Quiz options</h2>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-4">
-                    <!-- Number of questions -->
                     <section class="space-y-2">
-                        <label for="question-count" class="block text-[11px] text-slate-400">
+                        <label for="question-count" class="block text-xs text-slate-500 dark:text-slate-400">
                             Number of questions
                         </label>
-                        <input id="question-count" type="number" min="1" max="50" value="10"
-                               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs" />
-                        <p class="text-[10px] text-slate-500">
+                        <input
+                            id="question-count"
+                            type="number"
+                            min="1"
+                            max="50"
+                            value="10"
+                            class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100"
+                        />
+                        <p class="text-xs text-slate-500 dark:text-slate-500">
                             You can change the number of questions between 1 and 50.
                         </p>
                     </section>
@@ -152,18 +195,18 @@
             <!-- ③ クイズ専用: Mistakes + Result -->
             <section id="side-quiz" class="hidden flex-1 flex flex-col">
                 <!-- Mistakes ヘッダー -->
-                <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 flex items-center justify-between transition-colors duration-300">
                     <div class="flex items-center gap-2">
-                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Mistakes</span>
+                        <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Mistakes</span>
                     </div>
-                    <span id="mistake-count" class="hidden bg-red-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                    <span id="mistake-count" class="hidden bg-red-500 text-white text-[0.7rem] font-semibold px-2 py-0.5 rounded-full">
                         0
                     </span>
                 </div>
 
                 <!-- Mistakes リスト -->
                 <div class="flex-1 overflow-y-auto p-3" id="review-container">
-                    <div id="review-empty" class="h-full flex flex-col items-center justify-center text-slate-500 text-[11px]">
+                    <div id="review-empty" class="h-full flex flex-col items-center justify-center text-slate-500 text-xs">
                         No mistakes yet.
                     </div>
                     <ul id="review-list" class="space-y-2 hidden">
@@ -172,19 +215,25 @@
                 </div>
 
                 <!-- Result footer (クイズ終了後に表示) -->
-                <div id="result-screen" class="px-4 py-3 border-t border-slate-800 hidden">
+                <div id="result-screen" class="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 hidden transition-colors duration-300">
                     <div class="space-y-2">
-                        <div class="text-[11px] text-slate-400 uppercase tracking-wide">
+                        <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                             Result
                         </div>
-                        <div class="text-sm font-semibold">
+                        <div class="text-sm font-semibold text-slate-800 dark:text-slate-100">
                             Score: <span id="result-score">0</span>
                         </div>
                         <div class="flex gap-2 mt-2">
-                            <button id="retry-button" class="flex-1 px-3 py-1.5 rounded-lg border border-slate-700 text-[11px] hover:border-emerald-400">
+                            <button
+                                id="retry-button"
+                                class="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            >
                                 Retry
                             </button>
-                            <button id="back-to-menu-button" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-800 text-[11px] hover:bg-slate-700">
+                            <button
+                                id="back-to-menu-button"
+                                class="flex-1 px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-50 hover:bg-slate-700 transition-colors"
+                            >
                                 Menu
                             </button>
                         </div>
@@ -192,7 +241,6 @@
                 </div>
             </section>
         </aside>
-
     </div>
 
     <script type="module" src="js/main.js"></script>

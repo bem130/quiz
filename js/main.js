@@ -24,6 +24,7 @@ let currentScore = 0;
 let currentQuestion = null;
 let hasAnswered = false;
 
+// 現在選択中の modeId
 let currentModeId = null;
 
 // 画面切り替え: "menu" / "quiz" / "result"
@@ -57,13 +58,13 @@ function showScreen(name) {
     }
 }
 
+// Mode ボタン生成
 function populateModeButtons() {
     dom.modeList.innerHTML = '';
     if (!quizDef.modes || quizDef.modes.length === 0) {
         return;
     }
 
-    // 初期値: まだ決まっていなければ最初のモードを選択
     if (!currentModeId) {
         currentModeId = quizDef.modes[0].id;
     }
@@ -74,10 +75,10 @@ function populateModeButtons() {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className =
-            'w-full text-left px-3 py-2 rounded-xl border text-xs transition ' +
+            'w-full text-left px-3 py-2 rounded-xl border text-xs transition-colors ' +
             (isActive
-                ? 'border-emerald-400 bg-emerald-950/40 text-emerald-100'
-                : 'border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400 hover:bg-slate-800/60');
+                ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-100'
+                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800');
 
         const title = document.createElement('div');
         title.className = 'font-semibold';
@@ -86,14 +87,13 @@ function populateModeButtons() {
 
         if (mode.description) {
             const desc = document.createElement('div');
-            desc.className = 'text-[11px] text-slate-400';
+            desc.className = 'text-[0.8rem] text-slate-500 dark:text-slate-400';
             desc.textContent = mode.description;
             btn.appendChild(desc);
         }
 
         btn.addEventListener('click', () => {
             currentModeId = mode.id;
-            // 押されたら選択状態を更新
             populateModeButtons();
         });
 
@@ -152,7 +152,6 @@ function handleSelectOption(selectedIndex) {
     if (selectedIndex === correctIndex) {
         currentScore += 1;
     } else {
-        // 間違えた問題をサブエリアに追加
         addReviewItem(currentQuestion, quizDef.entitySet, currentIndex + 1);
     }
 
@@ -188,7 +187,7 @@ async function bootstrap() {
         engine = new QuizEngine(quizDef);
         populateModeButtons();
 
-        // --- 共通 Settings エリアのボタン ---
+        // 共通 Settings エリアのボタン
         if (dom.menuThemeToggle) {
             dom.menuThemeToggle.addEventListener('click', () => {
                 toggleTheme();
@@ -204,7 +203,7 @@ async function bootstrap() {
             dom.menuSizeLarge.addEventListener('click', () => setSize('l'));
         }
 
-        // --- クイズ開始 / 進行系 ---
+        // クイズ開始 / 進行系
         dom.startButton.addEventListener('click', startQuiz);
 
         dom.nextButton.addEventListener('click', () => {

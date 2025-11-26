@@ -3,26 +3,26 @@ import { dom } from './dom-refs.js';
 
 function createStyledSpan(text, styles = []) {
     const span = document.createElement('span');
+
+    // KaTeX
+    if (styles.includes('katex') && window.katex) {
+        try {
+            window.katex.render(text, span, {
+                throwOnError: false,
+                strict: false
+            });
+            return span;
+        } catch (e) {
+            // fall through to plain text
+        }
+    }
+
     span.textContent = text;
 
     if (styles.includes('bold')) span.classList.add('font-semibold');
     if (styles.includes('italic')) span.classList.add('italic');
     if (styles.includes('serif')) span.classList.add('font-serif');
     if (styles.includes('sans')) span.classList.add('font-sans');
-
-    if (styles.includes('katex')) {
-        const raw = text;
-        span.textContent = '';
-        if (window.katex) {
-            try {
-                window.katex.render(raw, span, { throwOnError: false });
-            } catch {
-                span.textContent = raw;
-            }
-        } else {
-            span.textContent = raw;
-        }
-    }
 
     return span;
 }
@@ -31,19 +31,23 @@ function renderRubyToken(token, entity) {
     const base = token.base;
     const ruby = token.ruby;
 
-    const baseText = base.source === 'key'
-        ? (entity[base.field] ?? '')
-        : (base.value ?? '');
-    const rubyText = ruby.source === 'key'
-        ? (entity[ruby.field] ?? '')
-        : (ruby.value ?? '');
+    const baseText =
+        base.source === 'key'
+            ? (entity[base.field] ?? '')
+            : (base.value ?? '');
+
+    const rubyText =
+        ruby.source === 'key'
+            ? (entity[ruby.field] ?? '')
+            : (ruby.value ?? '');
 
     const rubyEl = document.createElement('ruby');
 
     const rb = createStyledSpan(baseText, base.styles || []);
     const rtSpan = createStyledSpan(rubyText, ruby.styles || []);
     const rt = document.createElement('rt');
-    rt.classList.add('text-[10px]');
+    // rem ベースの小さい文字（スケールに追従）
+    rt.classList.add('text-[0.65rem]');
     rt.appendChild(rtSpan);
 
     rubyEl.appendChild(rb);
@@ -52,15 +56,19 @@ function renderRubyToken(token, entity) {
     return rubyEl;
 }
 
-// ★ targetElement を指定できるように
-export function renderQuestionText(patternTokens, entity, skipAnswerTokens = true, targetElement = dom.questionText) {
+// targetElement を指定できるようにしておく（mistake 用でも再利用）
+export function renderQuestionText(
+    patternTokens,
+    entity,
+    skipAnswerTokens = true,
+    targetElement = dom.questionText
+) {
     targetElement.innerHTML = '';
-    if (!patternTokens) return;
 
-    patternTokens.forEach(token => {
-        if (!token) return;
+    patternTokens.forEach((token) => {
+        if (!token || !token.type) return;
 
-        // hideruby は選択肢専用にして、問題文には出さない
+        // hideruby は選択肢専用にして、通常の問題文には出さない
         if (skipAnswerTokens && token.type === 'hideruby') {
             return;
         }
@@ -86,7 +94,14 @@ export function renderQuestionText(patternTokens, entity, skipAnswerTokens = tru
 function createRubyOptionButton(hiderubyToken, entity, onClick) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'w-full text-left px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 hover:border-emerald-400 text-sm';
+    btn.className = [
+        'w-full text-left px-3 py-2 rounded-xl border text-xs transition-colors',
+        'bg-white dark:bg-slate-900',
+        'border-slate-300 dark:border-slate-700',
+        'text-slate-800 dark:text-slate-100',
+        'hover:bg-slate-100 dark:hover:bg-slate-800'
+    ].join(' ');
+
     const rubyEl = renderRubyToken(hiderubyToken, entity);
     btn.appendChild(rubyEl);
     btn.addEventListener('click', onClick);
@@ -99,26 +114,39 @@ export function renderOptions(question, entitySet, onSelectOption) {
 
     question.answer.options.forEach((opt, idx) => {
         const ent = entities[opt.entityId];
-        const btn = createRubyOptionButton(question.answer.hiderubyToken, ent, () => {
-            onSelectOption(idx);
-        });
+        const btn = createRubyOptionButton(
+            question.answer.hiderubyToken,
+            ent,
+            () => {
+                onSelectOption(idx);
+            }
+        );
         btn.dataset.index = String(idx);
         dom.optionsContainer.appendChild(btn);
     });
 }
 
 export function showOptionFeedback(question, selectedIndex) {
-    const correctIndex = question.answer.correctIndex;
     const buttons = Array.from(dom.optionsContainer.querySelectorAll('button'));
+    const correctIndex = question.answer.correctIndex;
 
     buttons.forEach((btn, idx) => {
         btn.disabled = true;
-        btn.classList.remove('hover:border-emerald-400');
+        btn.classList.remove('hover:bg-slate-100', 'dark:hover:bg-slate-800');
+
         if (idx === correctIndex) {
-            btn.classList.add('border-emerald-400', 'bg-emerald-900/40');
+            btn.classList.add(
+                'border-emerald-400',
+                'bg-emerald-50',
+                'dark:bg-emerald-900/40'
+            );
         }
         if (idx === selectedIndex && idx !== correctIndex) {
-            btn.classList.add('border-red-400', 'bg-red-900/40');
+            btn.classList.add(
+                'border-red-400',
+                'bg-red-50',
+                'dark:bg-red-900/40'
+            );
         }
     });
 }
@@ -129,42 +157,51 @@ export function renderProgress(currentIndex, total, score) {
     dom.currentScore.textContent = String(score);
 }
 
-/* ========= レビューリスト（サブエリア） ========= */
-
 export function resetReviewList() {
-    if (!dom.reviewList || !dom.reviewEmpty || !dom.mistakeCount) return;
     dom.reviewList.innerHTML = '';
     dom.reviewList.classList.add('hidden');
     dom.reviewEmpty.classList.remove('hidden');
     dom.mistakeCount.classList.add('hidden');
-    dom.mistakeCount.textContent = '0';
 }
 
-export function addReviewItem(questionInstance, entitySet, questionNumber) {
-    if (!dom.reviewList || !dom.reviewEmpty || !dom.mistakeCount) return;
+export function addReviewItem(question, entitySet, questionNumber) {
+    const entities = entitySet.entities || {};
+    const entity = entities[question.entityId];
+    if (!entity) return;
 
-    const entity = entitySet.entities[questionInstance.entityId];
-    const tmp = document.createElement('div');
-    // 質問文を HTML として再生成
-    renderQuestionText(questionInstance.patternTokens, entity, true, tmp);
-    const questionHtml = tmp.innerHTML;
-
+    // 最初のミスなら「No mistakes yet.」を消す
     dom.reviewEmpty.classList.add('hidden');
     dom.reviewList.classList.remove('hidden');
 
     const li = document.createElement('li');
-    li.className = 'bg-slate-900/60 border border-slate-700 rounded-xl p-3 text-xs space-y-1 fade-in';
+    li.className = [
+        'rounded-lg border border-slate-300 dark:border-slate-700',
+        'bg-white dark:bg-slate-900',
+        'px-3 py-2',
+        'text-xs',
+        'space-y-1'
+    ].join(' ');
 
-    li.innerHTML = `
-        <div class="text-[10px] text-slate-400">Q${questionNumber} mistake</div>
-        <div class="text-slate-100">${questionHtml}</div>
-    `;
+    const header = document.createElement('div');
+    header.className = 'flex justify-between items-center';
 
-    // 先頭に追加
-    dom.reviewList.prepend(li);
+    const qLabel = document.createElement('span');
+    qLabel.className = 'font-semibold text-slate-800 dark:text-slate-100';
+    qLabel.textContent = `Q${questionNumber}`;
 
-    // カウント更新
-    const count = parseInt(dom.mistakeCount.textContent || '0', 10) + 1;
+    header.appendChild(qLabel);
+    li.appendChild(header);
+
+    // 問題文（hide/hideruby も含めて再表示）
+    const qText = document.createElement('div');
+    qText.className = 'text-slate-700 dark:text-slate-200';
+    renderQuestionText(question.patternTokens, entity, false, qText);
+    li.appendChild(qText);
+
+    dom.reviewList.appendChild(li);
+
+    // カウンタ更新
+    const count = dom.reviewList.children.length;
     dom.mistakeCount.textContent = String(count);
     dom.mistakeCount.classList.remove('hidden');
 }

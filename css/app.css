@@ -8,14 +8,13 @@
 
 /* 画面サイズ + ユーザ設定スケールでフォントサイズを決める */
 html {
-    /* clamp(最小px, 画面依存の中間値, 最大px) * ユーザスケール */
     font-size: calc(clamp(14px, 1.8vmin + 0.5rem, 24px) * var(--app-scale));
 }
 
 body {
     height: var(--app-height); /* モバイルブラウザ対策 */
     overflow: hidden;          /* 全体スクロールを防ぎ、中身だけスクロール */
-    font-size: 1rem;           /* rem の基準は html で決まるので、ここは 1rem に固定 */
+    font-size: 1rem;
 }
 
 /* レイアウトコンテナ: 画面いっぱいのフレックス */
