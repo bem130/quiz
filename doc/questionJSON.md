@@ -302,13 +302,20 @@ shouldShowTip = (
 
 ```jsonc
 {
-    "type": "text" | "key" | "hide" | "ruby" | "hideruby",
+    "type": "text" | "key" | "hide" | "ruby" | "hideruby" | "br",
     "styles": ["bold", "italic", "serif", "sans", "katex"]
 }
 ```
 
 * `type`
   Token の種類（詳細は後述）。
+
+  * `"text"`      : 固定文字列
+  * `"key"`       : entity のフィールド参照
+  * `"hide"`      : 穴埋め（回答入力や選択肢の対象）
+  * `"ruby"`      : base + ruby の 2段組表示
+  * `"hideruby"`  : base + ruby をボタン表示し、回答対象にもする
+  * `"br"`        : 改行（HTML の `<br>` を 1 つ挿入する）
 
 * `styles?: string[]`（任意）
 
@@ -530,7 +537,72 @@ shouldShowTip = (
     **表示テキストが正解と同じになるダミー** を除外する。
     別フィールドでも、`baseText + "|" + rubyText` などで正規化した結果が同じなら除外する。
 
----
+### 6.7 type: "br"（改行）
+
+`br` は、問題文や Tips などのテキストの中で **明示的に改行を入れたいとき** に使用する Token（トークン）です。
+
+```jsonc
+{
+    "type": "br"
+}
+````
+
+* `type: "br"` だけを持つシンプルな Token で、追加のプロパティ（`styles` や `value` など）は不要です。
+* アプリ側では、この Token が現れた場所に **HTML の `<br>` 要素を 1 つ挿入** して表示します。
+* 採点には一切影響せず、**表示専用** の Token です。
+
+#### 6.7.1 利用例
+
+1 行のテキストを複数行に分けたい場合：
+
+```jsonc
+"tokens": [
+    {
+        "type": "text",
+        "value": "次の α-アミノ酸の側鎖 R の構造式を、化学式で入力しなさい。",
+        "styles": []
+    },
+    {
+        "type": "br"
+    },
+    {
+        "type": "text",
+        "value": "アミノ酸：",
+        "styles": []
+    },
+    {
+        "type": "br"
+    },
+    {
+        "type": "text",
+        "value": "側鎖 R：",
+        "styles": []
+    }
+]
+```
+
+上記のように `br` Token を挟むことで：
+
+* 1 行目: 「次の α-アミノ酸の側鎖 R の構造式を、化学式で入力しなさい。」
+* 2 行目: 「アミノ酸：」
+* 3 行目: 「側鎖 R：」
+
+という **3 行構成** の問題文として表示されます。
+
+#### 6.7.2 Tips や選択肢ラベルでの利用
+
+`br` Token は、次のような場所でも同様に利用できます。
+
+* Pattern の `tokens`（問題文本体）
+* Pattern の `tips[].tokens`（Tips の本文）
+* Mode で使用する `choiceLabel.tokens` など、Token 配列を使うすべての表示箇所
+
+すべて同じレンダリング関数（Token 配列を走査して HTML 要素を生成する処理）で処理されるため、**どの場所でも同じように改行を入れられます**。
+
+#### 改行についての注意
+
+`text` Token の `value` に `"\n"`（改行コード）を含めても、ブラウザ上の表示では`"\\n"`という二文字として扱われます。
+**画面上で行を分けたい場合は、必ず `type: "br"` の Token を使用してください。**
 
 ## 7. パターン例（hide と hideruby の混在）
 
