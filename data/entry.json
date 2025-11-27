@@ -14,6 +14,13 @@
             "title": "Alpha Amino Acid Quiz (demo with tips)",
             "description": "Demo quiz to test patterns, tips, and multiple question types for alpha amino acids.",
             "color": 130
+        },
+        {
+            "id": "Test",
+            "dir": "data/sample",
+            "title": "Test",
+            "description": "Demo quiz to test",
+            "color": 10
         }
     ]
 }
