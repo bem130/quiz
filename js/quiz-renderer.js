@@ -866,3 +866,103 @@ export function renderTips(tips, entity, isCorrect) {
 
     // 高さは常に確保しているので hidden/表示切替は不要
 }
+
+/**
+ * 全パーツ回答後に、各選択肢ボタンの中に
+ * 「その選択肢のエンティティで pattern を全部レンダリングしたプレビュー」
+ * を追記する。
+ *
+ * - KaTeX / ルビ表示は renderQuestionText と同じ経路を通るので自動対応。
+ * - 正答ボタン: 緑ハイライト + 「正答」
+ * - 選んだ誤答ボタン: 赤ハイライト + 「あなたの解答」
+ * - その他の選択肢: 中立色 + 「この選択肢」
+ */
+export function appendPatternPreviewToOptions(question, entitySet) {
+    if (!dom.optionsContainer) return;
+    if (!question || !Array.isArray(question.answers)) return;
+    if (!entitySet || !entitySet.entities) return;
+
+    const tokens = question.patternTokens || [];
+    if (!tokens.length) return;
+
+    const entities = entitySet.entities || {};
+
+    (question.answers || []).forEach((answer, answerIndex) => {
+        if (!answer || !Array.isArray(answer.options)) return;
+
+        const correctIndex = answer.correctIndex;
+        const selectedIndex = answer.userSelectedIndex;
+
+        const buttons = Array.from(
+            dom.optionsContainer.querySelectorAll(
+                `button[data-answer-index="${answerIndex}"]`
+            )
+        );
+
+        buttons.forEach((btn) => {
+            const optIdx = Number(btn.dataset.optionIndex);
+            const opt = answer.options[optIdx];
+            if (!opt) return;
+
+            const entity = entities[opt.entityId];
+            if (!entity) return;
+
+            // 2回目以降呼ばれたときに重複追記しないためのフラグ
+            if (btn.dataset.patternPreviewAttached === '1') return;
+            btn.dataset.patternPreviewAttached = '1';
+
+            const isCorrect = optIdx === correctIndex;
+            const isSelected =
+                selectedIndex != null && optIdx === selectedIndex;
+
+            // 追記コンテナ（ボタンの中にぶら下げる）
+            const container = document.createElement('div');
+            container.className = 'mt-1 text-[0.7rem] leading-snug';
+
+            const pill = document.createElement('div');
+            pill.className =
+                'rounded-md px-2 py-1 inline-flex flex-col sm:flex-row ' +
+                'flex-wrap items-start gap-x-2 gap-y-1 border';
+
+            if (isCorrect) {
+                // 正答 → 緑
+                pill.className +=
+                    ' bg-emerald-900/40 border-emerald-500 text-emerald-50';
+            } else if (isSelected) {
+                // 選んだ誤答 → 赤
+                pill.className +=
+                    ' bg-red-900/40 border-red-500 text-red-50';
+            } else {
+                // その他の選択肢 → 中立色
+                pill.className +=
+                    ' bg-slate-800/60 border-slate-600 text-slate-100';
+            }
+
+            const label = document.createElement('div');
+            label.className = 'font-semibold mr-1 text-[0.7rem]';
+
+            if (isCorrect) {
+                label.textContent = '正答';
+            } else if (isSelected) {
+                label.textContent = 'あなたの解答';
+            } else {
+                label.textContent = 'この選択肢';
+            }
+            pill.appendChild(label);
+
+            // pattern 全体を、この entity でレンダリングする領域
+            const patternWrapper = document.createElement('div');
+            patternWrapper.className =
+                'text-[0.7rem] leading-snug';
+
+            // ★ここで問題文と同じロジックで pattern を全部描画
+            // skipAnswerTokens = false にすることで、
+            // hide / hideruby も「正しい本文」として全部出す
+            renderQuestionText(tokens, entity, false, patternWrapper);
+
+            pill.appendChild(patternWrapper);
+            container.appendChild(pill);
+            btn.appendChild(container);
+        });
+    });
+}

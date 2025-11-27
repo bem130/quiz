@@ -16,7 +16,8 @@ import {
     resetTips,
     updateInlineBlank,
     showOptionFeedbackForAnswer,
-    revealNextAnswerGroup
+    revealNextAnswerGroup,
+    appendPatternPreviewToOptions
 } from './quiz-renderer.js';
 import { selectAnswer, resetSelections } from './answer-state.js';
 
@@ -211,8 +212,13 @@ function handleSelectOption(answerIndex, optionIndex) {
         addReviewItem(currentQuestion, quizDef.entitySet, currentIndex + 1);
     }
 
-    // 全パーツのボタンに最終的なフィードバックを適用
+    // 全パーツのボタンに最終的なフィードバックを適用（枠・背景の緑/赤など）
     showOptionFeedback(currentQuestion);
+
+    // ★各ボタンの中に「pattern 全部」をプレビューとして追記
+    appendPatternPreviewToOptions(currentQuestion, quizDef.entitySet);
+
+    // スコアなどは従来通り
     renderProgress(currentIndex, totalQuestions, currentScore);
 
     const entity = quizDef.entitySet.entities[currentQuestion.entityId];
