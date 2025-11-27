@@ -25,6 +25,7 @@ export const dom = {
     menuSizeXLarge: document.getElementById('size-xl-menu'),
     menuSizeXXLarge: document.getElementById('size-xxl-menu'),
     menuThemeToggle: document.getElementById('theme-toggle-menu'),
+    menuFullscreenToggle: document.getElementById('fullscreen-toggle-menu'),
 
     // メニュー側: 問題数
     questionCountInput: document.getElementById('question-count'),

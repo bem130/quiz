@@ -334,6 +334,18 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
                         >
                             Dark / Light
                         </button>
+
+                        <button
+                            id="fullscreen-toggle-menu"
+                            type="button"
+                            class="px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600
+                                bg-white dark:bg-slate-800 text-[0.8rem]
+                                text-slate-700 dark:text-slate-200
+                                hover:bg-slate-100 dark:hover:bg-slate-700
+                                transition-colors"
+                        >
+                            Full
+                        </button>
                     </div>
                 </div>
             </section>

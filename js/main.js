@@ -120,6 +120,64 @@ function populateModeButtons() {
     });
 }
 
+// --- Fullscreen helpers ---
+
+function isFullscreen() {
+    return !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+    );
+}
+
+function requestAppFullscreen() {
+    const el = document.documentElement; // 画面全体をフルスクリーンにする
+    if (el.requestFullscreen) {
+        el.requestFullscreen();
+    } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+    } else if (el.mozRequestFullScreen) {
+        el.mozRequestFullScreen();
+    } else if (el.msRequestFullscreen) {
+        el.msRequestFullscreen();
+    }
+}
+
+function exitAppFullscreen() {
+    if (document.exitFullscreen) {
+        document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+    } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+    } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+    }
+}
+
+function updateFullscreenButton() {
+    if (!dom.menuFullscreenToggle) return;
+    const active = isFullscreen();
+    dom.menuFullscreenToggle.textContent = active ? 'Exit Full' : 'Full';
+}
+
+function toggleFullscreen() {
+    try {
+        if (isFullscreen()) {
+            exitAppFullscreen();
+        } else {
+            requestAppFullscreen();
+        }
+    } catch (e) {
+        console.error('[fullscreen] toggle failed:', e);
+    } finally {
+        // 状態が変わったあとにラベルを更新（Esc などにも対応するため、イベントも後で登録）
+        setTimeout(updateFullscreenButton, 100);
+    }
+}
+
+
 function startQuiz() {
     const fallbackModeId =
         quizDef.modes && quizDef.modes.length > 0 ? quizDef.modes[0].id : null;
@@ -321,6 +379,21 @@ async function bootstrap() {
             dom.menuThemeToggle.addEventListener('click', () => {
                 toggleTheme();
             });
+        }
+
+        if (dom.menuFullscreenToggle) {
+            dom.menuFullscreenToggle.addEventListener('click', () => {
+                toggleFullscreen();
+            });
+
+            // フルスクリーン状態が Esc キーなどで変わったときもラベル更新
+            document.addEventListener('fullscreenchange', updateFullscreenButton);
+            document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+            document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+            document.addEventListener('MSFullscreenChange', updateFullscreenButton);
+
+            // 初期ラベル
+            updateFullscreenButton();
         }
 
         // Text size: 7 steps
