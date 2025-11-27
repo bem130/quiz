@@ -13,7 +13,10 @@ import {
     resetReviewList,
     addReviewItem,
     renderTips,
-    resetTips
+    resetTips,
+    updateInlineBlank,
+    showOptionFeedbackForAnswer,
+    revealNextAnswerGroup
 } from './quiz-renderer.js';
 import { selectAnswer, resetSelections } from './answer-state.js';
 
@@ -170,6 +173,11 @@ function handleSelectOption(answerIndex, optionIndex) {
 
     const selectionState = selectAnswer(currentQuestion, answerIndex, optionIndex);
 
+    // まずはこのパーツだけ本文の穴埋めとボタンを更新し、次のパーツを出す
+    updateInlineBlank(currentQuestion, quizDef.entitySet, answerIndex);
+    showOptionFeedbackForAnswer(currentQuestion, answerIndex);
+    revealNextAnswerGroup(answerIndex);
+
     // 既に採点済みの場合は、正答をクリックしたら次の問題へ
     if (hasAnswered) {
         if (selectionState.fullyCorrect && selectionState.lastSelectionIsCorrect) {
@@ -178,11 +186,12 @@ function handleSelectOption(answerIndex, optionIndex) {
         return;
     }
 
-    // 未選択のパーツがある場合は、まだ採点しない
+    // 未選択のパーツがある場合は、まだ採点しない（スコア・Mistakes などは保留）
     if (!selectionState.allSelected) {
         return;
     }
 
+    // ここに来た時点で、全パーツに回答が入った
     hasAnswered = true;
 
     if (selectionState.fullyCorrect) {
@@ -191,6 +200,7 @@ function handleSelectOption(answerIndex, optionIndex) {
         addReviewItem(currentQuestion, quizDef.entitySet, currentIndex + 1);
     }
 
+    // 全パーツのボタンに最終的なフィードバックを適用
     showOptionFeedback(currentQuestion);
     renderProgress(currentIndex, totalQuestions, currentScore);
 
@@ -233,13 +243,13 @@ function setupKeyboardShortcuts() {
             if (!answers.length) return;
 
             const targetIdx = answers.findIndex((ans) => ans.userSelectedIndex == null);
-            const answerIndex = targetIdx >= 0 ? targetIdx : 0;
-            const answer = answers[answerIndex];
+            const ansIndex = targetIdx >= 0 ? targetIdx : 0;
+            const answer = answers[ansIndex];
             const index = Number(e.key) - 1;
             const optionsLen = (answer && answer.options && answer.options.length) || 0;
             if (index >= 0 && index < optionsLen) {
                 e.preventDefault();
-                handleSelectOption(answerIndex, index);
+                handleSelectOption(ansIndex, index);
             }
             return;
         }

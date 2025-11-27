@@ -14,7 +14,7 @@ function isTipVisible(tip, isCorrect) {
 function createStyledSpan(text, styles = []) {
     const span = document.createElement('span');
 
-    // KaTeX対応
+    // KaTeX support
     if (styles.includes('katex') && window.katex) {
         try {
             window.katex.render(text, span, {
@@ -65,6 +65,21 @@ function renderRubyToken(token, entity) {
     return rubyEl;
 }
 
+// 下線だけの穴埋めプレースホルダ（answers[n] に対応）
+function createBlankPlaceholder(answerIndex) {
+    const wrapper = document.createElement('span');
+    wrapper.dataset.answerIndex = String(answerIndex);
+    wrapper.className = 'inline-flex flex-col items-start mx-1';
+
+    const underline = document.createElement('span');
+    underline.className =
+        'px-2 border-b border-slate-500 min-w-[2.5rem] inline-block';
+    underline.textContent = ' ';
+
+    wrapper.appendChild(underline);
+    return wrapper;
+}
+
 function appendTokens(targetElement, tokens, entity) {
     (tokens || []).forEach((token) => {
         if (!token || !token.type) return;
@@ -91,8 +106,11 @@ function appendTokens(targetElement, tokens, entity) {
 /**
  * 問題文を描画する。
  * - skipAnswerTokens === true のとき:
- *   - hideruby は表示せず（4択に出す）
- *   - hide はアンダーバー "____" を表示
+ *   - hideruby / hide で answer を持つトークンは
+ *     answers[n] に対応した下線プレースホルダを描画
+ *   - その他のトークンは通常通り
+ * - skipAnswerTokens === false のとき:
+ *   - hideruby / hide も含めて「正しい本文」をそのまま描画
  */
 export function renderQuestionText(
     patternTokens,
@@ -102,14 +120,24 @@ export function renderQuestionText(
 ) {
     targetElement.innerHTML = '';
 
+    let answerCounter = 0;
+
     (patternTokens || []).forEach((token) => {
         if (!token || !token.type) return;
 
-        if (skipAnswerTokens && token.type === 'hideruby') {
-            // 選択肢に出すので本文には出さない
-            return;
+        const isAnswerToken = Boolean(token.answer);
+
+        // クイズ本編: answer 付きの hide/hideruby は下線プレースホルダ
+        if (skipAnswerTokens && isAnswerToken) {
+            if (token.type === 'hide' || token.type === 'hideruby') {
+                const placeholder = createBlankPlaceholder(answerCounter);
+                answerCounter += 1;
+                targetElement.appendChild(placeholder);
+                return;
+            }
         }
 
+        // Mistakes など: skipAnswerTokens = false のときは「正解そのもの」を描画
         if (token.type === 'text') {
             const span = createStyledSpan(token.value ?? '', token.styles || []);
             targetElement.appendChild(span);
@@ -117,13 +145,19 @@ export function renderQuestionText(
             const value = entity?.[token.field] ?? '';
             const span = createStyledSpan(value, token.styles || []);
             targetElement.appendChild(span);
-        } else if (token.type === 'ruby') {
+        } else if (token.type === 'ruby' || token.type === 'hideruby') {
             const rubyEl = renderRubyToken(token, entity);
             targetElement.appendChild(rubyEl);
         } else if (token.type === 'hide') {
-            // 穴埋め位置は線だけ描く（実際の選択肢は options で出す）
-            const span = createStyledSpan('____', token.styles || []);
-            span.classList.add('px-2', 'border-b', 'border-slate-500');
+            const field = token.field;
+            const text = field ? (entity?.[field] ?? '') : '';
+            const span = createStyledSpan(
+                skipAnswerTokens ? '____' : (text || '____'),
+                token.styles || []
+            );
+            if (skipAnswerTokens) {
+                span.classList.add('px-2', 'border-b', 'border-slate-500');
+            }
             targetElement.appendChild(span);
         }
     });
@@ -181,6 +215,7 @@ function createOptionButton(answerIndex, optionIndex, answer, entity, onClick) {
 /**
  * optionsContainer に、answers[] すべての選択肢を描画する。
  * answer ごとにグループを作って縦に並べる。
+ * 複数パーツがある場合、最初のパーツ以外は非表示 (hidden) からスタート。
  */
 export function renderOptions(question, entitySet, onSelectOption) {
     const entities = entitySet.entities || {};
@@ -189,11 +224,16 @@ export function renderOptions(question, entitySet, onSelectOption) {
     (question.answers || []).forEach((answer, ansIdx) => {
         const group = document.createElement('div');
         group.className = 'mb-2 space-y-1';
+        group.dataset.answerIndex = String(ansIdx);
 
-        // 複数回答でも処理上は同じなので、ここでは番号だけ添える
+        if (ansIdx > 0) {
+            group.classList.add('hidden');
+        }
+
         if (question.answers.length > 1) {
             const groupLabel = document.createElement('div');
-            groupLabel.className = 'text-[0.7rem] text-slate-500 dark:text-slate-400';
+            groupLabel.className =
+                'text-[0.7rem] text-slate-500 dark:text-slate-400';
             groupLabel.textContent = `Part ${ansIdx + 1}`;
             group.appendChild(groupLabel);
         }
@@ -210,6 +250,134 @@ export function renderOptions(question, entitySet, onSelectOption) {
         });
 
         dom.optionsContainer.appendChild(group);
+    });
+}
+
+/**
+ * 指定した answers[index] に対応する本文中の穴埋めを
+ * 「×誤答」「正答（下線）」の2段表示に更新する。
+ */
+export function updateInlineBlank(question, entitySet, answerIndex) {
+    const entities = entitySet.entities || {};
+    const answers = question.answers || [];
+    const answer = answers[answerIndex];
+    if (!answer) return;
+
+    const placeholder = dom.questionText.querySelector(
+        `[data-answer-index="${answerIndex}"]`
+    );
+    if (!placeholder) return;
+
+    const correctOpt = answer.options[answer.correctIndex];
+    if (!correctOpt) return;
+
+    const correctEntity = entities[correctOpt.entityId];
+    if (!correctEntity) return;
+
+    const userIndex = answer.userSelectedIndex;
+    const isCorrect = userIndex === answer.correctIndex;
+    const userOpt =
+        userIndex != null ? answer.options[userIndex] : null;
+    const userEntity =
+        userOpt && entities[userOpt.entityId] ? entities[userOpt.entityId] : null;
+
+    placeholder.innerHTML = '';
+
+    const stack = document.createElement('div');
+    stack.className = 'flex flex-col items-start leading-tight';
+
+    // 上段: 誤答 (×) — 正解のときは表示しない
+    if (!isCorrect && userEntity) {
+        const wrongLine = document.createElement('div');
+        wrongLine.className =
+            'text-[0.8rem] text-red-500 dark:text-red-300 mb-0.5';
+
+        const xSpan = document.createElement('span');
+        xSpan.textContent = '× ';
+        wrongLine.appendChild(xSpan);
+
+        if (answer.token.type === 'hideruby') {
+            wrongLine.appendChild(renderRubyToken(answer.token, userEntity));
+        } else {
+            const field = answer.token.field;
+            const text = field
+                ? (userEntity?.[field] ?? '')
+                : (userEntity?.nameEnCap ?? '');
+            wrongLine.appendChild(
+                createStyledSpan(text, answer.token.styles || [])
+            );
+        }
+
+        stack.appendChild(wrongLine);
+    }
+
+    // 下段: 正答（下線付き）
+    const correctLine = document.createElement('div');
+    correctLine.className =
+        'px-2 border-b border-slate-500 inline-block min-w-[2.5rem]';
+
+    if (answer.token.type === 'hideruby') {
+        correctLine.appendChild(renderRubyToken(answer.token, correctEntity));
+    } else {
+        const field = answer.token.field;
+        const text = field
+            ? (correctEntity?.[field] ?? '')
+            : (correctEntity?.nameEnCap ?? '');
+        correctLine.appendChild(
+            createStyledSpan(text, answer.token.styles || [])
+        );
+    }
+
+    stack.appendChild(correctLine);
+    placeholder.appendChild(stack);
+}
+
+/**
+ * 指定パーツだけボタンに正誤フィードバックを付ける。
+ * - 正解: 緑
+ * - ユーザー選択かつ誤答: 赤
+ */
+export function showOptionFeedbackForAnswer(question, answerIndex) {
+    const buttons = Array.from(
+        dom.optionsContainer.querySelectorAll(
+            `button[data-answer-index="${answerIndex}"]`
+        )
+    );
+
+    buttons.forEach((btn) => {
+        const ansIdx = Number(btn.dataset.answerIndex);
+        const optIdx = Number(btn.dataset.optionIndex);
+
+        const answer = question.answers[ansIdx];
+        if (!answer) return;
+
+        const correctIndex = answer.correctIndex;
+        const selectedIndex = answer.userSelectedIndex;
+
+        btn.disabled = true;
+        btn.classList.remove('hover:bg-slate-100', 'dark:hover:bg-slate-800');
+
+        if (optIdx === correctIndex) {
+            btn.classList.add(
+                'border-emerald-400',
+                'dark:border-emerald-400',
+                'bg-emerald-50',
+                'dark:bg-emerald-900/40'
+            );
+        }
+
+        if (
+            selectedIndex != null &&
+            optIdx === selectedIndex &&
+            selectedIndex !== correctIndex
+        ) {
+            btn.classList.add(
+                'border-red-400',
+                'dark:border-red-400',
+                'bg-red-50',
+                'dark:bg-red-900/40'
+            );
+        }
     });
 }
 
@@ -245,7 +413,11 @@ export function showOptionFeedback(question) {
             );
         }
 
-        if (selectedIndex != null && optIdx === selectedIndex && selectedIndex !== correctIndex) {
+        if (
+            selectedIndex != null &&
+            optIdx === selectedIndex &&
+            selectedIndex !== correctIndex
+        ) {
             btn.classList.add(
                 'border-red-400',
                 'dark:border-red-400',
@@ -254,6 +426,18 @@ export function showOptionFeedback(question) {
             );
         }
     });
+}
+
+/**
+ * 次のパーツ (answerIndex + 1) の選択肢グループを表示する。
+ */
+export function revealNextAnswerGroup(answerIndex) {
+    const nextGroup = dom.optionsContainer.querySelector(
+        `div[data-answer-index="${answerIndex + 1}"]`
+    );
+    if (nextGroup) {
+        nextGroup.classList.remove('hidden');
+    }
 }
 
 export function renderProgress(currentIndex, total, score) {
@@ -271,8 +455,7 @@ export function resetReviewList() {
 
 /**
  * Mistakes リストに 1 件追加する。
- * answers[] をそのまま使い、
- * 各パーツの「Your answer」と「Correct」を並べて表示する。
+ * 各パーツを「Part N: ×誤答 / 正答（下線）」の2段表示で並べる。
  */
 export function addReviewItem(question, entitySet, questionNumber) {
     const entities = entitySet.entities || {};
@@ -315,105 +498,99 @@ export function addReviewItem(question, entitySet, questionNumber) {
 
     const qText = document.createElement('div');
     qText.className = 'flex-1 text-slate-700 dark:text-slate-200';
-    // Mistake 表示では hideruby も含めた全文を出してよいので skipAnswerTokens = false
+    // Mistake 表示では hideruby も含めた全文を出す
     renderQuestionText(question.patternTokens, entity, false, qText);
 
     topRow.appendChild(headerBox);
     topRow.appendChild(qText);
     li.appendChild(topRow);
 
-    // --- 2段目: Your answers / Correct answers ---
+    // --- 2段目: 各パーツの 2段表示 ---
     const bottomRow = document.createElement('div');
-    bottomRow.className = 'mt-2 flex flex-wrap gap-4';
-
-    const yourCol = document.createElement('div');
-    yourCol.className = 'flex-1 min-w-[8rem]';
-
-    const yourLabel = document.createElement('div');
-    yourLabel.className =
-        'text-[0.7rem] uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-0.5';
-    yourLabel.textContent = 'Your answers';
-
-    const yourList = document.createElement('ul');
-    yourList.className =
-        'list-disc list-inside space-y-0.5 text-slate-800 dark:text-slate-100';
-
-    const correctCol = document.createElement('div');
-    correctCol.className = 'flex-1 min-w-[8rem]';
-
-    const correctLabel = document.createElement('div');
-    correctLabel.className =
-        'text-[0.7rem] uppercase tracking-wide text-emerald-600 dark:text-emerald-300 mb-0.5';
-    correctLabel.textContent = 'Correct answers';
-
-    const correctList = document.createElement('ul');
-    correctList.className =
-        'list-disc list-inside space-y-0.5 text-slate-800 dark:text-slate-100';
+    bottomRow.className = 'mt-2 space-y-1 text-slate-800 dark:text-slate-100';
 
     (question.answers || []).forEach((answer, idx) => {
-        const userLi = document.createElement('li');
-        const correctLi = document.createElement('li');
+        const row = document.createElement('div');
+        row.className = 'flex items-start gap-2';
 
-        const userOpt =
-            answer.userSelectedIndex != null
-                ? answer.options[answer.userSelectedIndex]
-                : null;
+        const label = document.createElement('div');
+        label.className =
+            'text-[0.75rem] text-slate-500 dark:text-slate-400 mt-0.5';
+        label.textContent = `Part ${idx + 1}`;
+        row.appendChild(label);
+
+        const stack = document.createElement('div');
+        stack.className = 'flex flex-col items-start leading-tight';
+
+        const userIndex = answer.userSelectedIndex;
         const correctOpt = answer.options[answer.correctIndex];
+        const userOpt =
+            userIndex != null ? answer.options[userIndex] : null;
 
-        // 左: Your
-        if (!userOpt) {
-            userLi.textContent = `(Part ${idx + 1}) (no answer)`;
-        } else {
-            const ent = entities[userOpt.entityId];
-            const labelSpan = document.createElement('span');
-            labelSpan.textContent = `Part ${idx + 1}: `;
-            userLi.appendChild(labelSpan);
+        const correctEntity =
+            correctOpt && entities[correctOpt.entityId]
+                ? entities[correctOpt.entityId]
+                : null;
+        const userEntity =
+            userOpt && entities[userOpt.entityId]
+                ? entities[userOpt.entityId]
+                : null;
 
-            const contentSpan = document.createElement('span');
-            if (answer.token.type === 'hideruby') {
-                const rubyEl = renderRubyToken(answer.token, ent);
-                userLi.appendChild(rubyEl);
-            } else {
-                const field = answer.token.field;
-                const text = field ? (ent?.[field] ?? '') : (ent?.nameEnCap ?? '');
-                const span = createStyledSpan(text, answer.token.styles || []);
-                userLi.appendChild(span);
-            }
-        }
+        const isCorrect = userIndex === answer.correctIndex;
 
-        // 右: Correct
-        if (!correctOpt) {
-            correctLi.textContent = `(Part ${idx + 1}) (missing correct option)`;
-        } else {
-            const ent = entities[correctOpt.entityId];
-            const labelSpan = document.createElement('span');
-            labelSpan.textContent = `Part ${idx + 1}: `;
-            correctLi.appendChild(labelSpan);
+        // 上段: 誤答
+        if (!isCorrect && userEntity) {
+            const wrongLine = document.createElement('div');
+            wrongLine.className =
+                'text-[0.8rem] text-red-500 dark:text-red-300 mb-0.5';
+
+            const xSpan = document.createElement('span');
+            xSpan.textContent = '× ';
+            wrongLine.appendChild(xSpan);
 
             if (answer.token.type === 'hideruby') {
-                const rubyEl = renderRubyToken(answer.token, ent);
-                correctLi.appendChild(rubyEl);
+                wrongLine.appendChild(renderRubyToken(answer.token, userEntity));
             } else {
                 const field = answer.token.field;
-                const text = field ? (ent?.[field] ?? '') : (ent?.nameEnCap ?? '');
-                const span = createStyledSpan(text, answer.token.styles || []);
-                correctLi.appendChild(span);
+                const text = field
+                    ? (userEntity?.[field] ?? '')
+                    : (userEntity?.nameEnCap ?? '');
+                wrongLine.appendChild(
+                    createStyledSpan(text, answer.token.styles || [])
+                );
             }
+
+            stack.appendChild(wrongLine);
         }
 
-        yourList.appendChild(userLi);
-        correctList.appendChild(correctLi);
+        // 下段: 正答
+        if (correctEntity) {
+            const correctLine = document.createElement('div');
+            correctLine.className =
+                'px-2 border-b border-slate-500 inline-block min-w-[2.5rem]';
+
+            if (answer.token.type === 'hideruby') {
+                correctLine.appendChild(
+                    renderRubyToken(answer.token, correctEntity)
+                );
+            } else {
+                const field = answer.token.field;
+                const text = field
+                    ? (correctEntity?.[field] ?? '')
+                    : (correctEntity?.nameEnCap ?? '');
+                correctLine.appendChild(
+                    createStyledSpan(text, answer.token.styles || [])
+                );
+            }
+
+            stack.appendChild(correctLine);
+        }
+
+        row.appendChild(stack);
+        bottomRow.appendChild(row);
     });
 
-    yourCol.appendChild(yourLabel);
-    yourCol.appendChild(yourList);
-    correctCol.appendChild(correctLabel);
-    correctCol.appendChild(correctList);
-
-    bottomRow.appendChild(yourCol);
-    bottomRow.appendChild(correctCol);
     li.appendChild(bottomRow);
-
     dom.reviewList.appendChild(li);
 
     const count = dom.reviewList.children.length;
