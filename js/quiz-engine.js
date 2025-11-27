@@ -37,7 +37,7 @@ export class QuizEngine {
     _choosePattern() {
         const w = this.currentWeights;
         if (!w || !w.list.length || !w.total) {
-            // fallback: random from all patterns
+            // フォールバック: パターン全体からランダム
             return randomChoice(this.patterns);
         }
         const r = Math.random() * w.total;
@@ -79,6 +79,45 @@ export class QuizEngine {
     }
 
     /**
+     * 選択肢ラベル用の Token 配列を、回答トークンから生成する。
+     *
+     * - choice_ruby_pair + hideruby/ruby:
+     *     → token 自体をそのままラベルとして使う（base/ruby の field 情報を entity で解決）
+     * - hide（sideChain など）:
+     *     → 選択肢では隠さず表示したいので type: "key" に変換
+     * - その他: null を返し、レンダラ側のフォールバック（英語名）に任せる
+     */
+    _getOptionLabelTokensFromToken(token) {
+        if (!token) return null;
+
+        const answerMode = token.answer && token.answer.mode;
+
+        // 英語＋ルビペア選択肢（今回の main ケース）
+        if (
+            answerMode === 'choice_ruby_pair' &&
+            (token.type === 'hideruby' || token.type === 'ruby')
+        ) {
+            return [token];
+        }
+
+        // hide されたフィールドを、そのまま文字列として選択肢に出したいケース
+        if (token.type === 'hide' && token.field) {
+            return [{
+                type: 'key',
+                field: token.field,
+                styles: token.styles || []
+            }];
+        }
+
+        // 素の key トークンをそのまま使うケース
+        if (token.type === 'key') {
+            return [token];
+        }
+
+        return null;
+    }
+
+    /**
      * Pattern + Entity から Question を生成する。
      * すべての回答パーツは answers[] に統一される。
      *
@@ -87,7 +126,7 @@ export class QuizEngine {
      *   id: "answer_sidechain",
      *   mode: "fill_in_blank", // ただし処理上は choice と同じ
      *   token,                 // 元の token（hide / hideruby）
-     *   options: [{ entityId, isCorrect, displayKey }],
+     *   options: [{ entityId, isCorrect, displayKey, labelTokens }],
      *   correctIndex: 0,
      *   userSelectedIndex: null
      * }
@@ -109,6 +148,9 @@ export class QuizEngine {
             // 正解は「今選ばれた entity」
             const correctEntityId = entityId;
             const correctDisplayKey = this._getTokenDisplayKey(token, entity);
+
+            // ラベル用 Token を決定
+            const labelTokens = this._getOptionLabelTokensFromToken(token);
 
             // distractor 設定（なければデフォルト 3 個）
             const choiceCfg = token.answer.choice || {};
@@ -138,11 +180,17 @@ export class QuizEngine {
             }
 
             const optionEntities = [
-                { entityId: correctEntityId, isCorrect: true, displayKey: correctDisplayKey },
+                {
+                    entityId: correctEntityId,
+                    isCorrect: true,
+                    displayKey: correctDisplayKey,
+                    labelTokens
+                },
                 ...distractorIds.map(id => ({
                     entityId: id,
                     isCorrect: false,
-                    displayKey: this._getTokenDisplayKey(token, this.entities[id])
+                    displayKey: this._getTokenDisplayKey(token, this.entities[id]),
+                    labelTokens
                 }))
             ];
 
