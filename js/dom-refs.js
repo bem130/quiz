@@ -5,6 +5,7 @@ export const dom = {
     appTitle: document.getElementById('app-title'),
     appDescription: document.getElementById('app-description'),
     quizHeaderScore: document.getElementById('quiz-header-score'),
+    currentScore: document.getElementById('current-score'),
 
     // メイン側（左パネル）
     mainMenu: document.getElementById('main-menu'),
@@ -15,37 +16,39 @@ export const dom = {
     modeList: document.getElementById('mode-list'),
     startButton: document.getElementById('start-button'),
 
-    // サイド: 共通 Settings
-    sideSettings: document.getElementById('side-settings'),
-    menuThemeToggle: document.getElementById('theme-toggle-menu'),
+    // メニュー側: テキストサイズ & テーマ
     menuSizeSmall: document.getElementById('size-small-menu'),
     menuSizeMedium: document.getElementById('size-medium-menu'),
     menuSizeLarge: document.getElementById('size-large-menu'),
+    menuThemeToggle: document.getElementById('theme-toggle-menu'),
 
-    // サイド: メニュー専用
-    sideMenu: document.getElementById('side-menu'),
+    // メニュー側: 問題数
     questionCountInput: document.getElementById('question-count'),
 
-    // クイズ（メイン）
-    mainQuizSection: document.getElementById('main-quiz'),
+    // クイズ画面: 進捗
     currentQNum: document.getElementById('current-q-num'),
     totalQNum: document.getElementById('total-q-num'),
-    currentScore: document.getElementById('current-score'),
 
+    // クイズ画面: 本文・選択肢
     questionText: document.getElementById('question-text'),
     optionsContainer: document.getElementById('options-container'),
-    nextButton: document.getElementById('next-button'),
 
-    // Tips コンテナ
+    // クイズ画面: Tips コンテナ
     tipContainer: document.getElementById('tip-container'),
 
-    // クイズ（サイド専用）
+    // クイズ画面: Next ボタン
+    nextButton: document.getElementById('next-button'),
+
+    // サイドパネル: メニュー用
+    sideMenu: document.getElementById('side-menu'),
+
+    // サイドパネル: クイズ用（Mistakes）
     sideQuiz: document.getElementById('side-quiz'),
     reviewEmpty: document.getElementById('review-empty'),
     reviewList: document.getElementById('review-list'),
     mistakeCount: document.getElementById('mistake-count'),
 
-    // 結果
+    // 結果画面
     resultScreen: document.getElementById('result-screen'),
     resultScore: document.getElementById('result-score'),
     retryButton: document.getElementById('retry-button'),
