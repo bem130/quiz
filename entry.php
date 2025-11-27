@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
-function logEntryEvent(string $message): void
+function logEntryEvent(string $message, array $context = []): void
 {
-    error_log('[entry.php] ' . $message);
+    $logRecord = ['message' => $message] + $context;
+    $encoded = json_encode($logRecord, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    error_log('[entry.php] ' . $encoded);
 }
 
 function buildBaseEntry(array $quizData, string $fileName): array
@@ -66,7 +68,10 @@ function loadEntriesFromQuizzes(): array
         return strcmp($a['id'], $b['id']);
     });
 
-    logEntryEvent('Loaded quizzes from directory ' . $quizDir . ' (' . count($entries) . ' entries)');
+    logEntryEvent('Loaded quizzes from directory', [
+        'path' => $quizDir,
+        'entries' => count($entries),
+    ]);
 
     return [
         'version' => 2,
@@ -88,17 +93,22 @@ function loadFallbackEntry(): array
     }
 
     $quizzes = isset($decoded['quizzes']) && is_array($decoded['quizzes']) ? count($decoded['quizzes']) : 0;
-    logEntryEvent('Loaded fallback entry data from ' . $fallbackPath . ' (' . $quizzes . ' entries)');
+    logEntryEvent('Loaded fallback entry data', [
+        'path' => $fallbackPath,
+        'entries' => $quizzes,
+    ]);
 
     return $decoded;
 }
 
 try {
     $requestUri = $_SERVER['REQUEST_URI'] ?? '(unknown)';
-    logEntryEvent('Incoming request: ' . $requestUri);
+    logEntryEvent('Incoming request', ['uri' => $requestUri]);
     $payload = loadEntriesFromQuizzes();
 } catch (Throwable $exception) {
-    logEntryEvent('Failed to load entries from quizzes, falling back: ' . $exception->getMessage());
+    logEntryEvent('Failed to load entries from quizzes, falling back', [
+        'exception' => (string) $exception,
+    ]);
     $payload = loadFallbackEntry();
 }
 
