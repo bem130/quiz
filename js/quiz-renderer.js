@@ -1,6 +1,16 @@
 // js/quiz-renderer.js
 import { dom } from './dom-refs.js';
 
+function isTipVisible(tip, isCorrect) {
+    const when = tip && tip.when ? tip.when : 'always';
+
+    if (when === 'always') return true;
+    if (when === 'correct') return Boolean(isCorrect);
+    if (when === 'incorrect') return !isCorrect;
+
+    return false;
+}
+
 function createStyledSpan(text, styles = []) {
     const span = document.createElement('span');
 
@@ -53,6 +63,29 @@ function renderRubyToken(token, entity) {
     rubyEl.appendChild(rt);
 
     return rubyEl;
+}
+
+function appendTokens(targetElement, tokens, entity) {
+    (tokens || []).forEach((token) => {
+        if (!token || !token.type) return;
+
+        if (token.type === 'text') {
+            const span = createStyledSpan(token.value ?? '', token.styles || []);
+            targetElement.appendChild(span);
+        } else if (token.type === 'key') {
+            const value = entity?.[token.field] ?? '';
+            const span = createStyledSpan(value, token.styles || []);
+            targetElement.appendChild(span);
+        } else if (token.type === 'ruby' || token.type === 'hideruby') {
+            const rubyEl = renderRubyToken(token, entity);
+            targetElement.appendChild(rubyEl);
+        } else if (token.type === 'hide') {
+            const field = token.field;
+            const text = field ? (entity?.[field] ?? '') : '';
+            const span = createStyledSpan(text || '____', token.styles || []);
+            targetElement.appendChild(span);
+        }
+    });
 }
 
 /**
@@ -386,4 +419,50 @@ export function addReviewItem(question, entitySet, questionNumber) {
     const count = dom.reviewList.children.length;
     dom.mistakeCount.textContent = String(count);
     dom.mistakeCount.classList.remove('hidden');
+}
+
+export function resetTips() {
+    if (!dom.tipContainer) return;
+
+    dom.tipContainer.innerHTML = '';
+    dom.tipContainer.classList.add('hidden');
+}
+
+export function renderTips(tips, entity, isCorrect) {
+    if (!dom.tipContainer) return;
+
+    resetTips();
+
+    if (!Array.isArray(tips) || tips.length === 0) {
+        return;
+    }
+
+    const visibleTips = tips.filter((tip) => isTipVisible(tip, isCorrect));
+    if (!visibleTips.length) {
+        return;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'font-semibold text-slate-800 dark:text-slate-100';
+    header.textContent = 'Tips';
+    dom.tipContainer.appendChild(header);
+
+    visibleTips.forEach((tip) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-start gap-2';
+
+        const bullet = document.createElement('span');
+        bullet.className = 'mt-0.5 select-none';
+        bullet.textContent = '•';
+
+        const body = document.createElement('div');
+        body.className = 'space-x-1 space-y-1 leading-relaxed';
+        appendTokens(body, tip.tokens || [], entity);
+
+        row.appendChild(bullet);
+        row.appendChild(body);
+        dom.tipContainer.appendChild(row);
+    });
+
+    dom.tipContainer.classList.remove('hidden');
 }
