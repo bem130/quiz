@@ -1,11 +1,29 @@
 // js/entry-model.js
-import { ENTRY_JSON_PATH } from './config.js';
+import { ENTRY_JSON_PATH, ENTRY_JSON_FALLBACK_PATH } from './config.js';
 
 export async function loadQuizEntries() {
-    const res = await fetch(ENTRY_JSON_PATH);
-    if (!res.ok) {
-        throw new Error('Failed to load entry.json');
+    const primary = await fetchEntries(ENTRY_JSON_PATH);
+    if (primary !== null) {
+        return primary;
     }
-    const json = await res.json();
-    return json.quizzes || [];
+
+    const fallback = await fetchEntries(ENTRY_JSON_FALLBACK_PATH);
+    if (fallback !== null) {
+        return fallback;
+    }
+
+    throw new Error('Failed to load entry data');
+}
+
+async function fetchEntries(path) {
+    try {
+        const res = await fetch(path);
+        if (!res.ok) {
+            return null;
+        }
+        const json = await res.json();
+        return json.quizzes || [];
+    } catch (error) {
+        return null;
+    }
 }
