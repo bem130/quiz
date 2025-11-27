@@ -4,7 +4,9 @@ declare(strict_types=1);
 function buildBaseUrl(): string
 {
     $https = $_SERVER['HTTPS'] ?? '';
-    $scheme = $https && strtolower((string) $https) !== 'off' ? 'https' : 'http';
+    $isHttps = ($https && strtolower((string) $https) !== 'off')
+        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+    $scheme = $isHttps ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
     $directory = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
@@ -20,16 +22,19 @@ function loadQuizMetadata(?string $quizParam, string $baseUrl): ?array
 
     $quizPath = __DIR__ . '/data/quizzes/' . $quizParam . '.json';
     if (!is_file($quizPath)) {
+        error_log('Quiz file not found: ' . $quizPath);
         return null;
     }
 
     $json = file_get_contents($quizPath);
     if ($json === false) {
+        error_log('Quiz file could not be read: ' . $quizPath);
         return null;
     }
 
     $decoded = json_decode($json, true);
     if (!is_array($decoded)) {
+        error_log('Quiz file contains invalid JSON: ' . $quizPath);
         return null;
     }
 

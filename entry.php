@@ -21,11 +21,11 @@ function buildBaseEntry(array $quizData, string $fileName): array
         $entry['tags'] = $quizData['tags'];
     }
 
-    if (array_key_exists('difficulty', $quizData)) {
+    if (isset($quizData['difficulty'])) {
         $entry['difficulty'] = $quizData['difficulty'];
     }
 
-    if (array_key_exists('recommended', $quizData)) {
+    if (isset($quizData['recommended'])) {
         $entry['recommended'] = (bool) $quizData['recommended'];
     }
 
@@ -86,6 +86,7 @@ function loadFallbackEntry(): array
 try {
     $payload = loadEntriesFromQuizzes();
 } catch (Throwable $exception) {
+    error_log('Failed to load entries from quizzes, falling back: ' . $exception->getMessage());
     $payload = loadFallbackEntry();
 }
 
