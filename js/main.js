@@ -171,22 +171,25 @@ function loadNextQuestion() {
 function handleSelectOption(answerIndex, optionIndex) {
     if (!currentQuestion || !Array.isArray(currentQuestion.answers)) return;
 
+    // すでに採点済み（hasAnswered === true）の場合の挙動をここで制御
     if (hasAnswered) {
         const answers = currentQuestion.answers;
         const target = answers[answerIndex];
         if (!target) return;
 
-        const fullyCorrect = answers.every(
-            (ans) => ans && ans.userSelectedIndex === ans.correctIndex
-        );
         const lastSelectionIsCorrect = optionIndex === target.correctIndex;
 
-        if (fullyCorrect && lastSelectionIsCorrect) {
+        // ★変更ポイント:
+        //  正解しているかどうか（fullyCorrect）は見ず、
+        //  「正解ボタンを押した」のであれば、次の問題へ進める
+        if (lastSelectionIsCorrect) {
+            console.log('[quiz] correct option clicked after answered; goToNextQuestion');
             goToNextQuestion();
         }
         return;
     }
 
+    // ここからは、まだ採点前（hasAnswered === false）の通常処理
     const selectionState = selectAnswer(currentQuestion, answerIndex, optionIndex);
 
     // まずはこのパーツだけ本文の穴埋めとボタンを更新し、次のパーツを出す
@@ -329,14 +332,31 @@ async function bootstrap() {
             );
         }
 
-        // クイズ開始 / 進行系
+        // Quiz start / progress buttons
         dom.startButton.addEventListener('click', startQuiz);
 
         dom.nextButton.addEventListener('click', () => {
             goToNextQuestion();
         });
 
-        // Mistakes など他のイベントリスナーは元のままここに残す
+        // Result screen: Retry / Menu buttons
+        if (dom.retryButton) {
+            dom.retryButton.addEventListener('click', () => {
+                console.log('[result] Retry button clicked');
+                // Restart quiz with current mode and question count
+                startQuiz();
+            });
+        }
+
+        if (dom.backToMenuButton) {
+            dom.backToMenuButton.addEventListener('click', () => {
+                console.log('[result] Back-to-menu button clicked');
+                // Clear Mistakes and Tips, then go back to menu
+                resetReviewList();
+                resetTips();
+                showScreen('menu');
+            });
+        }
 
         setupKeyboardShortcuts();
         showScreen('menu');
