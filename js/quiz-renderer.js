@@ -539,8 +539,12 @@ export function renderOptions(question, entitySet, onSelectOption) {
             btn.type = 'button';
             btn.className = [
                 'w-full flex items-center gap-3 px-3 py-2 rounded-lg border',
-                'border-slate-700/40 bg-slate-900/60 text-slate-100',
-                'hover:border-emerald-400/80 hover:bg-slate-900',
+                // Light theme base
+                'border-slate-300 bg-white text-slate-800',
+                'hover:border-emerald-400 hover:bg-slate-50',
+                // Dark theme overrides
+                'dark:border-slate-700/40 dark:bg-slate-900/60 dark:text-slate-100',
+                'dark:hover:border-emerald-400/80 dark:hover:bg-slate-900',
                 'transition-colors text-left text-xs'
             ].join(' ');
 
@@ -549,9 +553,13 @@ export function renderOptions(question, entitySet, onSelectOption) {
 
             // 左側の番号バッジ
             const num = document.createElement('div');
-            num.className =
-                'w-6 h-6 flex items-center justify-center rounded-full ' +
-                'bg-slate-800 text-[0.75rem]';
+            num.className = [
+                'w-6 h-6 flex items-center justify-center rounded-full text-[0.75rem]',
+                // Light theme
+                'bg-slate-200 text-slate-700',
+                // Dark theme
+                'dark:bg-slate-800 dark:text-slate-50'
+            ].join(' ');
             num.textContent = String(idx + 1);
 
             // ラベル（ルビ対応など）
@@ -925,17 +933,20 @@ export function appendPatternPreviewToOptions(question, entitySet) {
                 'flex-wrap items-start gap-x-2 gap-y-1 border';
 
             if (isCorrect) {
-                // 正答 → 緑
+                // 正答 → 緑 (light + dark)
                 pill.className +=
-                    ' bg-emerald-900/40 border-emerald-500 text-emerald-50';
+                    ' bg-emerald-50 border-emerald-500 text-emerald-900' +  // light
+                    ' dark:bg-emerald-900/40 dark:text-emerald-50';
             } else if (isSelected) {
-                // 選んだ誤答 → 赤
+                // 選んだ誤答 → 赤 (light + dark)
                 pill.className +=
-                    ' bg-red-900/40 border-red-500 text-red-50';
+                    ' bg-red-50 border-red-500 text-red-900' +              // light
+                    ' dark:bg-red-900/40 dark:text-red-50';
             } else {
-                // その他の選択肢 → 中立色
+                // その他の選択肢 → 中立色 (light + dark)
                 pill.className +=
-                    ' bg-slate-800/60 border-slate-600 text-slate-100';
+                    ' bg-slate-100 border-slate-300 text-slate-800' +       // light
+                    ' dark:bg-slate-800/60 dark:border-slate-600 dark:text-slate-100';
             }
 
             const label = document.createElement('div');
