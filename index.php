@@ -66,11 +66,21 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
     <meta charset="UTF-8" />
     <title><?php echo h($pageTitle); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- General OGP tags -->
     <meta name="description" content="<?php echo h($pageDescription); ?>" />
     <meta property="og:title" content="<?php echo h($pageTitle); ?>" />
     <meta property="og:description" content="<?php echo h($pageDescription); ?>" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="<?php echo h($ogUrl); ?>" />
+    <meta property="og:site_name" content="<?php echo h($defaultTitle); ?>" />
+    <link rel="canonical" href="<?php echo h($ogUrl); ?>" />
+    <!-- Twitter Card (X) basic settings -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="<?php echo h($pageTitle); ?>" />
+    <meta name="twitter:description" content="<?php echo h($pageDescription); ?>" />
+    <meta name="twitter:url" content="<?php echo h($ogUrl); ?>" />
+    <meta name="twitter:site" content="@bem130" />
+    <meta name="twitter:creator" content="@bem130" />
 
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
