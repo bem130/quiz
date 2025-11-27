@@ -15,6 +15,12 @@ body {
     height: var(--app-height); /* モバイルブラウザ対策 */
     overflow: hidden;          /* 全体スクロールを防ぎ、中身だけスクロール */
     font-size: 1rem;
+
+    /* ▼ ここから追加：テキスト選択を無効化 ▼ */
+    -webkit-user-select: none; /* Safari / Chrome */
+    -moz-user-select: none;    /* Firefox */
+    -ms-user-select: none;     /* 旧 Edge / IE 対策（いらなければ削ってOK） */
+    user-select: none;         /* 標準 */
 }
 
 /* レイアウトコンテナ: 画面いっぱいのフレックス */
