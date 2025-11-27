@@ -3,15 +3,27 @@ import { dom } from './dom-refs.js';
 import { getQuizNameFromLocation } from './config.js';
 
 export function renderQuizMenu(entries) {
-    const currentQuiz = getQuizNameFromLocation();
+    const requested = getQuizNameFromLocation();
+    let currentQuiz = requested || null;
 
-    console.log('[menu] renderQuizMenu entries length =', Array.isArray(entries) ? entries.length : 'not array');
-    console.log('[menu] currentQuiz (from URL) =', currentQuiz);
+    if (Array.isArray(entries) && entries.length > 0) {
+        const hasRequested =
+            requested && entries.some((entry) => entry && entry.id === requested);
+        if (!hasRequested) {
+            currentQuiz = entries[0].id; // URL なし or 不正なら先頭をデフォルト
+        }
+    }
+
+    console.log(
+        '[menu] renderQuizMenu entries length =',
+        Array.isArray(entries) ? entries.length : 'not array'
+    );
+    console.log('[menu] currentQuiz (requested / resolved) =', currentQuiz);
 
     dom.quizList.innerHTML = '';
 
-    entries.forEach(entry => {
-        const isCurrent = entry.id === currentQuiz;
+    entries.forEach((entry) => {
+        const isCurrent = currentQuiz && entry.id === currentQuiz;
         const a = document.createElement('a');
         a.href = `?quiz=${encodeURIComponent(entry.id)}`;
 
@@ -22,21 +34,18 @@ export function renderQuizMenu(entries) {
                 : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
         ].join(' ');
 
-        a.innerHTML = `
-            <div class="flex items-center justify-between">
-                <div class="flex flex-col">
-                    <span class="font-semibold">${entry.title}</span>
-                    ${
-                        entry.description
-                            ? `<span class="text-[0.8rem] text-slate-500 dark:text-slate-400">${entry.description}</span>`
-                            : ''
-                    }
-                </div>
-                <div class="ml-3 text-[0.7rem] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                    ${entry.id}
-                </div>
-            </div>
-        `;
+        const title = document.createElement('div');
+        title.className = 'font-semibold mb-0.5';
+        title.textContent = entry.title || entry.id;
+
+        const desc = document.createElement('div');
+        desc.className =
+            'text-[11px] text-slate-600 dark:text-slate-300';
+        desc.textContent = entry.description || '';
+
+        a.appendChild(title);
+        a.appendChild(desc);
+
         dom.quizList.appendChild(a);
     });
 }

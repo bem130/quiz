@@ -8,7 +8,9 @@ export function getQuizNameFromLocation() {
     console.log('[quiz] window.location.search =', window.location.search);
     console.log('[quiz] raw quiz param =', quiz);
 
-    return quiz || 'amino-acids-v1';
+    // ★ ここではデフォルトを決めない
+    // デフォルトの ID は「エントリ一覧(entries)」を見て決める
+    return quiz;  // null のままで OK
 }
 
 // Resolve quiz JSON path from quizName
