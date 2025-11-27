@@ -1,21 +1,30 @@
 <?php
+// entry.php
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
-function logEntryEvent(string $message, array $context = []): void
-{
-    $logRecord = ['message' => $message] + $context;
-    $encoded = json_encode($logRecord, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    error_log('[entry.php] ' . $encoded);
-}
+// ファイルシステム上のクイズディレクトリ
+$quizDirFs  = __DIR__ . '/data/quizzes';
+// ブラウザから見えるパスのプレフィックス
+$quizWebDir = 'data/quizzes';
 
-function buildBaseEntry(array $quizData, string $fileName): array
+$entries = [];
+
+/**
+ * 1 つのクイズ JSON からメニュー用エントリを構築する。
+ *
+ * - id  : ファイル名から拡張子 .json を除いたもの
+ * - dir : "data/quizzes"
+ * - title / description / color は JSON の値があればそれを使う
+ */
+function buildEntry(array $quizData, string $fileName, string $webDir): array
 {
-    $id = $quizData['id'] ?? pathinfo($fileName, PATHINFO_FILENAME);
+    $id = pathinfo($fileName, PATHINFO_FILENAME);
+
     $entry = [
         'id' => $id,
-        'file' => 'data/quizzes/' . $fileName,
+        'dir' => $webDir,                       // ← ここがポイント
         'title' => $quizData['title'] ?? $id,
         'description' => $quizData['description'] ?? '',
     ];
@@ -23,15 +32,12 @@ function buildBaseEntry(array $quizData, string $fileName): array
     if (isset($quizData['color'])) {
         $entry['color'] = $quizData['color'];
     }
-
     if (isset($quizData['tags']) && is_array($quizData['tags'])) {
         $entry['tags'] = $quizData['tags'];
     }
-
     if (isset($quizData['difficulty'])) {
         $entry['difficulty'] = $quizData['difficulty'];
     }
-
     if (isset($quizData['recommended'])) {
         $entry['recommended'] = (bool) $quizData['recommended'];
     }
@@ -39,77 +45,43 @@ function buildBaseEntry(array $quizData, string $fileName): array
     return $entry;
 }
 
-function loadEntriesFromQuizzes(): array
-{
-    $quizDir = __DIR__ . '/data/quizzes';
-    if (!is_dir($quizDir)) {
-        throw new RuntimeException('Quiz directory not found.');
-    }
+if (is_dir($quizDirFs)) {
+    $dirIterator = new DirectoryIterator($quizDirFs);
 
-    $files = glob($quizDir . '/*.json') ?: [];
-    $entries = [];
-
-    foreach ($files as $path) {
-        $json = file_get_contents($path);
-        if ($json === false) {
+    foreach ($dirIterator as $fileInfo) {
+        if (!$fileInfo->isFile()) {
+            continue;
+        }
+        if (strtolower($fileInfo->getExtension()) !== 'json') {
             continue;
         }
 
-        $decoded = json_decode($json, true);
+        $fileName = $fileInfo->getFilename();
+        $pathFs   = $fileInfo->getPathname();
+
+        $raw = @file_get_contents($pathFs);
+        if ($raw === false) {
+            continue;
+        }
+
+        $decoded = json_decode($raw, true);
         if (!is_array($decoded)) {
             continue;
         }
 
-        $fileName = basename($path);
-        $entries[] = buildBaseEntry($decoded, $fileName);
+        $entries[] = buildEntry($decoded, $fileName, $quizWebDir);
     }
+}
 
-    usort($entries, static function (array $a, array $b): int {
-        return strcmp($a['id'], $b['id']);
-    });
+// id でソート（お好みで）
+usort($entries, function (array $a, array $b) {
+    return strcmp($a['id'], $b['id']);
+});
 
-    logEntryEvent('Loaded quizzes from directory', [
-        'path' => $quizDir,
-        'entries' => count($entries),
-    ]);
-
-    return [
+echo json_encode(
+    [
         'version' => 2,
         'quizzes' => $entries,
-    ];
-}
-
-function loadFallbackEntry(): array
-{
-    $fallbackPath = __DIR__ . '/data/entry.json';
-    $json = file_get_contents($fallbackPath);
-    if ($json === false) {
-        throw new RuntimeException('Fallback entry.json could not be read.');
-    }
-
-    $decoded = json_decode($json, true);
-    if (!is_array($decoded)) {
-        throw new RuntimeException('Fallback entry.json is not valid JSON.');
-    }
-
-    $quizzes = isset($decoded['quizzes']) && is_array($decoded['quizzes']) ? count($decoded['quizzes']) : 0;
-    logEntryEvent('Loaded fallback entry data', [
-        'path' => $fallbackPath,
-        'entries' => $quizzes,
-    ]);
-
-    return $decoded;
-}
-
-try {
-    $requestUri = $_SERVER['REQUEST_URI'] ?? '(unknown)';
-    logEntryEvent('Incoming request', ['uri' => $requestUri]);
-    $payload = loadEntriesFromQuizzes();
-} catch (Throwable $exception) {
-    logEntryEvent('Failed to load entries from quizzes, falling back', [
-        'exception' => (string) $exception,
-    ]);
-    $payload = loadFallbackEntry();
-}
-
-echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    ],
+    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
+);

@@ -275,28 +275,22 @@ async function bootstrap() {
     console.log('[bootstrap] starting app. location =', window.location.href);
 
     try {
-        const [def, entries] = await Promise.all([
-            loadQuizDefinition(),
-            loadQuizEntries()
-        ]);
+        console.log('[bootstrap] starting app. location =', window.location.href);
 
-        console.log('[bootstrap] loadQuizDefinition result =', def);
+        // 1. First, load entries (from entry.php or entry.json)
+        const entries = await loadQuizEntries();
+        quizEntries = entries;
         console.log('[bootstrap] loadQuizEntries count =', Array.isArray(entries) ? entries.length : 'not array');
 
+        // 2. Then, load quiz definition using entries to resolve the correct JSON path
+        const def = await loadQuizDefinition(quizEntries);
         quizDef = def;
-        quizEntries = entries;
+        console.log('[bootstrap] loadQuizDefinition result =', def);
 
+        // 3. ここから先は今までと同じ
         document.title = quizDef.meta.title || '4-choice Quiz';
         dom.appTitle.textContent = quizDef.meta.title || '4-choice Quiz';
         dom.appDescription.textContent = quizDef.meta.description || '';
-
-        // OGP の現状確認（ブラウザ側）用
-        const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
-        const ogDesc = document.querySelector('meta[property="og:description"]')?.getAttribute('content');
-        const ogUrl = document.querySelector('meta[property="og:url"]')?.getAttribute('content');
-        console.log('[ogp] meta og:title =', ogTitle);
-        console.log('[ogp] meta og:description =', ogDesc);
-        console.log('[ogp] meta og:url =', ogUrl);
 
         renderQuizMenu(quizEntries);
 

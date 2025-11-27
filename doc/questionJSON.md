@@ -14,7 +14,6 @@
 
 ```jsonc
 {
-    "id": "alpha-amino-acid-quiz-v1",
     "title": "Alpha Amino Acid Quiz",
     "description": "Quiz to learn the correspondence between amino acid names and side chains",
     "version": 1,
@@ -27,9 +26,6 @@
 ```
 
 ### 1.1 各フィールド
-
-* `id: string`
-  この問題ファイル自体の一意なID。
 
 * `title: string`
   クイズタイトル。
