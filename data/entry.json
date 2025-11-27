@@ -3,7 +3,7 @@
     "quizzes": [
         {
             "id": "amino-acids-v1",
-            "file": "data/quizzes/amino-acids-v1.json",
+            "file": "data/sample/amino-acids-v1.json",
             "title": "Alpha Amino Acid Quiz",
             "description": "Quiz to learn the correspondence between amino acid names and side chains",
             "color": 130,
@@ -13,7 +13,7 @@
         },
         {
             "id": "alpha-amino-acid-quiz-v2",
-            "file": "data/quizzes/alpha-amino-acid-quiz-v2.json",
+            "file": "data/sample/alpha-amino-acid-quiz-v2.json",
             "title": "Alpha Amino Acid Quiz (demo with tips)",
             "description": "Demo quiz to test patterns, tips, and multiple question types for alpha amino acids.",
             "color": 130,
