@@ -4,6 +4,10 @@ import { getQuizNameFromLocation } from './config.js';
 
 export function renderQuizMenu(entries) {
     const currentQuiz = getQuizNameFromLocation();
+
+    console.log('[menu] renderQuizMenu entries length =', Array.isArray(entries) ? entries.length : 'not array');
+    console.log('[menu] currentQuiz (from URL) =', currentQuiz);
+
     dom.quizList.innerHTML = '';
 
     entries.forEach(entry => {

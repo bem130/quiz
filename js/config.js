@@ -4,6 +4,10 @@
 export function getQuizNameFromLocation() {
     const params = new URLSearchParams(window.location.search);
     const quiz = params.get('quiz');
+
+    console.log('[quiz] window.location.search =', window.location.search);
+    console.log('[quiz] raw quiz param =', quiz);
+
     return quiz || 'amino-acids-v1';
 }
 

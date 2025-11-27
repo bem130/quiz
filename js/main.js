@@ -272,17 +272,31 @@ async function bootstrap() {
     initThemeFromStorage();
     initAppHeightObserver();
 
+    console.log('[bootstrap] starting app. location =', window.location.href);
+
     try {
         const [def, entries] = await Promise.all([
             loadQuizDefinition(),
             loadQuizEntries()
         ]);
+
+        console.log('[bootstrap] loadQuizDefinition result =', def);
+        console.log('[bootstrap] loadQuizEntries count =', Array.isArray(entries) ? entries.length : 'not array');
+
         quizDef = def;
         quizEntries = entries;
 
         document.title = quizDef.meta.title || '4-choice Quiz';
         dom.appTitle.textContent = quizDef.meta.title || '4-choice Quiz';
         dom.appDescription.textContent = quizDef.meta.description || '';
+
+        // OGP の現状確認（ブラウザ側）用
+        const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
+        const ogDesc = document.querySelector('meta[property="og:description"]')?.getAttribute('content');
+        const ogUrl = document.querySelector('meta[property="og:url"]')?.getAttribute('content');
+        console.log('[ogp] meta og:title =', ogTitle);
+        console.log('[ogp] meta og:description =', ogDesc);
+        console.log('[ogp] meta og:url =', ogUrl);
 
         renderQuizMenu(quizEntries);
 
@@ -329,7 +343,7 @@ async function bootstrap() {
         setupKeyboardShortcuts();
         showScreen('menu');
     } catch (e) {
-        console.error(e);
+        console.error('[bootstrap] failed to initialize app:', e);
         dom.appDescription.textContent = 'Failed to load quiz definition.';
     }
 }
