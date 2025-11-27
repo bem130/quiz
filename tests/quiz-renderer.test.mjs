@@ -89,19 +89,26 @@ function collectText(el) {
     return [...ownText, ...childTexts].filter(Boolean);
 }
 
-test('resetTips hides and clears the tips container', () => {
+test('resetTips clears the tips container without toggling visibility', () => {
     const tipContainer = document.getElementById('tip-container');
     tipContainer.innerHTML = '<div>old</div>';
-    tipContainer.classList.remove('hidden');
+    tipContainer.classList.add('hidden');
+
+    const initialHiddenState = tipContainer.classList.contains('hidden');
 
     resetTips();
 
     assert.equal(tipContainer.innerHTML, '');
-    assert.ok(tipContainer.classList.contains('hidden'));
+    assert.equal(
+        tipContainer.classList.contains('hidden'),
+        initialHiddenState
+    );
 });
 
 test('renderTips renders only visible tip blocks with entity data', () => {
     const tipContainer = document.getElementById('tip-container');
+    resetTips();
+    tipContainer.classList.remove('hidden');
     const tips = [
         { id: 't_always', tokens: [{ type: 'text', value: 'Always show' }] },
         {
@@ -132,6 +139,8 @@ test('renderTips renders only visible tip blocks with entity data', () => {
 
 test('renderTips skips rendering when nothing should be shown', () => {
     const tipContainer = document.getElementById('tip-container');
+    resetTips();
+    tipContainer.classList.remove('hidden');
     const tips = [
         { id: 't_correct', when: 'correct', tokens: [{ type: 'text', value: 'OK' }] }
     ];
@@ -139,5 +148,5 @@ test('renderTips skips rendering when nothing should be shown', () => {
     renderTips(tips, {}, false);
 
     assert.equal(tipContainer.children.length, 0);
-    assert.ok(tipContainer.classList.contains('hidden'));
+    assert.ok(!tipContainer.classList.contains('hidden'));
 });

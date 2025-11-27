@@ -120,6 +120,62 @@ function appendTokens(targetElement, tokens, entity) {
     });
 }
 
+// 複数パーツ問題用のナビゲーション状態
+let currentAnswerGroupIndex = 0;
+let maxVisibleAnswerGroupIndex = 0;
+let totalAnswerGroups = 1;
+
+let navPrevButton = null;
+let navNextButton = null;
+let navStatusLabel = null;
+
+// ナビゲーション状態のリセット
+function resetAnswerGroupNavigation() {
+    currentAnswerGroupIndex = 0;
+    maxVisibleAnswerGroupIndex = 0;
+    totalAnswerGroups = 1;
+
+    navPrevButton = null;
+    navNextButton = null;
+    navStatusLabel = null;
+}
+
+// パート表示とナビボタンの状態を更新
+function updateAnswerGroupNavigation() {
+    if (!dom.optionsContainer) return;
+
+    const groups = Array.from(
+        dom.optionsContainer.querySelectorAll('[data-answer-index]')
+    );
+
+    groups.forEach((group) => {
+        const idx = Number(group.dataset.answerIndex || '0');
+
+        if (idx > maxVisibleAnswerGroupIndex) {
+            group.classList.add('hidden');
+            return;
+        }
+
+        if (idx === currentAnswerGroupIndex) {
+            group.classList.remove('hidden');
+        } else {
+            group.classList.add('hidden');
+        }
+    });
+
+    if (navStatusLabel) {
+        navStatusLabel.textContent = `Part ${currentAnswerGroupIndex + 1} / ${totalAnswerGroups}`;
+    }
+
+    if (navPrevButton) {
+        navPrevButton.disabled = currentAnswerGroupIndex <= 0;
+    }
+
+    if (navNextButton) {
+        navNextButton.disabled = currentAnswerGroupIndex >= maxVisibleAnswerGroupIndex;
+    }
+}
+
 /**
  * 問題文を描画する。
  * - skipAnswerTokens === true のとき:
@@ -181,93 +237,152 @@ export function renderQuestionText(
 }
 
 /**
- * 1つの選択肢ボタンを作る。
- * - token.type === 'hideruby' → ルビ
- * - token.type === 'hide'     → token.field を KaTeX / テキストで表示
- */
-function createOptionButton(answerIndex, optionIndex, answer, entity, onClick) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = [
-        'w-full text-left px-3 py-2 rounded-xl border text-xs transition-colors',
-        'bg-white dark:bg-slate-900',
-        'border-slate-300 dark:border-slate-700',
-        'text-slate-800 dark:text-slate-100',
-        'hover:bg-slate-100 dark:hover:bg-slate-800'
-    ].join(' ');
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'flex items-center gap-2';
-
-    const label = document.createElement('span');
-    label.textContent = String(optionIndex + 1);
-    label.className = [
-        'inline-flex items-center justify-center',
-        'w-5 h-5 rounded-full border',
-        'border-slate-300 dark:border-slate-600',
-        'text-[0.75rem] text-slate-500 dark:text-slate-300'
-    ].join(' ');
-
-    let content;
-    if (answer.token.type === 'hideruby') {
-        content = renderRubyToken(answer.token, entity);
-    } else {
-        // hide / その他: token.field を使って表示
-        const field = answer.token.field;
-        const text = field ? (entity?.[field] ?? '') : (entity?.nameEnCap ?? '');
-        content = createStyledSpan(text, answer.token.styles || []);
-    }
-
-    wrapper.appendChild(label);
-    wrapper.appendChild(content);
-    btn.appendChild(wrapper);
-
-    btn.dataset.answerIndex = String(answerIndex);
-    btn.dataset.optionIndex = String(optionIndex);
-
-    btn.addEventListener('click', onClick);
-    return btn;
-}
-
-/**
  * optionsContainer に、answers[] すべての選択肢を描画する。
  * answer ごとにグループを作って縦に並べる。
- * 複数パーツがある場合、最初のパーツ以外は非表示 (hidden) からスタート。
+ * 複数パーツがある場合はナビゲーションで表示を切り替える。
  */
 export function renderOptions(question, entitySet, onSelectOption) {
-    const entities = entitySet.entities || {};
+    if (!dom.optionsContainer) return;
+
     dom.optionsContainer.innerHTML = '';
 
-    (question.answers || []).forEach((answer, ansIdx) => {
-        const group = document.createElement('div');
-        group.className = 'mb-2 space-y-1';
-        group.dataset.answerIndex = String(ansIdx);
+    const answers = question.answers || [];
+    if (!answers.length) {
+        return;
+    }
 
-        if (ansIdx > 0) {
-            group.classList.add('hidden');
-        }
+    const entities = entitySet.entities || {};
 
-        if (question.answers.length > 1) {
-            const groupLabel = document.createElement('div');
-            groupLabel.className =
-                'text-[0.7rem] text-slate-500 dark:text-slate-400';
-            groupLabel.textContent = `Part ${ansIdx + 1}`;
-            group.appendChild(groupLabel);
-        }
+    resetAnswerGroupNavigation();
+    totalAnswerGroups = answers.length;
 
-        (answer.options || []).forEach((opt, optIdx) => {
-            const ent = entities[opt.entityId];
-            if (!ent) return;
+    const hasMultipleParts = answers.length > 1;
 
-            const btn = createOptionButton(ansIdx, optIdx, answer, ent, () => {
-                onSelectOption(ansIdx, optIdx);
-            });
+    if (hasMultipleParts) {
+        const nav = document.createElement('div');
+        nav.className =
+            'mb-2 flex items-center justify-between text-[0.7rem] ' +
+            'text-slate-500 dark:text-slate-400';
 
-            group.appendChild(btn);
+        const left = document.createElement('div');
+        left.textContent = 'Part navigation';
+
+        const right = document.createElement('div');
+        right.className = 'flex items-center gap-2';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.className =
+            'px-1.5 py-0.5 rounded border border-slate-400/60 ' +
+            'text-[0.7rem] leading-none hover:bg-slate-100 ' +
+            'dark:hover:bg-slate-800 transition-colors';
+        prevBtn.textContent = '<';
+
+        const status = document.createElement('span');
+        status.className = 'mx-1';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.className =
+            'px-1.5 py-0.5 rounded border border-slate-400/60 ' +
+            'text-[0.7rem] leading-none hover:bg-slate-100 ' +
+            'dark:hover:bg-slate-800 transition-colors';
+        nextBtn.textContent = '>';
+
+        prevBtn.addEventListener('click', () => {
+            if (currentAnswerGroupIndex > 0) {
+                currentAnswerGroupIndex -= 1;
+                updateAnswerGroupNavigation();
+            }
         });
 
+        nextBtn.addEventListener('click', () => {
+            if (currentAnswerGroupIndex < maxVisibleAnswerGroupIndex) {
+                currentAnswerGroupIndex += 1;
+                updateAnswerGroupNavigation();
+            }
+        });
+
+        right.appendChild(prevBtn);
+        right.appendChild(status);
+        right.appendChild(nextBtn);
+
+        nav.appendChild(left);
+        nav.appendChild(right);
+
+        dom.optionsContainer.appendChild(nav);
+
+        navPrevButton = prevBtn;
+        navNextButton = nextBtn;
+        navStatusLabel = status;
+    }
+
+    answers.forEach((answer, ansIdx) => {
+        const group = document.createElement('div');
+        group.dataset.answerIndex = String(ansIdx);
+        group.className = 'space-y-1';
+
+        if (hasMultipleParts) {
+            const partLabel = document.createElement('div');
+            partLabel.className =
+                'text-[0.75rem] text-slate-500 dark:text-slate-400 mb-1';
+            partLabel.textContent = `Part ${ansIdx + 1}`;
+            group.appendChild(partLabel);
+        }
+
+        const optionsRow = document.createElement('div');
+        optionsRow.className = 'space-y-2';
+
+        (answer.options || []).forEach((opt, idx) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = [
+                'w-full flex items-center gap-3 px-3 py-2 rounded-lg border',
+                'border-slate-700/40 bg-slate-900/60 text-slate-100',
+                'hover:border-emerald-400/80 hover:bg-slate-900',
+                'transition-colors text-left text-xs'
+            ].join(' ');
+
+            btn.dataset.answerIndex = String(ansIdx);
+            btn.dataset.optionIndex = String(idx);
+
+            const num = document.createElement('div');
+            num.className =
+                'w-6 h-6 flex items-center justify-center rounded-full ' +
+                'bg-slate-800 text-[0.75rem]';
+            num.textContent = String(idx + 1);
+
+            const label = document.createElement('div');
+            label.className = 'flex-1 flex flex-col';
+
+            const ent = entities[opt.entityId];
+            if (opt.labelTokens && opt.labelTokens.length) {
+                appendTokens(label, opt.labelTokens, ent);
+            } else {
+                const span = document.createElement('span');
+                span.textContent = opt.label || '';
+                label.appendChild(span);
+            }
+
+            btn.appendChild(num);
+            btn.appendChild(label);
+
+            btn.addEventListener('click', () => {
+                onSelectOption(ansIdx, idx);
+            });
+
+            optionsRow.appendChild(btn);
+        });
+
+        group.appendChild(optionsRow);
         dom.optionsContainer.appendChild(group);
     });
+
+    if (hasMultipleParts) {
+        currentAnswerGroupIndex = 0;
+        maxVisibleAnswerGroupIndex = 0;
+        updateAnswerGroupNavigation();
+    }
 }
 
 /**
@@ -477,18 +592,36 @@ export function showOptionFeedback(question) {
  * 次のパーツ (answerIndex + 1) の選択肢グループを表示する。
  */
 export function revealNextAnswerGroup(answerIndex) {
-    const nextGroup = dom.optionsContainer.querySelector(
-        `div[data-answer-index="${answerIndex + 1}"]`
-    );
-    if (nextGroup) {
-        nextGroup.classList.remove('hidden');
+    if (totalAnswerGroups <= 1) return;
+
+    const nextIndex = answerIndex + 1;
+    if (nextIndex >= totalAnswerGroups) {
+        return;
     }
+
+    if (nextIndex > maxVisibleAnswerGroupIndex) {
+        maxVisibleAnswerGroupIndex = nextIndex;
+    }
+
+    currentAnswerGroupIndex = nextIndex;
+    updateAnswerGroupNavigation();
 }
 
 export function renderProgress(currentIndex, total, score) {
-    dom.currentQNum.textContent = String(currentIndex + 1);
-    dom.totalQNum.textContent = String(total);
-    dom.currentScore.textContent = String(score);
+    const current = Math.min(currentIndex + 1, total);
+
+    if (dom.questionCounter) {
+        dom.questionCounter.textContent = `Q${current} / ${total}`;
+    }
+
+    if (dom.progressBar) {
+        const ratio = total > 0 ? (current / total) * 100 : 0;
+        dom.progressBar.style.width = `${ratio}%`;
+    }
+
+    if (dom.currentScore) {
+        dom.currentScore.textContent = String(score);
+    }
 }
 
 export function resetReviewList() {
@@ -574,7 +707,6 @@ export function resetTips() {
     if (!dom.tipContainer) return;
 
     dom.tipContainer.innerHTML = '';
-    dom.tipContainer.classList.add('hidden');
 }
 
 export function renderTips(tips, entity, isCorrect) {
@@ -612,6 +744,4 @@ export function renderTips(tips, entity, isCorrect) {
         row.appendChild(body);
         dom.tipContainer.appendChild(row);
     });
-
-    dom.tipContainer.classList.remove('hidden');
 }
