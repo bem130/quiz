@@ -65,37 +65,20 @@ function renderRubyToken(token, entity) {
     return rubyEl;
 }
 
-// 誤答表示用に、ruby 全体と rt を少し小さくする
-function shrinkRubyForWrong(rubyEl) {
-    if (!rubyEl) return rubyEl;
-
-    // 行全体を少し小さく
-    rubyEl.style.fontSize = '0.9em';
-
-    const rt = rubyEl.querySelector('rt');
-    if (rt) {
-        // ルビ部分はさらに小さく
-        rt.style.fontSize = '0.6em';
-    }
-
-    return rubyEl;
-}
-
 // 下線だけの穴埋めプレースホルダ（answers[n] に対応）
 function createBlankPlaceholder(answerIndex) {
     const wrapper = document.createElement('span');
     wrapper.dataset.answerIndex = String(answerIndex);
-    wrapper.className = 'relative inline-block mx-1 align-baseline';
+    wrapper.className = 'inline-flex flex-col items-start mx-1';
 
     const underline = document.createElement('span');
     underline.className =
-        'block px-2 border-b border-slate-500 min-w-[2.5rem]';
+        'px-2 border-b border-slate-500 min-w-[2.5rem] inline-block';
     underline.textContent = ' ';
 
     wrapper.appendChild(underline);
     return wrapper;
 }
-
 
 function appendTokens(targetElement, tokens, entity) {
     (tokens || []).forEach((token) => {
@@ -271,32 +254,21 @@ export function renderOptions(question, entitySet, onSelectOption) {
 }
 
 /**
- * 1つの穴埋め（answers[answerIndex]）に対して
- * 「正答（上・下線つき） → 誤答（下・小さめ赤文字）」を表示する。
- *
- * rootElement:
- *   - 本編の問題文 → dom.questionText
- *   - ミス一覧（Mistakes）用 → addReviewItem 内で渡される qText
- *
- * Mistakes では正答を青緑色で強調する。
+ * 指定した answers[index] に対応する本文中の穴埋めを
+ * 「×誤答」「正答（下線）」の2段表示に更新する。
  */
-export function updateInlineBlank(
-    question,
-    entitySet,
-    answerIndex,
-    rootElement = dom.questionText
-) {
+export function updateInlineBlank(question, entitySet, answerIndex) {
     const entities = entitySet.entities || {};
     const answers = question.answers || [];
     const answer = answers[answerIndex];
     if (!answer) return;
 
-    const placeholder = rootElement.querySelector(
+    const placeholder = dom.questionText.querySelector(
         `[data-answer-index="${answerIndex}"]`
     );
     if (!placeholder) return;
 
-    const correctOpt = answer.options?.[answer.correctIndex];
+    const correctOpt = answer.options[answer.correctIndex];
     if (!correctOpt) return;
 
     const correctEntity = entities[correctOpt.entityId];
@@ -304,35 +276,48 @@ export function updateInlineBlank(
 
     const userIndex = answer.userSelectedIndex;
     const isCorrect = userIndex === answer.correctIndex;
-
     const userOpt =
         userIndex != null ? answer.options[userIndex] : null;
     const userEntity =
         userOpt && entities[userOpt.entityId] ? entities[userOpt.entityId] : null;
 
-    // Mistakes（復習画面）かどうか
-    const isReviewContext = rootElement !== dom.questionText;
-
-    // プレースホルダを縦積み構造にリセット
     placeholder.innerHTML = '';
-    placeholder.className =
-        'inline-flex flex-col items-start mx-1 align-baseline leading-tight';
 
-    // ------------------------------
-    // 上段：正答（下線つき）
-    // ------------------------------
-    const correctLine = document.createElement('span');
-    correctLine.className =
-        'block px-2 border-b border-slate-500 min-w-[2.5rem] whitespace-nowrap';
+    const stack = document.createElement('div');
+    stack.className = 'flex flex-col items-start leading-tight';
 
-    if (isReviewContext) {
-        // Mistakes では強調表示（青緑色）
-        correctLine.classList.add('text-emerald-300', 'dark:text-emerald-200');
+    // 上段: 誤答 (×) — 正解のときは表示しない
+    if (!isCorrect && userEntity) {
+        const wrongLine = document.createElement('div');
+        wrongLine.className =
+            'text-[0.8rem] text-red-500 dark:text-red-300 mb-0.5';
+
+        const xSpan = document.createElement('span');
+        xSpan.textContent = '× ';
+        wrongLine.appendChild(xSpan);
+
+        if (answer.token.type === 'hideruby') {
+            wrongLine.appendChild(renderRubyToken(answer.token, userEntity));
+        } else {
+            const field = answer.token.field;
+            const text = field
+                ? (userEntity?.[field] ?? '')
+                : (userEntity?.nameEnCap ?? '');
+            wrongLine.appendChild(
+                createStyledSpan(text, answer.token.styles || [])
+            );
+        }
+
+        stack.appendChild(wrongLine);
     }
 
+    // 下段: 正答（下線付き）
+    const correctLine = document.createElement('div');
+    correctLine.className =
+        'px-2 border-b border-slate-500 inline-block min-w-[2.5rem]';
+
     if (answer.token.type === 'hideruby') {
-        const rubyEl = renderRubyToken(answer.token, correctEntity);
-        correctLine.appendChild(rubyEl);
+        correctLine.appendChild(renderRubyToken(answer.token, correctEntity));
     } else {
         const field = answer.token.field;
         const text = field
@@ -343,60 +328,31 @@ export function updateInlineBlank(
         );
     }
 
-    placeholder.appendChild(correctLine);
-
-    // ------------------------------
-    // 下段：誤答（小さめ赤文字）※誤答のときだけ
-    // ------------------------------
-    if (!isCorrect && userEntity) {
-        const wrongLine = document.createElement('span');
-        wrongLine.className =
-            'mt-0.5 text-[0.7rem] text-rose-400 dark:text-rose-300 ' +
-            'flex items-center gap-1 whitespace-nowrap';
-
-        const mark = document.createElement('span');
-        mark.textContent = '×';
-        wrongLine.appendChild(mark);
-
-        if (answer.token.type === 'hideruby') {
-            const rubyWrong = renderRubyToken(answer.token, userEntity);
-            shrinkRubyForWrong(rubyWrong); // ルビを小さくする
-            wrongLine.appendChild(rubyWrong);
-        } else {
-            const field = answer.token.field;
-            const text = field
-                ? (userEntity?.[field] ?? '')
-                : (userEntity?.nameEnCap ?? '');
-            const span = createStyledSpan(text, answer.token.styles || []);
-            span.style.fontSize = '0.85em';
-            wrongLine.appendChild(span);
-        }
-
-        placeholder.appendChild(wrongLine);
-    }
+    stack.appendChild(correctLine);
+    placeholder.appendChild(stack);
 }
 
 /**
- * 1つのパート（answers[answerIndex]）に対して選択肢の正誤フィードバックを表示する。
- * - 正答 → 緑
- * - 選択した誤答 → 赤
- * - このパートの選択肢はロックされる（再選択不可）
+ * 指定パーツだけボタンに正誤フィードバックを付ける。
+ * - 正解: 緑
+ * - ユーザー選択かつ誤答: 赤
  */
 export function showOptionFeedbackForAnswer(question, answerIndex) {
-    const answer = (question.answers || [])[answerIndex];
-    if (!answer) return;
-
     const buttons = Array.from(
         dom.optionsContainer.querySelectorAll(
             `button[data-answer-index="${answerIndex}"]`
         )
     );
 
-    const correctIndex = answer.correctIndex;
-    const selectedIndex = answer.userSelectedIndex;
-
     buttons.forEach((btn) => {
+        const ansIdx = Number(btn.dataset.answerIndex);
         const optIdx = Number(btn.dataset.optionIndex);
+
+        const answer = question.answers[ansIdx];
+        if (!answer) return;
+
+        const correctIndex = answer.correctIndex;
+        const selectedIndex = answer.userSelectedIndex;
 
         btn.disabled = true;
         btn.classList.remove('hover:bg-slate-100', 'dark:hover:bg-slate-800');
@@ -426,10 +382,9 @@ export function showOptionFeedbackForAnswer(question, answerIndex) {
 }
 
 /**
- * 全パートの選択肢に対して最終的な正誤フィードバックを適用する。
- * - 正答 → 緑
- * - 選択した誤答 → 赤
- * 全ボタンがロックされる。
+ * 採点後に、全 answers のボタンに正誤フィードバックを付ける。
+ * - 正解: 緑
+ * - ユーザー選択かつ誤答: 赤
  */
 export function showOptionFeedback(question) {
     const buttons = Array.from(
@@ -440,7 +395,7 @@ export function showOptionFeedback(question) {
         const ansIdx = Number(btn.dataset.answerIndex);
         const optIdx = Number(btn.dataset.optionIndex);
 
-        const answer = (question.answers || [])[ansIdx];
+        const answer = question.answers[ansIdx];
         if (!answer) return;
 
         const correctIndex = answer.correctIndex;
@@ -499,12 +454,8 @@ export function resetReviewList() {
 }
 
 /**
- * Mistakes（誤答一覧）に 1 問追加する。
- *
- * ・問題文を「穴埋めつき」で描画
- * ・その直後に updateInlineBlank を使い、
- *   正答（青緑）＋誤答（小さく赤）を埋め込む
- * ・“Your wrong answers” などの追加見出しは付けない
+ * Mistakes リストに 1 件追加する。
+ * 各パーツを「Part N: ×誤答 / 正答（下線）」の2段表示で並べる。
  */
 export function addReviewItem(question, entitySet, questionNumber) {
     const entities = entitySet.entities || {};
@@ -522,7 +473,7 @@ export function addReviewItem(question, entitySet, questionNumber) {
         'text-xs'
     ].join(' ');
 
-    // --- 上段：Q番号・Incorrect バッジ・問題文 ---
+    // --- 1段目: ヘッダ + 問題文 ---
     const topRow = document.createElement('div');
     topRow.className = 'flex items-start gap-3 justify-between';
 
@@ -538,33 +489,110 @@ export function addReviewItem(question, entitySet, questionNumber) {
 
     const badge = document.createElement('span');
     badge.className =
-        'text-[0.7rem] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 ' +
-        'dark:text-red-300 border border-red-300/60 dark:border-red-500/50';
+        'text-[0.7rem] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-300 border border-red-300/60 dark:border-red-500/50';
     badge.textContent = 'Incorrect';
 
     headerLine.appendChild(qLabel);
     headerLine.appendChild(badge);
     headerBox.appendChild(headerLine);
 
-    // 穴埋め用のコンテナ
     const qText = document.createElement('div');
     qText.className = 'flex-1 text-slate-700 dark:text-slate-200';
-
-    // まず穴埋めプレースホルダを描画
-    renderQuestionText(question.patternTokens, entity, true, qText);
-
-    // 各穴に「正答（青緑）＋誤答（赤）」を適用
-    (question.answers || []).forEach((_, idx) => {
-        updateInlineBlank(question, entitySet, idx, qText);
-    });
+    // Mistake 表示では hideruby も含めた全文を出す
+    renderQuestionText(question.patternTokens, entity, false, qText);
 
     topRow.appendChild(headerBox);
     topRow.appendChild(qText);
     li.appendChild(topRow);
 
+    // --- 2段目: 各パーツの 2段表示 ---
+    const bottomRow = document.createElement('div');
+    bottomRow.className = 'mt-2 space-y-1 text-slate-800 dark:text-slate-100';
+
+    (question.answers || []).forEach((answer, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-start gap-2';
+
+        const label = document.createElement('div');
+        label.className =
+            'text-[0.75rem] text-slate-500 dark:text-slate-400 mt-0.5';
+        label.textContent = `Part ${idx + 1}`;
+        row.appendChild(label);
+
+        const stack = document.createElement('div');
+        stack.className = 'flex flex-col items-start leading-tight';
+
+        const userIndex = answer.userSelectedIndex;
+        const correctOpt = answer.options[answer.correctIndex];
+        const userOpt =
+            userIndex != null ? answer.options[userIndex] : null;
+
+        const correctEntity =
+            correctOpt && entities[correctOpt.entityId]
+                ? entities[correctOpt.entityId]
+                : null;
+        const userEntity =
+            userOpt && entities[userOpt.entityId]
+                ? entities[userOpt.entityId]
+                : null;
+
+        const isCorrect = userIndex === answer.correctIndex;
+
+        // 上段: 誤答
+        if (!isCorrect && userEntity) {
+            const wrongLine = document.createElement('div');
+            wrongLine.className =
+                'text-[0.8rem] text-red-500 dark:text-red-300 mb-0.5';
+
+            const xSpan = document.createElement('span');
+            xSpan.textContent = '× ';
+            wrongLine.appendChild(xSpan);
+
+            if (answer.token.type === 'hideruby') {
+                wrongLine.appendChild(renderRubyToken(answer.token, userEntity));
+            } else {
+                const field = answer.token.field;
+                const text = field
+                    ? (userEntity?.[field] ?? '')
+                    : (userEntity?.nameEnCap ?? '');
+                wrongLine.appendChild(
+                    createStyledSpan(text, answer.token.styles || [])
+                );
+            }
+
+            stack.appendChild(wrongLine);
+        }
+
+        // 下段: 正答
+        if (correctEntity) {
+            const correctLine = document.createElement('div');
+            correctLine.className =
+                'px-2 border-b border-slate-500 inline-block min-w-[2.5rem]';
+
+            if (answer.token.type === 'hideruby') {
+                correctLine.appendChild(
+                    renderRubyToken(answer.token, correctEntity)
+                );
+            } else {
+                const field = answer.token.field;
+                const text = field
+                    ? (correctEntity?.[field] ?? '')
+                    : (correctEntity?.nameEnCap ?? '');
+                correctLine.appendChild(
+                    createStyledSpan(text, answer.token.styles || [])
+                );
+            }
+
+            stack.appendChild(correctLine);
+        }
+
+        row.appendChild(stack);
+        bottomRow.appendChild(row);
+    });
+
+    li.appendChild(bottomRow);
     dom.reviewList.appendChild(li);
 
-    // ミス数を更新
     const count = dom.reviewList.children.length;
     dom.mistakeCount.textContent = String(count);
     dom.mistakeCount.classList.remove('hidden');
