@@ -7,6 +7,7 @@ export async function loadQuizEntries() {
         return primary;
     }
 
+    console.log("Falling back to secondary entry data source.");
     const fallback = await fetchEntries(ENTRY_JSON_FALLBACK_PATH);
     if (fallback !== null) {
         return fallback;
