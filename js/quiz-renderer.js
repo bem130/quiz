@@ -599,7 +599,7 @@ export function renderOptions(question, entitySet, onSelectOption) {
  * 1つのパート（answers[answerIndex]）に対して選択肢の正誤フィードバックを表示する。
  * - 正答 → 緑
  * - 選択した誤答 → 赤
- * - このパートの選択肢はロックされる（再選択不可）
+ * - ホバー演出を無効化して正誤表示を固定する
  */
 export function showOptionFeedbackForAnswer(question, answerIndex) {
     const answer = (question.answers || [])[answerIndex];
@@ -617,7 +617,6 @@ export function showOptionFeedbackForAnswer(question, answerIndex) {
     buttons.forEach((btn) => {
         const optIdx = Number(btn.dataset.optionIndex);
 
-        btn.disabled = true;
         btn.classList.remove('hover:bg-slate-100', 'dark:hover:bg-slate-800');
 
         if (optIdx === correctIndex) {
@@ -648,7 +647,7 @@ export function showOptionFeedbackForAnswer(question, answerIndex) {
  * 全パートの選択肢に対して最終的な正誤フィードバックを適用する。
  * - 正答 → 緑
  * - 選択した誤答 → 赤
- * 全ボタンがロックされる。
+ * - ホバー演出を無効化して結果を固定する
  */
 export function showOptionFeedback(question) {
     const buttons = Array.from(
@@ -665,7 +664,6 @@ export function showOptionFeedback(question) {
         const correctIndex = answer.correctIndex;
         const selectedIndex = answer.userSelectedIndex;
 
-        btn.disabled = true;
         btn.classList.remove('hover:bg-slate-100', 'dark:hover:bg-slate-800');
 
         if (optIdx === correctIndex) {

@@ -171,20 +171,28 @@ function loadNextQuestion() {
 function handleSelectOption(answerIndex, optionIndex) {
     if (!currentQuestion || !Array.isArray(currentQuestion.answers)) return;
 
+    if (hasAnswered) {
+        const answers = currentQuestion.answers;
+        const target = answers[answerIndex];
+        if (!target) return;
+
+        const fullyCorrect = answers.every(
+            (ans) => ans && ans.userSelectedIndex === ans.correctIndex
+        );
+        const lastSelectionIsCorrect = optionIndex === target.correctIndex;
+
+        if (fullyCorrect && lastSelectionIsCorrect) {
+            goToNextQuestion();
+        }
+        return;
+    }
+
     const selectionState = selectAnswer(currentQuestion, answerIndex, optionIndex);
 
     // まずはこのパーツだけ本文の穴埋めとボタンを更新し、次のパーツを出す
     updateInlineBlank(currentQuestion, quizDef.entitySet, answerIndex);
     showOptionFeedbackForAnswer(currentQuestion, answerIndex);
     revealNextAnswerGroup(answerIndex);
-
-    // 既に採点済みの場合は、正答をクリックしたら次の問題へ
-    if (hasAnswered) {
-        if (selectionState.fullyCorrect && selectionState.lastSelectionIsCorrect) {
-            goToNextQuestion();
-        }
-        return;
-    }
 
     // 未選択のパーツがある場合は、まだ採点しない（スコア・Mistakes などは保留）
     if (!selectionState.allSelected) {
