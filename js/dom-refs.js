@@ -17,9 +17,13 @@ export const dom = {
     startButton: document.getElementById('start-button'),
 
     // メニュー側: テキストサイズ & テーマ
+    menuSizeXXSmall: document.getElementById('size-xxs-menu'),
+    menuSizeXSmall: document.getElementById('size-xs-menu'),
     menuSizeSmall: document.getElementById('size-small-menu'),
     menuSizeMedium: document.getElementById('size-medium-menu'),
     menuSizeLarge: document.getElementById('size-large-menu'),
+    menuSizeXLarge: document.getElementById('size-xl-menu'),
+    menuSizeXXLarge: document.getElementById('size-xxl-menu'),
     menuThemeToggle: document.getElementById('theme-toggle-menu'),
 
     // メニュー側: 問題数

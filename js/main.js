@@ -322,20 +322,28 @@ async function bootstrap() {
                 toggleTheme();
             });
         }
+
+        // Text size: 7 steps
+        if (dom.menuSizeXXSmall) {
+            dom.menuSizeXXSmall.addEventListener('click', () => setSize('xxs'));
+        }
+        if (dom.menuSizeXSmall) {
+            dom.menuSizeXSmall.addEventListener('click', () => setSize('xs'));
+        }
         if (dom.menuSizeSmall) {
-            dom.menuSizeSmall.addEventListener('click', () =>
-                setSize('s')
-            );
+            dom.menuSizeSmall.addEventListener('click', () => setSize('s'));
         }
         if (dom.menuSizeMedium) {
-            dom.menuSizeMedium.addEventListener('click', () =>
-                setSize('m')
-            );
+            dom.menuSizeMedium.addEventListener('click', () => setSize('m'));
         }
         if (dom.menuSizeLarge) {
-            dom.menuSizeLarge.addEventListener('click', () =>
-                setSize('l')
-            );
+            dom.menuSizeLarge.addEventListener('click', () => setSize('l'));
+        }
+        if (dom.menuSizeXLarge) {
+            dom.menuSizeXLarge.addEventListener('click', () => setSize('xl'));
+        }
+        if (dom.menuSizeXXLarge) {
+            dom.menuSizeXXLarge.addEventListener('click', () => setSize('xxl'));
         }
 
         // Quiz start / progress buttons
