@@ -12,5 +12,6 @@ export function resolveQuizJsonPath(quizName) {
     return `data/quizzes/${quizName}.json`;
 }
 
-// Path to entry.json (quiz list)
-export const ENTRY_JSON_PATH = 'data/entry.json';
+// Path to entry generator (quiz list)
+export const ENTRY_JSON_PATH = 'entry.php';
+export const ENTRY_JSON_FALLBACK_PATH = 'data/entry.json';
