@@ -65,20 +65,37 @@ function renderRubyToken(token, entity) {
     return rubyEl;
 }
 
+// 誤答表示用に、ruby 全体と rt を少し小さくする
+function shrinkRubyForWrong(rubyEl) {
+    if (!rubyEl) return rubyEl;
+
+    // 行全体を少し小さく
+    rubyEl.style.fontSize = '0.9em';
+
+    const rt = rubyEl.querySelector('rt');
+    if (rt) {
+        // ルビ部分はさらに小さく
+        rt.style.fontSize = '0.6em';
+    }
+
+    return rubyEl;
+}
+
 // 下線だけの穴埋めプレースホルダ（answers[n] に対応）
 function createBlankPlaceholder(answerIndex) {
     const wrapper = document.createElement('span');
     wrapper.dataset.answerIndex = String(answerIndex);
-    wrapper.className = 'inline-flex flex-col items-start mx-1';
+    wrapper.className = 'relative inline-block mx-1 align-baseline';
 
     const underline = document.createElement('span');
     underline.className =
-        'px-2 border-b border-slate-500 min-w-[2.5rem] inline-block';
+        'block px-2 border-b border-slate-500 min-w-[2.5rem]';
     underline.textContent = ' ';
 
     wrapper.appendChild(underline);
     return wrapper;
 }
+
 
 function appendTokens(targetElement, tokens, entity) {
     (tokens || []).forEach((token) => {
@@ -101,62 +118,6 @@ function appendTokens(targetElement, tokens, entity) {
             targetElement.appendChild(span);
         }
     });
-}
-
-// 複数パーツ問題用のナビゲーション状態
-let currentAnswerGroupIndex = 0;
-let maxVisibleAnswerGroupIndex = 0;
-let totalAnswerGroups = 1;
-
-let navPrevButton = null;
-let navNextButton = null;
-let navStatusLabel = null;
-
-// ナビゲーション状態のリセット
-function resetAnswerGroupNavigation() {
-    currentAnswerGroupIndex = 0;
-    maxVisibleAnswerGroupIndex = 0;
-    totalAnswerGroups = 1;
-
-    navPrevButton = null;
-    navNextButton = null;
-    navStatusLabel = null;
-}
-
-// パート表示とナビボタンの状態を更新
-function updateAnswerGroupNavigation() {
-    if (!dom.optionsContainer) return;
-
-    const groups = Array.from(
-        dom.optionsContainer.querySelectorAll('[data-answer-index]')
-    );
-
-    groups.forEach((group) => {
-        const idx = Number(group.dataset.answerIndex || '0');
-
-        if (idx > maxVisibleAnswerGroupIndex) {
-            group.classList.add('hidden');
-            return;
-        }
-
-        if (idx === currentAnswerGroupIndex) {
-            group.classList.remove('hidden');
-        } else {
-            group.classList.add('hidden');
-        }
-    });
-
-    if (navStatusLabel) {
-        navStatusLabel.textContent = `Part ${currentAnswerGroupIndex + 1} / ${totalAnswerGroups}`;
-    }
-
-    if (navPrevButton) {
-        navPrevButton.disabled = currentAnswerGroupIndex <= 0;
-    }
-
-    if (navNextButton) {
-        navNextButton.disabled = currentAnswerGroupIndex >= maxVisibleAnswerGroupIndex;
-    }
 }
 
 /**
@@ -220,170 +181,122 @@ export function renderQuestionText(
 }
 
 /**
- * optionsContainer に、answers[] すべての選択肢を描画する。
- * answer ごとにグループを作って縦に並べる。
- * 複数パーツがある場合はナビゲーションで表示を切り替える。
+ * 1つの選択肢ボタンを作る。
+ * - token.type === 'hideruby' → ルビ
+ * - token.type === 'hide'     → token.field を KaTeX / テキストで表示
  */
-export function renderOptions(question, entitySet, onSelectOption) {
-    if (!dom.optionsContainer) return;
+function createOptionButton(answerIndex, optionIndex, answer, entity, onClick) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = [
+        'w-full text-left px-3 py-2 rounded-xl border text-xs transition-colors',
+        'bg-white dark:bg-slate-900',
+        'border-slate-300 dark:border-slate-700',
+        'text-slate-800 dark:text-slate-100',
+        'hover:bg-slate-100 dark:hover:bg-slate-800'
+    ].join(' ');
 
-    dom.optionsContainer.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center gap-2';
 
-    const answers = question.answers || [];
-    if (!answers.length) {
-        return;
+    const label = document.createElement('span');
+    label.textContent = String(optionIndex + 1);
+    label.className = [
+        'inline-flex items-center justify-center',
+        'w-5 h-5 rounded-full border',
+        'border-slate-300 dark:border-slate-600',
+        'text-[0.75rem] text-slate-500 dark:text-slate-300'
+    ].join(' ');
+
+    let content;
+    if (answer.token.type === 'hideruby') {
+        content = renderRubyToken(answer.token, entity);
+    } else {
+        // hide / その他: token.field を使って表示
+        const field = answer.token.field;
+        const text = field ? (entity?.[field] ?? '') : (entity?.nameEnCap ?? '');
+        content = createStyledSpan(text, answer.token.styles || []);
     }
 
-    const entities = entitySet.entities || {};
+    wrapper.appendChild(label);
+    wrapper.appendChild(content);
+    btn.appendChild(wrapper);
 
-    resetAnswerGroupNavigation();
-    totalAnswerGroups = answers.length;
+    btn.dataset.answerIndex = String(answerIndex);
+    btn.dataset.optionIndex = String(optionIndex);
 
-    const hasMultipleParts = answers.length > 1;
-
-    if (hasMultipleParts) {
-        const nav = document.createElement('div');
-        nav.className =
-            'mb-2 flex items-center justify-between text-[0.7rem] ' +
-            'text-slate-500 dark:text-slate-400';
-
-        const left = document.createElement('div');
-        left.textContent = 'Part navigation';
-
-        const right = document.createElement('div');
-        right.className = 'flex items-center gap-2';
-
-        const prevBtn = document.createElement('button');
-        prevBtn.type = 'button';
-        prevBtn.className =
-            'px-1.5 py-0.5 rounded border border-slate-400/60 ' +
-            'text-[0.7rem] leading-none hover:bg-slate-100 ' +
-            'dark:hover:bg-slate-800 transition-colors';
-        prevBtn.textContent = '<';
-
-        const status = document.createElement('span');
-        status.className = 'mx-1';
-
-        const nextBtn = document.createElement('button');
-        nextBtn.type = 'button';
-        nextBtn.className =
-            'px-1.5 py-0.5 rounded border border-slate-400/60 ' +
-            'text-[0.7rem] leading-none hover:bg-slate-100 ' +
-            'dark:hover:bg-slate-800 transition-colors';
-        nextBtn.textContent = '>';
-
-        prevBtn.addEventListener('click', () => {
-            if (currentAnswerGroupIndex > 0) {
-                currentAnswerGroupIndex -= 1;
-                updateAnswerGroupNavigation();
-            }
-        });
-
-        nextBtn.addEventListener('click', () => {
-            if (currentAnswerGroupIndex < maxVisibleAnswerGroupIndex) {
-                currentAnswerGroupIndex += 1;
-                updateAnswerGroupNavigation();
-            }
-        });
-
-        right.appendChild(prevBtn);
-        right.appendChild(status);
-        right.appendChild(nextBtn);
-
-        nav.appendChild(left);
-        nav.appendChild(right);
-
-        dom.optionsContainer.appendChild(nav);
-
-        navPrevButton = prevBtn;
-        navNextButton = nextBtn;
-        navStatusLabel = status;
-    }
-
-    answers.forEach((answer, ansIdx) => {
-        const group = document.createElement('div');
-        group.dataset.answerIndex = String(ansIdx);
-        group.className = 'space-y-1';
-
-        if (hasMultipleParts) {
-            const partLabel = document.createElement('div');
-            partLabel.className =
-                'text-[0.75rem] text-slate-500 dark:text-slate-400 mb-1';
-            partLabel.textContent = `Part ${ansIdx + 1}`;
-            group.appendChild(partLabel);
-        }
-
-        const optionsRow = document.createElement('div');
-        optionsRow.className = 'space-y-2';
-
-        (answer.options || []).forEach((opt, idx) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = [
-                'w-full flex items-center gap-3 px-3 py-2 rounded-lg border',
-                'border-slate-700/40 bg-slate-900/60 text-slate-100',
-                'hover:border-emerald-400/80 hover:bg-slate-900',
-                'transition-colors text-left text-xs'
-            ].join(' ');
-
-            btn.dataset.answerIndex = String(ansIdx);
-            btn.dataset.optionIndex = String(idx);
-
-            const num = document.createElement('div');
-            num.className =
-                'w-6 h-6 flex items-center justify-center rounded-full ' +
-                'bg-slate-800 text-[0.75rem]';
-            num.textContent = String(idx + 1);
-
-            const label = document.createElement('div');
-            label.className = 'flex-1 flex flex-col';
-
-            const ent = entities[opt.entityId];
-            if (opt.labelTokens && opt.labelTokens.length) {
-                appendTokens(label, opt.labelTokens, ent);
-            } else {
-                const span = document.createElement('span');
-                span.textContent = opt.label || '';
-                label.appendChild(span);
-            }
-
-            btn.appendChild(num);
-            btn.appendChild(label);
-
-            btn.addEventListener('click', () => {
-                onSelectOption(ansIdx, idx);
-            });
-
-            optionsRow.appendChild(btn);
-        });
-
-        group.appendChild(optionsRow);
-        dom.optionsContainer.appendChild(group);
-    });
-
-    if (hasMultipleParts) {
-        currentAnswerGroupIndex = 0;
-        maxVisibleAnswerGroupIndex = 0;
-        updateAnswerGroupNavigation();
-    }
+    btn.addEventListener('click', onClick);
+    return btn;
 }
 
 /**
- * 指定した answers[index] に対応する本文中の穴埋めを
- * 「×誤答」「正答（下線）」の2段表示に更新する。
+ * optionsContainer に、answers[] すべての選択肢を描画する。
+ * answer ごとにグループを作って縦に並べる。
+ * 複数パーツがある場合、最初のパーツ以外は非表示 (hidden) からスタート。
  */
-export function updateInlineBlank(question, entitySet, answerIndex) {
+export function renderOptions(question, entitySet, onSelectOption) {
+    const entities = entitySet.entities || {};
+    dom.optionsContainer.innerHTML = '';
+
+    (question.answers || []).forEach((answer, ansIdx) => {
+        const group = document.createElement('div');
+        group.className = 'mb-2 space-y-1';
+        group.dataset.answerIndex = String(ansIdx);
+
+        if (ansIdx > 0) {
+            group.classList.add('hidden');
+        }
+
+        if (question.answers.length > 1) {
+            const groupLabel = document.createElement('div');
+            groupLabel.className =
+                'text-[0.7rem] text-slate-500 dark:text-slate-400';
+            groupLabel.textContent = `Part ${ansIdx + 1}`;
+            group.appendChild(groupLabel);
+        }
+
+        (answer.options || []).forEach((opt, optIdx) => {
+            const ent = entities[opt.entityId];
+            if (!ent) return;
+
+            const btn = createOptionButton(ansIdx, optIdx, answer, ent, () => {
+                onSelectOption(ansIdx, optIdx);
+            });
+
+            group.appendChild(btn);
+        });
+
+        dom.optionsContainer.appendChild(group);
+    });
+}
+
+/**
+ * 1つの穴埋め（answers[answerIndex]）に対して
+ * 「正答（上・下線つき） → 誤答（下・小さめ赤文字）」を表示する。
+ *
+ * rootElement:
+ *   - 本編の問題文 → dom.questionText
+ *   - ミス一覧（Mistakes）用 → addReviewItem 内で渡される qText
+ *
+ * Mistakes では正答を青緑色で強調する。
+ */
+export function updateInlineBlank(
+    question,
+    entitySet,
+    answerIndex,
+    rootElement = dom.questionText
+) {
     const entities = entitySet.entities || {};
     const answers = question.answers || [];
     const answer = answers[answerIndex];
     if (!answer) return;
 
-    const placeholder = dom.questionText.querySelector(
+    const placeholder = rootElement.querySelector(
         `[data-answer-index="${answerIndex}"]`
     );
     if (!placeholder) return;
 
-    const correctOpt = answer.options[answer.correctIndex];
+    const correctOpt = answer.options?.[answer.correctIndex];
     if (!correctOpt) return;
 
     const correctEntity = entities[correctOpt.entityId];
@@ -391,48 +304,35 @@ export function updateInlineBlank(question, entitySet, answerIndex) {
 
     const userIndex = answer.userSelectedIndex;
     const isCorrect = userIndex === answer.correctIndex;
+
     const userOpt =
         userIndex != null ? answer.options[userIndex] : null;
     const userEntity =
         userOpt && entities[userOpt.entityId] ? entities[userOpt.entityId] : null;
 
+    // Mistakes（復習画面）かどうか
+    const isReviewContext = rootElement !== dom.questionText;
+
+    // プレースホルダを縦積み構造にリセット
     placeholder.innerHTML = '';
+    placeholder.className =
+        'inline-flex flex-col items-start mx-1 align-baseline leading-tight';
 
-    const stack = document.createElement('div');
-    stack.className = 'flex flex-col items-start leading-tight';
+    // ------------------------------
+    // 上段：正答（下線つき）
+    // ------------------------------
+    const correctLine = document.createElement('span');
+    correctLine.className =
+        'block px-2 border-b border-slate-500 min-w-[2.5rem] whitespace-nowrap';
 
-    // 上段: 誤答 (×) — 正解のときは表示しない
-    if (!isCorrect && userEntity) {
-        const wrongLine = document.createElement('div');
-        wrongLine.className =
-            'text-[0.8rem] text-red-500 dark:text-red-300 mb-0.5';
-
-        const xSpan = document.createElement('span');
-        xSpan.textContent = '× ';
-        wrongLine.appendChild(xSpan);
-
-        if (answer.token.type === 'hideruby') {
-            wrongLine.appendChild(renderRubyToken(answer.token, userEntity));
-        } else {
-            const field = answer.token.field;
-            const text = field
-                ? (userEntity?.[field] ?? '')
-                : (userEntity?.nameEnCap ?? '');
-            wrongLine.appendChild(
-                createStyledSpan(text, answer.token.styles || [])
-            );
-        }
-
-        stack.appendChild(wrongLine);
+    if (isReviewContext) {
+        // Mistakes では強調表示（青緑色）
+        correctLine.classList.add('text-emerald-300', 'dark:text-emerald-200');
     }
 
-    // 下段: 正答（下線付き）
-    const correctLine = document.createElement('div');
-    correctLine.className =
-        'px-2 border-b border-slate-500 inline-block min-w-[2.5rem]';
-
     if (answer.token.type === 'hideruby') {
-        correctLine.appendChild(renderRubyToken(answer.token, correctEntity));
+        const rubyEl = renderRubyToken(answer.token, correctEntity);
+        correctLine.appendChild(rubyEl);
     } else {
         const field = answer.token.field;
         const text = field
@@ -443,31 +343,60 @@ export function updateInlineBlank(question, entitySet, answerIndex) {
         );
     }
 
-    stack.appendChild(correctLine);
-    placeholder.appendChild(stack);
+    placeholder.appendChild(correctLine);
+
+    // ------------------------------
+    // 下段：誤答（小さめ赤文字）※誤答のときだけ
+    // ------------------------------
+    if (!isCorrect && userEntity) {
+        const wrongLine = document.createElement('span');
+        wrongLine.className =
+            'mt-0.5 text-[0.7rem] text-rose-400 dark:text-rose-300 ' +
+            'flex items-center gap-1 whitespace-nowrap';
+
+        const mark = document.createElement('span');
+        mark.textContent = '×';
+        wrongLine.appendChild(mark);
+
+        if (answer.token.type === 'hideruby') {
+            const rubyWrong = renderRubyToken(answer.token, userEntity);
+            shrinkRubyForWrong(rubyWrong); // ルビを小さくする
+            wrongLine.appendChild(rubyWrong);
+        } else {
+            const field = answer.token.field;
+            const text = field
+                ? (userEntity?.[field] ?? '')
+                : (userEntity?.nameEnCap ?? '');
+            const span = createStyledSpan(text, answer.token.styles || []);
+            span.style.fontSize = '0.85em';
+            wrongLine.appendChild(span);
+        }
+
+        placeholder.appendChild(wrongLine);
+    }
 }
 
 /**
- * 指定パーツだけボタンに正誤フィードバックを付ける。
- * - 正解: 緑
- * - ユーザー選択かつ誤答: 赤
+ * 1つのパート（answers[answerIndex]）に対して選択肢の正誤フィードバックを表示する。
+ * - 正答 → 緑
+ * - 選択した誤答 → 赤
+ * - このパートの選択肢はロックされる（再選択不可）
  */
 export function showOptionFeedbackForAnswer(question, answerIndex) {
+    const answer = (question.answers || [])[answerIndex];
+    if (!answer) return;
+
     const buttons = Array.from(
         dom.optionsContainer.querySelectorAll(
             `button[data-answer-index="${answerIndex}"]`
         )
     );
 
+    const correctIndex = answer.correctIndex;
+    const selectedIndex = answer.userSelectedIndex;
+
     buttons.forEach((btn) => {
-        const ansIdx = Number(btn.dataset.answerIndex);
         const optIdx = Number(btn.dataset.optionIndex);
-
-        const answer = question.answers[ansIdx];
-        if (!answer) return;
-
-        const correctIndex = answer.correctIndex;
-        const selectedIndex = answer.userSelectedIndex;
 
         btn.disabled = true;
         btn.classList.remove('hover:bg-slate-100', 'dark:hover:bg-slate-800');
@@ -497,9 +426,10 @@ export function showOptionFeedbackForAnswer(question, answerIndex) {
 }
 
 /**
- * 採点後に、全 answers のボタンに正誤フィードバックを付ける。
- * - 正解: 緑
- * - ユーザー選択かつ誤答: 赤
+ * 全パートの選択肢に対して最終的な正誤フィードバックを適用する。
+ * - 正答 → 緑
+ * - 選択した誤答 → 赤
+ * 全ボタンがロックされる。
  */
 export function showOptionFeedback(question) {
     const buttons = Array.from(
@@ -510,7 +440,7 @@ export function showOptionFeedback(question) {
         const ansIdx = Number(btn.dataset.answerIndex);
         const optIdx = Number(btn.dataset.optionIndex);
 
-        const answer = question.answers[ansIdx];
+        const answer = (question.answers || [])[ansIdx];
         if (!answer) return;
 
         const correctIndex = answer.correctIndex;
@@ -547,36 +477,18 @@ export function showOptionFeedback(question) {
  * 次のパーツ (answerIndex + 1) の選択肢グループを表示する。
  */
 export function revealNextAnswerGroup(answerIndex) {
-    if (totalAnswerGroups <= 1) return;
-
-    const nextIndex = answerIndex + 1;
-    if (nextIndex >= totalAnswerGroups) {
-        return;
+    const nextGroup = dom.optionsContainer.querySelector(
+        `div[data-answer-index="${answerIndex + 1}"]`
+    );
+    if (nextGroup) {
+        nextGroup.classList.remove('hidden');
     }
-
-    if (nextIndex > maxVisibleAnswerGroupIndex) {
-        maxVisibleAnswerGroupIndex = nextIndex;
-    }
-
-    currentAnswerGroupIndex = nextIndex;
-    updateAnswerGroupNavigation();
 }
 
 export function renderProgress(currentIndex, total, score) {
-    const current = Math.min(currentIndex + 1, total);
-
-    if (dom.questionCounter) {
-        dom.questionCounter.textContent = `Q${current} / ${total}`;
-    }
-
-    if (dom.progressBar) {
-        const ratio = total > 0 ? (current / total) * 100 : 0;
-        dom.progressBar.style.width = `${ratio}%`;
-    }
-
-    if (dom.currentScore) {
-        dom.currentScore.textContent = String(score);
-    }
+    dom.currentQNum.textContent = String(currentIndex + 1);
+    dom.totalQNum.textContent = String(total);
+    dom.currentScore.textContent = String(score);
 }
 
 export function resetReviewList() {
@@ -587,8 +499,12 @@ export function resetReviewList() {
 }
 
 /**
- * Mistakes リストに 1 件追加する。
- * 各パーツを「Part N: ×誤答 / 正答（下線）」の2段表示で並べる。
+ * Mistakes（誤答一覧）に 1 問追加する。
+ *
+ * ・問題文を「穴埋めつき」で描画
+ * ・その直後に updateInlineBlank を使い、
+ *   正答（青緑）＋誤答（小さく赤）を埋め込む
+ * ・“Your wrong answers” などの追加見出しは付けない
  */
 export function addReviewItem(question, entitySet, questionNumber) {
     const entities = entitySet.entities || {};
@@ -606,7 +522,7 @@ export function addReviewItem(question, entitySet, questionNumber) {
         'text-xs'
     ].join(' ');
 
-    // --- 1段目: ヘッダ + 問題文 ---
+    // --- 上段：Q番号・Incorrect バッジ・問題文 ---
     const topRow = document.createElement('div');
     topRow.className = 'flex items-start gap-3 justify-between';
 
@@ -622,110 +538,33 @@ export function addReviewItem(question, entitySet, questionNumber) {
 
     const badge = document.createElement('span');
     badge.className =
-        'text-[0.7rem] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-300 border border-red-300/60 dark:border-red-500/50';
+        'text-[0.7rem] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 ' +
+        'dark:text-red-300 border border-red-300/60 dark:border-red-500/50';
     badge.textContent = 'Incorrect';
 
     headerLine.appendChild(qLabel);
     headerLine.appendChild(badge);
     headerBox.appendChild(headerLine);
 
+    // 穴埋め用のコンテナ
     const qText = document.createElement('div');
     qText.className = 'flex-1 text-slate-700 dark:text-slate-200';
-    // Mistake 表示では hideruby も含めた全文を出す
-    renderQuestionText(question.patternTokens, entity, false, qText);
+
+    // まず穴埋めプレースホルダを描画
+    renderQuestionText(question.patternTokens, entity, true, qText);
+
+    // 各穴に「正答（青緑）＋誤答（赤）」を適用
+    (question.answers || []).forEach((_, idx) => {
+        updateInlineBlank(question, entitySet, idx, qText);
+    });
 
     topRow.appendChild(headerBox);
     topRow.appendChild(qText);
     li.appendChild(topRow);
 
-    // --- 2段目: 各パーツの 2段表示 ---
-    const bottomRow = document.createElement('div');
-    bottomRow.className = 'mt-2 space-y-1 text-slate-800 dark:text-slate-100';
-
-    (question.answers || []).forEach((answer, idx) => {
-        const row = document.createElement('div');
-        row.className = 'flex items-start gap-2';
-
-        const label = document.createElement('div');
-        label.className =
-            'text-[0.75rem] text-slate-500 dark:text-slate-400 mt-0.5';
-        label.textContent = `Part ${idx + 1}`;
-        row.appendChild(label);
-
-        const stack = document.createElement('div');
-        stack.className = 'flex flex-col items-start leading-tight';
-
-        const userIndex = answer.userSelectedIndex;
-        const correctOpt = answer.options[answer.correctIndex];
-        const userOpt =
-            userIndex != null ? answer.options[userIndex] : null;
-
-        const correctEntity =
-            correctOpt && entities[correctOpt.entityId]
-                ? entities[correctOpt.entityId]
-                : null;
-        const userEntity =
-            userOpt && entities[userOpt.entityId]
-                ? entities[userOpt.entityId]
-                : null;
-
-        const isCorrect = userIndex === answer.correctIndex;
-
-        // 上段: 誤答
-        if (!isCorrect && userEntity) {
-            const wrongLine = document.createElement('div');
-            wrongLine.className =
-                'text-[0.8rem] text-red-500 dark:text-red-300 mb-0.5';
-
-            const xSpan = document.createElement('span');
-            xSpan.textContent = '× ';
-            wrongLine.appendChild(xSpan);
-
-            if (answer.token.type === 'hideruby') {
-                wrongLine.appendChild(renderRubyToken(answer.token, userEntity));
-            } else {
-                const field = answer.token.field;
-                const text = field
-                    ? (userEntity?.[field] ?? '')
-                    : (userEntity?.nameEnCap ?? '');
-                wrongLine.appendChild(
-                    createStyledSpan(text, answer.token.styles || [])
-                );
-            }
-
-            stack.appendChild(wrongLine);
-        }
-
-        // 下段: 正答
-        if (correctEntity) {
-            const correctLine = document.createElement('div');
-            correctLine.className =
-                'px-2 border-b border-slate-500 inline-block min-w-[2.5rem]';
-
-            if (answer.token.type === 'hideruby') {
-                correctLine.appendChild(
-                    renderRubyToken(answer.token, correctEntity)
-                );
-            } else {
-                const field = answer.token.field;
-                const text = field
-                    ? (correctEntity?.[field] ?? '')
-                    : (correctEntity?.nameEnCap ?? '');
-                correctLine.appendChild(
-                    createStyledSpan(text, answer.token.styles || [])
-                );
-            }
-
-            stack.appendChild(correctLine);
-        }
-
-        row.appendChild(stack);
-        bottomRow.appendChild(row);
-    });
-
-    li.appendChild(bottomRow);
     dom.reviewList.appendChild(li);
 
+    // ミス数を更新
     const count = dom.reviewList.children.length;
     dom.mistakeCount.textContent = String(count);
     dom.mistakeCount.classList.remove('hidden');
@@ -735,6 +574,7 @@ export function resetTips() {
     if (!dom.tipContainer) return;
 
     dom.tipContainer.innerHTML = '';
+    dom.tipContainer.classList.add('hidden');
 }
 
 export function renderTips(tips, entity, isCorrect) {
@@ -772,4 +612,6 @@ export function renderTips(tips, entity, isCorrect) {
         row.appendChild(body);
         dom.tipContainer.appendChild(row);
     });
+
+    dom.tipContainer.classList.remove('hidden');
 }

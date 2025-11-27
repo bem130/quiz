@@ -28,9 +28,8 @@ export const dom = {
 
     // クイズ（メイン）
     mainQuizSection: document.getElementById('main-quiz'),
-    questionCounter: document.getElementById('question-counter'),
-    progressBar: document.getElementById('progress-bar'),
-    modeLabel: document.getElementById('mode-label'),
+    currentQNum: document.getElementById('current-q-num'),
+    totalQNum: document.getElementById('total-q-num'),
     currentScore: document.getElementById('current-score'),
 
     questionText: document.getElementById('question-text'),
