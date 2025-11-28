@@ -1,236 +1,389 @@
 // js/quiz-engine.js
+import { evaluateFilter } from './filters.js';
+import {
+    getDataSet,
+    getFilteredRows,
+    randomChoice,
+    pickN,
+    shuffled,
+    findGroupDefinition
+} from './dataset-utils.js';
 
-/**
- * 配列からランダムに 1 要素を選ぶためのユーティリティ。
- * @template T
- * @param {Array<T>} arr - 対象の配列。
- * @returns {T} 配列からランダムに選ばれた要素。
- */
-function randomChoice(arr) {
-    return arr[Math.floor(Math.random() * arr.length)];
+function tokenDisplayKey(token, row) {
+    if (!token) return '';
+    if (token.type === 'hideruby') {
+        const base = token.base || {};
+        const ruby = token.ruby || {};
+        const baseText = base.source === 'key' && row ? row[base.field] : base.value;
+        const rubyText = ruby.source === 'key' && row ? row[ruby.field] : ruby.value;
+        return `${baseText || ''}|||${rubyText || ''}`;
+    }
+    if (token.field && row && typeof row[token.field] === 'string') {
+        return row[token.field];
+    }
+    if (token.value) {
+        return token.value;
+    }
+    if (row) {
+        return row.nameEnCap || row.nameEn || row.text || '';
+    }
+    return '';
 }
 
-/**
- * クイズ定義から問題生成とモード切り替えを管理するエンジン。
- */
+function optionLabelTokens(token) {
+    if (!token) return null;
+    const answerMode = token.answer && token.answer.mode;
+    if (
+        answerMode === 'choice_ruby_pair' &&
+        (token.type === 'hideruby' || token.type === 'ruby')
+    ) {
+        return [token];
+    }
+    if (token.type === 'hide' && token.field) {
+        return [
+            {
+                type: 'key',
+                field: token.field,
+                styles: token.styles || []
+            }
+        ];
+    }
+    if (token.type === 'key') {
+        return [token];
+    }
+    return null;
+}
+
+function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
+    const choiceCfg = (token.answer && token.answer.choice) || {};
+    const ds = choiceCfg.distractorSource || {};
+    const choiceCount =
+        typeof token.answer?.choiceCount === 'number' && token.answer.choiceCount > 0
+            ? token.answer.choiceCount
+            : typeof ds.count === 'number'
+                ? ds.count + 1
+                : 4;
+    const avoidSameId = ds.avoidSameId !== false;
+    const avoidSameText = ds.avoidSameText !== false;
+    const pool = Array.isArray(poolRows)
+        ? poolRows.filter((row) => !ds.filter || evaluateFilter(row, ds.filter))
+        : [];
+
+    const correctKey = tokenDisplayKey(token, correctRow);
+    const usedIds = new Set([correctRow.id]);
+    const usedText = new Set([correctKey]);
+    const distractors = [];
+    let safety = 2000;
+    while (distractors.length < choiceCount - 1 && safety > 0) {
+        safety -= 1;
+        const candidate = randomChoice(pool);
+        if (!candidate) break;
+        if (avoidSameId && usedIds.has(candidate.id)) continue;
+        const key = tokenDisplayKey(token, candidate);
+        if (avoidSameText && usedText.has(key)) continue;
+        distractors.push(candidate);
+        usedIds.add(candidate.id);
+        usedText.add(key);
+    }
+
+    const optionEntities = [
+        {
+            entityId: correctRow.id,
+            isCorrect: true,
+            displayKey: correctKey,
+            labelTokens: optionLabelTokens(token),
+            dataSetId
+        },
+        ...distractors.map((row) => ({
+            entityId: row.id,
+            isCorrect: false,
+            displayKey: tokenDisplayKey(token, row),
+            labelTokens: optionLabelTokens(token),
+            dataSetId
+        }))
+    ];
+
+    const shuffledOptions = shuffled(optionEntities);
+    const correctIndex = shuffledOptions.findIndex((o) => o.isCorrect);
+
+    return {
+        id: token.id || `ans_${correctRow.id}`,
+        mode: 'choice_from_entities',
+        token,
+        options: shuffledOptions,
+        correctIndex,
+        userSelectedIndex: null,
+        meta: {
+            correctRowId: correctRow.id
+        }
+    };
+}
+
+function buildChoiceUniqueProperty(token, correctRow, allRows, dataSetId) {
+    const propertyFilter = token.answer && token.answer.propertyFilter;
+    const choiceCount = token.answer && token.answer.choiceCount ? token.answer.choiceCount : 4;
+    const matches = allRows.filter((row) => evaluateFilter(row, propertyFilter));
+    if (!matches.find((row) => row.id === correctRow.id) || matches.length !== 1) {
+        return null;
+    }
+    const distractorPool = allRows.filter(
+        (row) => row.id !== correctRow.id && !evaluateFilter(row, propertyFilter)
+    );
+    if (distractorPool.length < choiceCount - 1) {
+        return null;
+    }
+    const distractors = pickN(distractorPool, choiceCount - 1);
+    const options = shuffled([
+        {
+            entityId: correctRow.id,
+            isCorrect: true,
+            displayKey: tokenDisplayKey(token, correctRow),
+            labelTokens: optionLabelTokens(token),
+            dataSetId
+        },
+        ...distractors.map((row) => ({
+            entityId: row.id,
+            isCorrect: false,
+            displayKey: tokenDisplayKey(token, row),
+            labelTokens: optionLabelTokens(token),
+            dataSetId
+        }))
+    ]);
+    const correctIndex = options.findIndex((o) => o.isCorrect);
+    return {
+        id: token.id || `ans_${correctRow.id}`,
+        mode: 'choice_unique_property',
+        token,
+        options,
+        correctIndex,
+        userSelectedIndex: null,
+        meta: {
+            correctRowId: correctRow.id
+        }
+    };
+}
+
+function buildChoiceFromGroup(token, correctRow, dataSets, dataSetId) {
+    const groupRef = token.answer.group || token.answer.groupId || token.group;
+    const group = findGroupDefinition(dataSets, groupRef, dataSetId);
+    if (!group) return null;
+    const correctText = token.value || (token.field ? correctRow[token.field] : '');
+    const baseChoices = group.choices || [];
+    const choices = baseChoices.includes(correctText)
+        ? baseChoices.slice()
+        : baseChoices.concat(correctText);
+    const options = shuffled(
+        choices.map((text) => ({
+            isCorrect: text === correctText,
+            label: text
+        }))
+    );
+    const correctIndex = options.findIndex((o) => o.isCorrect);
+    return {
+        id: token.id || `ans_${correctRow.id}`,
+        mode: 'choice_from_group',
+        token,
+        options,
+        correctIndex,
+        userSelectedIndex: null,
+        meta: {
+            correctRowId: correctRow.id
+        }
+    };
+}
+
+function buildAnswerPart(token, correctRow, rows, dataSets, dataSetId) {
+    if (!token || !token.answer) return null;
+    if (token.answer.mode === 'choice_unique_property') {
+        return buildChoiceUniqueProperty(token, correctRow, rows, dataSetId);
+    }
+    if (token.answer.mode === 'choice_from_group') {
+        return buildChoiceFromGroup(token, correctRow, dataSets, dataSetId);
+    }
+    return buildChoiceFromEntities(token, correctRow, rows, dataSetId);
+}
+
+function collectEligibleRowsForUniqueProperties(rows, tokens) {
+    const propertyTokens = (tokens || []).filter(
+        (t) => t && t.answer && t.answer.mode === 'choice_unique_property'
+    );
+    if (!propertyTokens.length) {
+        return rows;
+    }
+    return rows.filter((row) => {
+        return propertyTokens.every((token) => {
+            const filter = token.answer.propertyFilter;
+            const matches = rows.filter((r) => evaluateFilter(r, filter));
+            return matches.length === 1 && matches[0].id === row.id;
+        });
+    });
+}
+
+function generateTableFillChoiceQuestion(pattern, dataSets) {
+    const table = getDataSet(dataSets, pattern.dataSet);
+    if (!table || table.type !== 'table') {
+        return null;
+    }
+    const rows = getFilteredRows(table, pattern.entityFilter);
+    const eligibleRows = collectEligibleRowsForUniqueProperties(rows, pattern.tokens || []);
+    if (!eligibleRows.length) return null;
+    const correctRow = randomChoice(eligibleRows);
+    const answers = [];
+    (pattern.tokens || []).forEach((token) => {
+        if (!token || !token.answer) return;
+        const part = buildAnswerPart(token, correctRow, rows, dataSets, pattern.dataSet);
+        if (part) {
+            answers.push(part);
+        }
+    });
+    if (!answers.length) return null;
+    return {
+        id: `q_${pattern.id}_${correctRow.id}`,
+        patternId: pattern.id,
+        format: 'table_fill_choice',
+        tokens: pattern.tokens || [],
+        patternTips: pattern.tips || [],
+        answers,
+        meta: {
+            dataSetId: pattern.dataSet,
+            entityId: correctRow.id
+        }
+    };
+}
+
+function generateTableMatchingQuestion(pattern, dataSets) {
+    const table = getDataSet(dataSets, pattern.dataSet);
+    if (!table || table.type !== 'table') {
+        return null;
+    }
+    const spec = pattern.matchingSpec || {};
+    const count = spec.count || 4;
+    const leftField = spec.leftField || 'left';
+    const rightField = spec.rightField || 'right';
+    const rows = getFilteredRows(table, pattern.entityFilter);
+    if (rows.length < count) return null;
+    const selected = pickN(rows, count);
+    const leftList = spec.shuffle && spec.shuffle.left ? shuffled(selected) : selected.slice();
+    const rightValues = selected.map((row) => row[rightField]);
+    const shuffledRight = spec.shuffle && spec.shuffle.right ? shuffled(rightValues) : rightValues;
+    const answers = leftList.map((row) => {
+        const correctText = row[rightField];
+        const options = shuffledRight.map((text) => ({
+            label: text,
+            isCorrect: text === correctText
+        }));
+        const correctIndex = options.findIndex((o) => o.isCorrect);
+        return {
+            id: `${pattern.id}_${row.id}_match`,
+            mode: 'matching_pairs_from_entities',
+            options,
+            correctIndex,
+            userSelectedIndex: null,
+            meta: {
+                leftText: row[leftField],
+                rightText: correctText
+            }
+        };
+    });
+    return {
+        id: `q_${pattern.id}_match`,
+        patternId: pattern.id,
+        format: 'table_matching',
+        tokens: pattern.tokens || [],
+        patternTips: pattern.tips || [],
+        answers,
+        meta: {
+            dataSetId: pattern.dataSet
+        }
+    };
+}
+
+function generateSentenceFillChoiceQuestion(pattern, dataSets) {
+    const dataSet = getDataSet(dataSets, pattern.dataSet);
+    if (!dataSet || dataSet.type !== 'factSentences') {
+        return null;
+    }
+    const sentences = getFilteredRows({ data: dataSet.sentences || [] }, pattern.entityFilter);
+    if (!sentences.length) return null;
+    const sentence = randomChoice(sentences);
+    if (!sentence) return null;
+    const answers = [];
+    (sentence.tokens || []).forEach((token) => {
+        if (!token || !token.answer) return;
+        const part = buildAnswerPart(token, sentence, dataSet.sentences || [], dataSets, pattern.dataSet);
+        if (part) {
+            answers.push(part);
+        }
+    });
+    if (!answers.length) return null;
+    return {
+        id: `q_${pattern.id}_${sentence.id}`,
+        patternId: pattern.id,
+        format: 'sentence_fill_choice',
+        tokens: sentence.tokens || [],
+        patternTips: pattern.tips || [],
+        answers,
+        meta: {
+            dataSetId: pattern.dataSet,
+            sentenceId: sentence.id
+        }
+    };
+}
+
+const GENERATORS = {
+    table_fill_choice: generateTableFillChoiceQuestion,
+    table_matching: generateTableMatchingQuestion,
+    sentence_fill_choice: generateSentenceFillChoiceQuestion
+};
+
 export class QuizEngine {
     constructor(definition) {
-        this.meta = definition.meta;
-        this.entitySet = definition.entitySet;
-        this.patterns = definition.patterns;
-        this.modes = definition.modes;
-
-        this.entities = this.entitySet.entities || {};
-        this.entityIds = Object.keys(this.entities);
-        this.patternMap = new Map(this.patterns.map(p => [p.id, p]));
+        this.meta = definition.meta || {};
+        this.dataSets = definition.dataSets || {};
+        this.patterns = definition.patterns || [];
+        this.modes = definition.modes || [];
         this.currentMode = null;
-        this.currentWeights = [];
+        this.currentWeights = { list: [], total: 0 };
     }
 
     setMode(modeId) {
-        const mode = this.modes.find(m => m.id === modeId) || this.modes[0];
+        const mode = this.modes.find((m) => m.id === modeId) || this.modes[0];
         this.currentMode = mode;
-
-        const weights = mode.patternWeights || [];
+        const weights = (mode && mode.patternWeights) || [];
         const list = [];
         let sum = 0;
         for (const pw of weights) {
-            const p = this.patternMap.get(pw.patternId);
-            if (!p) continue;
+            const pattern = this.patterns.find((p) => p.id === pw.patternId);
+            if (!pattern) continue;
             sum += pw.weight;
-            list.push({ pattern: p, cumulative: sum });
+            list.push({ pattern, cumulative: sum });
         }
         this.currentWeights = { list, total: sum };
     }
 
-    _choosePattern() {
+    choosePattern() {
         const w = this.currentWeights;
         if (!w || !w.list.length || !w.total) {
-            // フォールバック: パターン全体からランダム
             return randomChoice(this.patterns);
         }
         const r = Math.random() * w.total;
-        return w.list.find(x => r < x.cumulative).pattern;
+        return w.list.find((x) => r < x.cumulative).pattern;
     }
 
-    _getRubyDisplayKey(hiderubyToken, entity) {
-        const base = hiderubyToken.base;
-        const ruby = hiderubyToken.ruby;
-        const baseText =
-            base.source === 'key'
-                ? (entity[base.field] ?? '')
-                : (base.value ?? '');
-        const rubyText =
-            ruby.source === 'key'
-                ? (entity[ruby.field] ?? '')
-                : (ruby.value ?? '');
-        return `${baseText}|||${rubyText}`;
-    }
-
-    /**
-     * hide / hideruby 問題で、選択肢の「テキスト同一性」を判定するためのキー
-     * - hideruby: 英語＋ルビを連結
-     * - hide   : token.field の値（例: sideChainFormulaTex）
-     */
-    _getTokenDisplayKey(token, entity) {
-        if (!entity) return '';
-
-        if (token.type === 'hideruby') {
-            return this._getRubyDisplayKey(token, entity);
-        }
-
-        if (token.field && typeof entity[token.field] === 'string') {
-            return entity[token.field];
-        }
-
-        // フォールバック: 英語名
-        return entity.nameEnCap || entity.nameEn || '';
-    }
-
-    /**
-     * 選択肢ラベル用の Token 配列を、回答トークンから生成する。
-     *
-     * - choice_ruby_pair + hideruby/ruby:
-     *     → token 自体をそのままラベルとして使う（base/ruby の field 情報を entity で解決）
-     * - hide（sideChain など）:
-     *     → 選択肢では隠さず表示したいので type: "key" に変換
-     * - その他: null を返し、レンダラ側のフォールバック（英語名）に任せる
-     */
-    _getOptionLabelTokensFromToken(token) {
-        if (!token) return null;
-
-        const answerMode = token.answer && token.answer.mode;
-
-        // 英語＋ルビペア選択肢（今回の main ケース）
-        if (
-            answerMode === 'choice_ruby_pair' &&
-            (token.type === 'hideruby' || token.type === 'ruby')
-        ) {
-            return [token];
-        }
-
-        // hide されたフィールドを、そのまま文字列として選択肢に出したいケース
-        if (token.type === 'hide' && token.field) {
-            return [{
-                type: 'key',
-                field: token.field,
-                styles: token.styles || []
-            }];
-        }
-
-        // 素の key トークンをそのまま使うケース
-        if (token.type === 'key') {
-            return [token];
-        }
-
-        return null;
-    }
-
-    /**
-     * Pattern + Entity から Question を生成する。
-     * すべての回答パーツは answers[] に統一される。
-     *
-     * answers[] 例:
-     * {
-     *   id: "answer_sidechain",
-     *   mode: "fill_in_blank", // ただし処理上は choice と同じ
-     *   token,                 // 元の token（hide / hideruby）
-     *   options: [{ entityId, isCorrect, displayKey, labelTokens }],
-     *   correctIndex: 0,
-     *   userSelectedIndex: null
-     * }
-     */
     generateQuestion() {
-        if (this.entityIds.length === 0 || this.patterns.length === 0) {
-            throw new Error('No entities or patterns available');
+        if (!this.patterns.length) {
+            throw new Error('No patterns available');
         }
-
-        const pattern = this._choosePattern();
-        const entityId = randomChoice(this.entityIds);
-        const entity = this.entities[entityId];
-
-        const answers = [];
-
-        (pattern.tokens || []).forEach((token, idx) => {
-            if (!token || !token.answer) return;
-
-            // 正解は「今選ばれた entity」
-            const correctEntityId = entityId;
-            const correctDisplayKey = this._getTokenDisplayKey(token, entity);
-
-            // ラベル用 Token を決定
-            const labelTokens = this._getOptionLabelTokensFromToken(token);
-
-            // distractor 設定（なければデフォルト 3 個）
-            const choiceCfg = token.answer.choice || {};
-            const ds = choiceCfg.distractorSource || {};
-            const count = typeof ds.count === 'number' ? ds.count : 3;
-            const avoidSameId = ds.avoidSameId !== false;       // デフォルト true
-            const avoidSameText = ds.avoidSameText !== false;   // デフォルト true
-
-            const distractorIds = [];
-            const usedIds = new Set([correctEntityId]);
-            const usedTextKeys = new Set([correctDisplayKey]);
-
-            const pool = this.entityIds.slice();
-            let safety = 1000;
-            while (distractorIds.length < count && safety-- > 0) {
-                const candidateId = randomChoice(pool);
-                if (avoidSameId && candidateId === correctEntityId) continue;
-                if (usedIds.has(candidateId)) continue;
-
-                const candidateEntity = this.entities[candidateId];
-                const key = this._getTokenDisplayKey(token, candidateEntity);
-                if (avoidSameText && usedTextKeys.has(key)) continue;
-
-                distractorIds.push(candidateId);
-                usedIds.add(candidateId);
-                usedTextKeys.add(key);
-            }
-
-            const optionEntities = [
-                {
-                    entityId: correctEntityId,
-                    isCorrect: true,
-                    displayKey: correctDisplayKey,
-                    labelTokens
-                },
-                ...distractorIds.map(id => ({
-                    entityId: id,
-                    isCorrect: false,
-                    displayKey: this._getTokenDisplayKey(token, this.entities[id]),
-                    labelTokens
-                }))
-            ];
-
-            // シャッフル
-            for (let i = optionEntities.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [optionEntities[i], optionEntities[j]] = [optionEntities[j], optionEntities[i]];
-            }
-
-            const correctIndex = optionEntities.findIndex(o => o.isCorrect);
-
-            answers.push({
-                id: token.id || `ans_${idx}`,
-                mode: token.answer.mode || 'choice',
-                token,
-                options: optionEntities,
-                correctIndex,
-                userSelectedIndex: null
-            });
-        });
-
-        if (!answers.length) {
-            throw new Error(`Pattern ${pattern.id} has no tokens with answer`);
+        let attempts = 0;
+        while (attempts < 50) {
+            attempts += 1;
+            const pattern = this.choosePattern();
+            if (!pattern) continue;
+            const generator = GENERATORS[pattern.questionFormat];
+            if (!generator) continue;
+            const q = generator(pattern, this.dataSets);
+            if (q) return q;
         }
-
-        return {
-            patternId: pattern.id,
-            patternTokens: pattern.tokens,
-            patternTips: pattern.tips || [],
-            entityId,
-            answers
-        };
+        throw new Error('Failed to generate question after multiple attempts');
     }
 }

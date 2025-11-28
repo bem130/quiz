@@ -1,6 +1,154 @@
 // js/quiz-model.js
 import { getQuizNameFromLocation, resolveQuizJsonPath } from './config.js';
 
+function convertEntitySetToDataSet(entitySet) {
+    if (!entitySet || !entitySet.entities) {
+        return {};
+    }
+
+    const id = entitySet.id || 'entity-set';
+    const data = Object.entries(entitySet.entities).map(([entityId, value]) => ({
+        id: entityId,
+        ...(value || {})
+    }));
+
+    return {
+        [id]: {
+            type: 'table',
+            idField: 'id',
+            data
+        }
+    };
+}
+
+function detectQuestionFormat(pattern) {
+    if (pattern.questionFormat) {
+        return pattern.questionFormat;
+    }
+    if (pattern.tokensFromData === 'sentences') {
+        return 'sentence_fill_choice';
+    }
+    if (pattern.matchingSpec) {
+        return 'table_matching';
+    }
+    return 'table_fill_choice';
+}
+
+function normalizePatterns(rawPatterns, dataSetId) {
+    return (rawPatterns || []).map((p, index) => ({
+        id: p.id || `p_${index}`,
+        label: p.label,
+        questionFormat: detectQuestionFormat(p),
+        dataSet: p.dataSet || dataSetId,
+        tokens: p.tokens || [],
+        entityFilter: p.entityFilter,
+        tokensFromData: p.tokensFromData,
+        matchingSpec: p.matchingSpec,
+        tips: p.tips || []
+    }));
+}
+
+function normalizeModes(rawModes, patterns) {
+    const patternIds = new Set((patterns || []).map((p) => p.id));
+    const baseModes = (rawModes || []).map((m, idx) => ({
+        id: m.id || `mode_${idx}`,
+        label: m.label || m.id || `Mode ${idx + 1}`,
+        description: m.description,
+        patternWeights: (m.patternWeights || []).filter((pw) => patternIds.has(pw.patternId))
+    }));
+
+    if (baseModes.length === 0) {
+        const weights = patterns.map((p) => ({ patternId: p.id, weight: 1 }));
+        return [
+            {
+                id: 'default',
+                label: 'Standard',
+                description: 'Default mode',
+                patternWeights: weights
+            }
+        ];
+    }
+
+    return baseModes;
+}
+
+function validateDefinition(definition) {
+    if (!definition || typeof definition !== 'object') {
+        throw new Error('Quiz definition is missing or invalid.');
+    }
+
+    if (!definition.dataSets || typeof definition.dataSets !== 'object') {
+        throw new Error('Quiz definition must include dataSets.');
+    }
+
+    if (!Array.isArray(definition.patterns) || definition.patterns.length === 0) {
+        throw new Error('At least one pattern is required.');
+    }
+
+    const allowedFormats = new Set([
+        'table_fill_choice',
+        'table_matching',
+        'sentence_fill_choice'
+    ]);
+
+    definition.patterns.forEach((pattern) => {
+        if (!allowedFormats.has(pattern.questionFormat)) {
+            throw new Error(`Unsupported questionFormat: ${pattern.questionFormat}`);
+        }
+        if (pattern.questionFormat === 'sentence_fill_choice') {
+            const ds = definition.dataSets[pattern.dataSet];
+            if (!ds || ds.type !== 'factSentences') {
+                throw new Error(`Pattern ${pattern.id} requires a factSentences dataSet.`);
+            }
+        } else {
+            const ds = definition.dataSets[pattern.dataSet];
+            if (!ds || ds.type !== 'table') {
+                throw new Error(`Pattern ${pattern.id} requires a table dataSet.`);
+            }
+        }
+        if (pattern.questionFormat === 'table_matching' && !pattern.matchingSpec) {
+            throw new Error(`Pattern ${pattern.id} is missing matchingSpec.`);
+        }
+    });
+
+    return definition;
+}
+
+function convertToV2(json) {
+    const baseMeta = {
+        id: json.id || json.title || 'quiz',
+        title: json.title || json.id || 'quiz',
+        description: json.description || '',
+        colorHue: json.color
+    };
+
+    if (json.dataSets) {
+        const patterns = normalizePatterns(
+            json.questionRules?.patterns || json.patterns,
+            null
+        );
+        const modes = normalizeModes(json.questionRules?.modes || json.modes || [], patterns);
+        return validateDefinition({
+            meta: baseMeta,
+            dataSets: json.dataSets || {},
+            patterns,
+            modes
+        });
+    }
+
+    const dataSets = convertEntitySetToDataSet(json.entitySet || {});
+    const dataSetId = Object.keys(dataSets)[0];
+    const patterns = normalizePatterns(json.questionRules?.patterns || json.patterns, dataSetId);
+    const modes = normalizeModes(json.questionRules?.modes || json.modes || [], patterns);
+
+    return validateDefinition({
+        meta: baseMeta,
+        dataSets,
+        patterns,
+        modes
+    });
+}
+
 /**
  * URL の指定とエントリ一覧を突き合わせて使用するクイズ ID を決定する。
  *
@@ -145,14 +293,6 @@ export async function loadQuizDefinition(entries) {
 
     return {
         quizName,
-        meta: {
-            id: quizName,
-            title: json.title || quizName,
-            description: json.description || '',
-            colorHue: json.color
-        },
-        entitySet: json.entitySet,
-        patterns: json.questionRules.patterns,
-        modes: json.questionRules.modes
+        definition: convertToV2(json)
     };
 }
