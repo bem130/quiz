@@ -1,6 +1,9 @@
 // js/entry-model.js
 import { ENTRY_JSON_PATH, ENTRY_JSON_FALLBACK_PATH } from './config.js';
 
+/**
+ * クイズ一覧エントリをプライマリ／フォールバックの順で取得する。
+ */
 export async function loadQuizEntries() {
     const primary = await fetchEntries(ENTRY_JSON_PATH, 'primary');
     if (primary !== null) {
@@ -16,6 +19,9 @@ export async function loadQuizEntries() {
     throw new Error('Failed to load entry data');
 }
 
+/**
+ * 指定されたパスからエントリ JSON を取得し、 quizzes 配列を返す。
+ */
 async function fetchEntries(path, label) {
     const requestLabel = label || 'unknown';
     console.info(`[entry] Fetching ${requestLabel} entry data from ${path}`);

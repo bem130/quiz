@@ -1,8 +1,9 @@
 // js/answer-state.js
 
 /**
- * Record the selected option for a given answer part.
- * Returns whether all parts have been selected and whether the entire question is fully correct.
+ * 回答の一部に対する選択肢の記録と判定をまとめて行う。
+ *
+ * 各回答パーツの選択完了状態と、設問全体が正解しているかどうかを返す。
  */
 export function selectAnswer(question, answerIndex, optionIndex) {
     if (!question || !Array.isArray(question.answers)) {
@@ -37,6 +38,9 @@ export function selectAnswer(question, answerIndex, optionIndex) {
     return { allSelected, fullyCorrect, lastSelectionIsCorrect };
 }
 
+/**
+ * 設問内のすべての回答パーツについて選択状態をリセットする。
+ */
 export function resetSelections(question) {
     if (!question || !Array.isArray(question.answers)) return;
 
