@@ -73,6 +73,83 @@ test('convertToV2 converts hideruby tokens inside factSentences for v2 data', ()
     assert.ok(token.value && token.value.type === 'ruby');
 });
 
+test('convertToV2 allows skipping validation for main files with imports only', () => {
+    const json = {
+        version: 2,
+        imports: ['bundle.json'],
+        questionRules: {
+            patterns: [
+                {
+                    id: 'p1',
+                    dataSet: 'bundle',
+                    tokens: [
+                        {
+                            type: 'hide',
+                            value: { type: 'text', value: 'value' },
+                            answer: { mode: 'choice_from_entities' }
+                        }
+                    ]
+                }
+            ],
+            modes: [
+                { id: 'm1', label: 'Mode', patternWeights: [{ patternId: 'p1', weight: 1 }] }
+            ]
+        }
+    };
+
+    const def = convertToV2(json, { skipValidation: true });
+    assert.equal(def.patterns[0].id, 'p1');
+    assert.equal(Object.keys(def.dataSets).length, 0);
+});
+
+test('validateDefinition succeeds after merging imported data sets', () => {
+    const mainJson = {
+        version: 2,
+        imports: ['bundle.json'],
+        questionRules: {
+            patterns: [
+                {
+                    id: 'p1',
+                    dataSet: 'bundle',
+                    tokens: [
+                        {
+                            type: 'hide',
+                            value: { type: 'key', field: 'name' },
+                            answer: { mode: 'choice_from_entities' }
+                        }
+                    ]
+                }
+            ],
+            modes: [
+                { id: 'm1', label: 'Mode', patternWeights: [{ patternId: 'p1', weight: 1 }] }
+            ]
+        }
+    };
+
+    const mainDefinition = convertToV2(mainJson, { skipValidation: true });
+    const bundleDefinition = convertToV2(
+        {
+            version: 2,
+            dataSets: {
+                bundle: {
+                    type: 'table',
+                    data: [{ id: 'row1', name: 'Sample' }]
+                }
+            }
+        },
+        { skipValidation: true }
+    );
+
+    const merged = {
+        meta: mainDefinition.meta,
+        dataSets: bundleDefinition.dataSets,
+        patterns: mainDefinition.patterns,
+        modes: mainDefinition.modes
+    };
+
+    assert.doesNotThrow(() => validateDefinition(merged));
+});
+
 test('validateDefinition enforces tokensFromData for sentence_fill_choice', () => {
     const definition = {
         meta: { id: 'test', title: 'test' },
