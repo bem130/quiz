@@ -1,6 +1,6 @@
-# クイズ問題ファイル仕様 version2
+# クイズ問題ファイル仕様 v2
 
-この文書は、アミノ酸などの知識を扱う **n 択クイズ（標準は 4 択）／マッチング問題** のための **問題定義 JSON 仕様 v2** を定義します。
+この文書は、アミノ酸などの知識を扱う 4 択クイズ／マッチング問題のための **問題定義 JSON 仕様 v2** を定義します。
 
 * 仕様パートでは、
 
@@ -18,11 +18,11 @@
 本仕様は、次の 3 種類の問題形式をサポートします：
 
 1. **table_fill_choice**
-   table 型 DataSet から生成する **n 択（標準は 4 択）の穴埋め問題**
+   table 型 DataSet から生成する **n 択穴埋め問題**（典型的には 4 択）
 2. **table_matching**
    table 型 DataSet から生成する **マッチング問題（対応付け問題）**
 3. **sentence_fill_choice**
-   一問一答形式の文（factSentences）から生成する **n 択（標準は 4 択）の穴埋め問題**
+   一問一答形式の文（factSentences）から生成する **n 択穴埋め問題**
 
 共通ポリシー：
 
@@ -55,9 +55,9 @@ Main Quiz File のトップレベルは、次のフィールドを持つオブ�
 
 ```jsonc
 {
-  "title": "Amino Acid Master Quiz",      // 必須
-  "description": "説明",                  // 必須
-  "version": 2,                             // 任意（仕様バージョンを示す。v2 仕様では 2 を推奨）
+  "title": "Amino Acid Master Quiz",      // 任意
+  "description": "説明",                  // 任意
+  "version": 2,                             // 推奨（仕様バージョン）
 
   "imports": ["hoge.json", "fuga.json"], // 任意
 
@@ -72,9 +72,13 @@ Main Quiz File のトップレベルは、次のフィールドを持つオブ�
 }
 ```
 
-* `title`, `description` は **必須フィールド** であり、メタ情報として UI 表示などに使用します。
-* `version` は **このファイルが準拠する仕様バージョン** を表し、v2 仕様では `2` を指定することを推奨します（ただし省略可）。
-* `imports` は Data Bundle File へのパス配列
+* `title`, `description` はメタ情報（UI 表示などに使用可能）
+* `version` は**本仕様バージョン**を表す整数です
+
+  * v2 仕様では **`2` を推奨**
+  * 省略された場合は `2` と同等とみなして構いません
+  * `2` 以外の値が指定されている場合は、少なくとも警告ログを出すことを推奨します
+* `imports` は Data Bundle File への相対パス配列
 * `dataSets` は、このファイル固有の DataSet 群
 * `questionRules` は問題生成ルール
 
@@ -85,10 +89,6 @@ Main Quiz File のトップレベルは、次のフィールドを持つオブ�
   1. `imports` に指定されたファイルを順に読み込み、`dataSets` をマージ
   2. メインファイル自身の `dataSets` を最後に適用
   3. 完成した `dataSets` と `questionRules` を用いて問題生成を行う
-
-なお、`questionFormat` と `dataSet.type` の組み合わせが不正な Pattern は、
-
-* **その Pattern を無効としてスキップ** することを推奨します（クイズ全体を即エラーにはしない）。
 
 ---
 
@@ -102,9 +102,9 @@ Data Bundle File は、主に共通データを提供する目的で用いられ
 
 ```jsonc
 {
-  "title": "Common Amino Acid Data",  // 必須
-  "description": "...",               // 必須
-  "version": 2,                        // 任意（仕様バージョンを示す。v2 仕様では 2 を推奨）
+  "title": "Common Amino Acid Data",  // 任意（メタ情報）
+  "description": "...",               // 任意（メタ情報）
+  "version": 2,                        // 任意（仕様バージョンの目安）
 
   "dataSets": {
     "alpha-amino-acids": { /* DataSet */ },
@@ -138,7 +138,7 @@ Data Bundle File は、主に共通データを提供する目的で用いられ
 * `imports` に記述するパスは、**Main Quiz File と同じディレクトリからの相対パス**として解釈されます。
 
   * 例：`quiz/main.json` から `"../common/hoge.json"` など
-* パス区切りとして `/` を使用することを推奨し、実装側で OS に応じて解決します。
+* パス区切りには `/` を推奨し、実装側で OS に応じて解決します。
 
 #### 処理
 
@@ -148,7 +148,7 @@ Data Bundle File は、主に共通データを提供する目的で用いられ
 
 #### 記述
 
-* 同じ `dataSet` ID が複数ファイルに存在することは許されますが、その場合は **優先ルール** に従って上書きされます。
+* 同じ DataSet ID が複数ファイルに存在することは許されますが、その場合は **優先ルール** に従って上書きされます。
 
 #### 処理
 
@@ -208,7 +208,7 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
   "data": [
     {
       "id": "gly",               // 必須、一意
-      "nameEnCap": "Glycine",     // 任意フィールド
+      "nameEnCap": "Glycine",    // 任意フィールド
       "nameEn": "glycine",
       "nameJa": "グリシン",
       "code3": "Gly",
@@ -232,14 +232,14 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 }
 ```
 
-* 行ごとに `id: string` が必須
-* それ以外のフィールドは自由に追加可能です
+* 各行に `id: string` が必須
+* それ以外のフィールドは自由に追加可能
 
 #### 処理
 
 * `id` をキーとして内部 Map に変換して保持しても構いません。
 * `table_fill_choice` / `table_matching` で利用されます。
-* `Filter`（`entityFilter` / `propertyFilter`）の対象にもなります。
+* `Filter`（`entityFilter` や後述の `propertyFilter`）の対象にもなります。
 
 ---
 
@@ -278,8 +278,6 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 * Pattern 側で `tokensFromData: "sentences"` と指定することで、この DataSet の `sentences` から 1 件を選び、その `tokens` を問題文として使用します。
 * `choice_from_group` の `answer.mode` で、`groups` 内の Group を参照して選択肢を生成します。
 
-> v2 では、`hide.array` で参照される `groups` は **同じ DataSet 内のもののみ** を対象とします。別 DataSet（`type: "groups"`）からの参照は将来の拡張とします。
-
 ---
 
 ### 5.4 `type: "groups"`（共通グループ集）
@@ -303,8 +301,8 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 
 #### 処理
 
-* v2 では主に「factSentences 内の groups と同じ形の共通定義」として扱います。
-* 参照スキームについては将来拡張を想定し、現時点では **同一 DataSet 内 groups のみを正式サポート** とします。
+* v2 では主に、`factSentences` 型 DataSet 内の `groups` を参照対象とし、`type: "groups"` DataSet は今後の拡張用として位置付けます。
+* 参照スキームは `hide.array` の仕様に従います（同一 DataSet 内の `groups` を起点とする）。
 
 ---
 
@@ -341,9 +339,8 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 * `choice_from_group` の `answer.mode` で選択肢の候補として利用されます。
 * `drawWithoutReplacement: true` の場合：
 
-  * **1 問生成中のみ**、同じ `groupId` について「すでに正解として使った `choices` の index」を記録し、別の `hide` の正解には同じ index を割り当てないようにします（問題をまたいだ重複は制御しない）。
-
----
+  * **1 問生成中に限り**、同じ `groupId` について「すでに正解として使った `choices` の index」を記録し、別の `hide` の正解には同じ index を割り当てないようにします。
+  * 問題をまたぐ重複制御は行いません（v2 では規定しない）。
 
 ### 6.2 Group の参照パス（hide.array）
 
@@ -355,7 +352,7 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 {
   "type": "hide",
   "id": "bond",
-  "value": { "type": "text", "value": "アミノ基" },
+  "value": "アミノ基",
   "array": ["groups", "bondGroup"],
   "answer": { "mode": "choice_from_group" }
 }
@@ -416,11 +413,11 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
   "entityFilter": { /* Filter */ },  // 任意（table 系）
 
   "tokens": [ /* Token[] */ ],       // fill 系で使用
-  "tokensFromData": "sentences",    // sentence_fill_choice で使用
+  "tokensFromData": "sentences",   // sentence_fill_choice で使用
 
   "matchingSpec": { /* matching 用 */ },
 
-  "tips": [ /* 任意のヒント */ ]
+  "tips": [ /* TipBlock[] */ ]       // 任意
 }
 ```
 
@@ -463,6 +460,36 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 
     * DataSet の `sentences` から 1 文を選び、その `tokens` 中の `hide` に対して **n 択穴埋め問題** を生成
 
+#### tips フィールド（TipBlock）の仕様
+
+* `tips` は **ヒント表示用の配列**です。
+* 型は **`TipBlock[]`** とし、`TipBlock` は **Token の配列**とします：
+
+```jsonc
+"tips": [
+  [
+    { "type": "text", "value": "ヒント 1: " },
+    { "type": "key",  "field": "classJa" }
+  ],
+  [
+    { "type": "text", "value": "ヒント 2: 側鎖に注目。" }
+  ]
+]
+```
+
+* 1 要素（`TipBlock`）が 1 段階分のヒントを表します。
+* `TipBlock` 内では、**問題文と同様の Token 記法**が使用できます：
+
+  * 使用可能な `type`：`"text"`, `"key"`, `"ruby"`, `"katex"`, `"smiles"`, `"br"`
+  * `styles` も通常どおり使用可能です。
+* **制約：**
+
+  * `tips` 内では **`type: "hide"` は使用できません。**
+
+    * ヒントの中に新たな穴埋めを作ることは v2 ではサポートしません。
+
+表示タイミング（どのタイミングでどの `TipBlock` を表示するか）はエンジン側の UI 実装に委ねられます（例：最初は非表示／ボタンを押すと 1 つずつ表示、など）。
+
 #### 処理
 
 * エンジンは Pattern ごとに `questionFormat` を読み取り、問題生成ルートを切り替えます：
@@ -470,10 +497,6 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
   * `table_fill_choice` → `tokens` を展開し、各 `hide` から Answer を生成
   * `table_matching` → `matchingSpec` に従いマッチング問題を構成
   * `sentence_fill_choice` → DataSet の `sentences` から 1 件を選択し、その `tokens` を使用
-
-* `questionFormat` と `dataSet.type` の組み合わせが不正な Pattern は、
-
-  * ロード時バリデーションで警告し、**その Pattern を無効化（出題対象から除外）** することを推奨します。
 
 * `entityFilter` は `table_fill_choice` / `table_matching` の両方で任意に利用でき、
 
@@ -493,9 +516,9 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
     "id": "mix_all",
     "label": "総合モード",
     "patternWeights": [
-      { "patternId": "p_abbr_to_name", "weight": 3 },
+      { "patternId": "p_abbr_to_name",        "weight": 3 },
       { "patternId": "p_match_name_to_class", "weight": 2 },
-      { "patternId": "p_fact_sentence_choice", "weight": 1 }
+      { "patternId": "p_fact_sentence_choice","weight": 1 }
     ]
   }
 ]
@@ -538,6 +561,7 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 
 * `type` に応じて描画ロジックを切り替えます。
 * `styles` はフォントスタイルなどの装飾ヒントとして使用します。
+* v2 では上記 4 種類のスタイル名のみを正式サポートとし、それ以外の値は無視して構いません（将来拡張用）。
 
 ---
 
@@ -577,10 +601,10 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 #### 処理
 
 * 現在のコンテキストが table 行であれば、`row[field]` を取得して表示します。
-* `field` が存在しない、または値が `null` / `undefined` の場合：
+* 指定フィールドが存在しない場合：
 
-  * 推奨：空文字として扱い、`console.warn` で「どの DataSet 行のどの field が欠落していたか」をログ出力します。
-  * 実装方針によっては、問題生成をスキップするなど、より厳格なエラーハンドリングとしても構いません。
+  * 値は空文字列として扱うか、その Pattern をスキップするかは実装ポリシーですが、
+  * 少なくとも警告ログを出すことを推奨します。
 
 ---
 
@@ -608,7 +632,7 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 #### 制約
 
 * `ruby.base` および `ruby.ruby` の内部には **`type: "hide"` を含めてはいけません**（ruby の中に更なる穴埋めを作ることは禁止）。
-* 一方、`hide.value` に `type: "ruby"` を入れること（ruby 付きテキスト全体を1つの穴埋めとして扱うこと）は **許可** されます。
+* 一方、`hide.value` に `type: "ruby"` を入れること（ruby 付きテキスト全体を 1 つの穴埋めとして扱うこと）は **許可** されます。
 
 ---
 
@@ -628,7 +652,6 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 #### 処理
 
 * `value` または `row[field]` を **KaTeX** でレンダリングして表示します。
-* `field` が存在しない場合の扱いは `key` と同様です（推奨：空表示＋警告ログ）。
 
 ---
 
@@ -686,14 +709,9 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 #### 制約
 
 * `value` には **`Token` 1 つ、または `Token[]`** を指定できます。
-
-  * 例：
-
-    * `{"type":"key","field":"nameJa"}`
-    * `[{"type":"key","field":"nameJa"},{"type":"text","value":"（"},...]`
 * `value` の中に **`type: "hide"` を含めてはいけません**（穴埋めのネスト禁止）。
 * `ruby` の内部にも `hide` を含めてはいけません。
-* 一方、`hide.value` に `ruby` を含めることは許可されます（ruby 付きテキスト全体を1つの選択肢として扱う）。
+* 一方、`hide.value` に `ruby` を含めることは許可されます（ruby 付きテキスト全体を 1 つの選択肢として扱う）。
 
 ---
 
@@ -719,18 +737,18 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 
 ---
 
-### 9.2 `answer.mode` 一覧（v2）と共通ポリシー
+### 9.2 `answer.mode` 一覧（v2）
 
 #### 記述
 
 v2 で使用する `answer.mode` は次の 4 種類です：
 
-| mode                             | 使用可能な questionFormat           | 用途                           |
-| -------------------------------- | ------------------------------ | ---------------------------- |
-| `"choice_from_entities"`         | `"table_fill_choice"`          | 表の行から正解＋誤答を選ぶ n 択            |
-| `"choice_unique_property"`       | `"table_fill_choice"`          | 特定プロパティを満たす行を 1 つだけ含む n 択    |
-| `"choice_from_group"`            | `"sentence_fill_choice"`       | Group の `choices` から作る n 択   |
-| `"matching_pairs_from_entities"` | `"table_matching"`（Pattern 全体） | 表から作るマッチング問題（**Pattern 専用**） |
+| mode                             | 使用可能な questionFormat              | 用途                         |
+| -------------------------------- | --------------------------------- | -------------------------- |
+| `"choice_from_entities"`         | `"table_fill_choice"`             | 表の行から正解＋誤答を選ぶ n 択          |
+| `"choice_unique_property"`       | `"table_fill_choice"`             | 特定プロパティを満たす行を 1 つだけ含む n 択  |
+| `"choice_from_group"`            | `"sentence_fill_choice"`          | Group の `choices` から作る n 択 |
+| `"matching_pairs_from_entities"` | `"table_matching"`（Pattern 全体で使用） | 表から作るマッチング問題（hide では使わない）  |
 
 **共通ポリシー：**
 
@@ -738,80 +756,13 @@ v2 で使用する `answer.mode` は次の 4 種類です：
 * 1 つの選択肢に対する正解は 1 つのみ
 * 部分点なし
 
-**選択肢数に関するルール：**
-
-* `choice_from_entities` / `choice_unique_property` / `choice_from_group` は、いずれも AnswerSpec 内の `choiceCount` で選択肢数を指定できます（省略時は 4 とみなします）。
-* `choiceCount < 2` は不正（バリデーションエラー）とすることを推奨します。
-* `choiceCount` よりも利用可能な候補数が少ない場合（正解＋誤答が十分に取れない場合）、その問題生成はスキップ対象となります。
-* `GroupDefinition.choices` は `choiceCount` 以上の要素を持つことが推奨されます。4 より多くても構いませんが、実際に出題される選択肢は `choiceCount` 個に絞られます。
-
-#### 概要処理
-
-* `choice_from_entities`
-
-  * 対象行（正解）を 1 つ選び、同じ DataSet 内の他行から誤答候補を抽出
-  * `distractorSource` 設定に従って候補数や重複制御を行う
-
-* `choice_unique_property`
-
-  * DataSet の行のうち、**指定された条件式（propertyFilter）を満たす行**を正解候補とする
-
-* `choice_from_group`
-
-  * `hide.array` で指定された GroupDefinition の `choices[]` から選択肢を生成
-  * `hide.value` と一致する要素を正解とする
-  * `drawWithoutReplacement` に従い、同じ Group を複数 `hide` で使う場合の重複使用を制御
-
-* `matching_pairs_from_entities`
-
-  * Pattern 単位で使用され、個々の `hide` とは独立して扱う
-  * **`hide.answer.mode` としてこの値が現れることはなく**、`Pattern.matchingSpec.mode` 専用の mode 名とする
-  * `matchingSpec` に基づき、table 行から複数行を選び、左側と右側のリストを構成（例：左＝名前、右＝分類）
+> `"matching_pairs_from_entities"` は **Pattern の `matchingSpec` 専用**モードであり、`hide.answer.mode` として使用することはありません。
 
 ---
 
-### 9.3 `choice_unique_property` の厳密仕様
+### 9.3 `choice_from_entities`
 
 #### 記述
-
-`choice_unique_property` は、DataSet の中で **特定の条件を満たす行がちょうど 1 つだけ含まれるような n 択問題** を生成するためのモードです。
-
-AnswerSpec 例：
-
-```jsonc
-"answer": {
-  "mode": "choice_unique_property",
-  "propertyFilter": {
-    "eq": { "field": "carboxylic", "value": true }
-  },
-  "choiceCount": 4
-}
-```
-
-* `propertyFilter`: 条件式。構文は Filter と同じ（`and` / `or` / `not` / `eq` / `neq` / `in` / `exists`）。
-* `choiceCount`: 選択肢数（省略時は 4）。
-
-#### 処理
-
-1. Pattern の `entityFilter` を DataSet に適用し、候補行集合 `rows` を得る。
-2. `rows` のうち `propertyFilter` を満たすものを `rowsTrue`、満たさないものを `rowsFalse` とする。
-3. `rowsTrue` から 1 行を正解候補として選ぶ。
-4. `rowsFalse` から `choiceCount - 1` 行を誤答候補としてランダムに選ぶ。
-5. 正解 1 + 誤答 (`choiceCount - 1`) をシャッフルし、選択肢配列として表示する。
-
-#### スキップ条件
-
-* `rowsTrue.length === 0` の場合 → 正解候補なし → スキップ。
-* 仕様としては、`rowsTrue.length !== 1` の場合（条件を満たす行が複数ある／一意でない）もスキップとすることを推奨します。
-* `rowsFalse.length < choiceCount - 1` の場合 → 誤答候補不足 → スキップ。
-
----
-
-### 9.4 `distractorSource` の仕様（choice_from_entities 用）
-
-#### 記述
-
-`choice_from_entities` で誤答候補をどこからどのように取るかを指定するために、`distractorSource` を使用します。
 
 ```jsonc
 "answer": {
@@ -826,31 +777,88 @@ AnswerSpec 例：
 }
 ```
 
-* `from`: 誤答候補のソース
+* `choiceCount`: 実際に表示する選択肢の個数（正解 + 誤答）
+* `distractorSource`: 誤答候補の取り方を指定するオブジェクト
 
-  * v2 では `"dataSet"` のみサポート（同じ DataSet の他行）
-* `count`: 誤答候補として選ぶ行数
+  * `from`: 誤答候補のソース
 
-  * 通常は `choiceCount - 1` に一致させる（正解 1 + 誤答 count = choiceCount）
-* `avoidSameId: boolean`
-
-  * true の場合、正解行と同じ `id` を持つ行は誤答候補にしない
-* `avoidSameText: boolean`
-
-  * true の場合、正解の表示テキストと完全に同じテキストを表示する候補を除外する
-  * 比較対象は「`hide.value` をその行に対してレンダリングした結果の文字列」とする
+    * v2 では `"dataSet"` のみサポート（同じ Pattern が参照している DataSet 전체）
+  * `count`: 誤答候補として必要な行数
+  * `avoidSameId`: 正解行と同じ `id` の行を誤答候補から除外するか
+  * `avoidSameText`: 正解表示と同じテキストを持つ候補を除外するか（同じ表示内容の選択肢を避ける）
 
 #### 処理
 
-1. 正解行（selectedRow）を決定
-2. DataSet の他行を候補集合 `candidates` とする
-3. `avoidSameId` / `avoidSameText` に従って `candidates` をフィルタ
-4. `candidates` からランダムに `count` 行を選び誤答候補とする
-5. 正解 1 + 誤答 `count` 行の順序をシャッフルし、選択肢とする
+1. Pattern が参照している DataSet（`type: "table"`）から、`entityFilter` を適用した後の行集合を得る。
+2. その中から **正解行**（現在の問題で文脈に使用している行）を 1 つ特定し、残りを誤答候補集合とする。
+3. 誤答候補集合から以下のフィルタを適用：
+
+   * `avoidSameId === true` の場合：正解と同じ `id` を持つ行を除外
+   * `avoidSameText === true` の場合：
+
+     * `hide.value` をレンダリングしたテキストと同じ表示になる候補を除外
+4. 誤答候補集合から、`distractorSource.count` 行をランダムに選択。
+5. 正解 1 + 誤答候補を配列にし、ランダムシャッフルして `choiceCount` 個の選択肢として使用。
+
+#### `choiceCount` と `distractorSource.count` の関係
+
+* 基本ルール：
+
+  * `choiceCount` 個の選択肢のうち、1 つが正解で残りは誤答とする。
+  * `distractorSource.count` を省略した場合は、`choiceCount - 1` とみなしてよい。
+* `distractorSource.count + 1 !== choiceCount` の場合：
+
+  * 実装側で `choiceCount` を優先し、`min(choiceCount - 1, distractorSource.count)` 個の誤答を採用することを推奨。
+  * 不整合があった場合は `console.warn` などで警告を出すとよい。
 
 #### スキップ条件
 
-* 利用可能な誤答候補が `count` 未満の場合 → 問題生成をスキップ
+* 利用可能な誤答候補が必要数（`distractorSource.count`）未満の場合 → 問題生成をスキップします。
+
+---
+
+### 9.4 `choice_unique_property`
+
+#### 記述
+
+特定のプロパティ条件を満たす行が **選択肢中でちょうど 1 行だけ**になるような問題を作るモードです。
+
+```jsonc
+"answer": {
+  "mode": "choice_unique_property",
+  "choiceCount": 4,
+  "propertyFilter": {
+    "eq": { "field": "carboxylic", "value": true }
+  }
+}
+```
+
+* `choiceCount`: 選択肢数（n 択）
+* `propertyFilter`: 特定プロパティ条件を表す Filter 構造
+
+  * 後述の Filter 仕様と同じ構文を使用
+
+#### 処理（概要）
+
+1. Pattern が参照している DataSet（`type: "table"`）に `entityFilter` を適用し、候補行集合 `rows` を得る。
+2. `rows` を `propertyFilter` で 2 つに分ける：
+
+   * `rowsTrue`  : `propertyFilter` が `true` となる行
+   * `rowsFalse` : `propertyFilter` が `false` となる行
+3. 問題を生成するには、次を満たす必要があります：
+
+   * `rowsTrue.length >= 1`（正解候補が少なくとも 1 行）
+   * `rowsFalse.length >= choiceCount - 1`（誤答候補が十分にある）
+4. 正解候補行を 1 行だけランダムに選び、`correctRow` とする。
+5. 誤答候補 `rowsFalse` から `choiceCount - 1` 行をランダムに選び、正解 `correctRow` と合わせてシャッフルし、選択肢とする。
+
+#### 一意性の厳密条件
+
+* `choice_unique_property` という名前どおり、**選択肢中で `propertyFilter` を満たす行は必ず 1 行だけ**でなければなりません。
+* したがって、`rowsTrue.length === 1` の場合のみ問題を生成する、という運用も考えられますが、
+
+  * v2 では、「候補全体では複数存在していても、選択肢として採用するのは 1 行だけ」という挙動を正とします。
+  * ただし、`rowsTrue.length === 0` の場合や `rowsFalse.length < choiceCount - 1` の場合はスキップします。
 
 ---
 
@@ -1012,7 +1020,7 @@ Filter は `table` DataSet の行を絞り込むための構造です。`entityF
 ## 12. 制約と設計ポリシー
 
 * 解答はすべてボタン選択で行う（記述式はサポートしない）
-* True/False 形式は、必要であれば 4 択問題として表現する（本仕様では専用モードを設けない）
+* True/False 形式は、必要であれば 4 択などの n 択問題として表現する（専用モードを設けない）
 * 部分点を導入せず、1 選択肢につき正解は 1 つのみとする
 * 多言語対応は、ruby による二言語表記と、問題ファイル差し替えによって行う
 * import のネストは不可（Data Bundle 内での `imports` 禁止）
@@ -1055,6 +1063,14 @@ Filter は `table` DataSet の行を絞り込むための構造です。`entityF
         }
       }
     }
+  ],
+
+  "tips": [
+    [
+      { "type": "text", "value": "ヒント: 分類は " },
+      { "type": "key",  "field": "classJa" },
+      { "type": "text", "value": " 系です。" }
+    ]
   ]
 }
 ```
@@ -1102,23 +1118,17 @@ Filter は `table` DataSet の行を絞り込むための構造です。`entityF
         {
           "type": "hide",
           "id": "bond",
-          "value": { "type": "text", "value": "アミノ基" },
+          "value": "アミノ基",
           "array": ["groups", "bondGroup"],
-          "answer": {
-            "mode": "choice_from_group",
-            "choiceCount": 4
-          }
+          "answer": { "mode": "choice_from_group" }
         },
         { "type": "text", "value": "と結合して環構造" },
         {
           "type": "hide",
           "id": "ring",
-          "value": { "type": "text", "value": "ピロリジン環" },
+          "value": "ピロリジン環",
           "array": ["groups", "ringGroup"],
-          "answer": {
-            "mode": "choice_from_group",
-            "choiceCount": 4
-          }
+          "answer": { "mode": "choice_from_group" }
         },
         { "type": "text", "value": "を作る。" }
       ]
