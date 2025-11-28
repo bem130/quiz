@@ -6,8 +6,7 @@ import { loadQuizEntries } from './entry-model.js';
 import { renderQuizMenu } from './menu-renderer.js';
 import { QuizEngine } from './quiz-engine.js';
 import {
-    renderQuestionText,
-    renderOptions,
+    renderQuestion,
     renderProgress,
     showOptionFeedback,
     resetReviewList,
@@ -36,6 +35,13 @@ let currentModeId = null;
 
 // 現在の画面状態 ("menu" | "quiz" | "result")
 let currentScreen = 'menu';
+
+function resolveRowForQuestion(question) {
+    if (!question || !question.meta || !question.meta.dataSetId) return null;
+    const ds = quizDef && quizDef.dataSets ? quizDef.dataSets[question.meta.dataSetId] : null;
+    if (!ds || ds.type !== 'table' || !Array.isArray(ds.data)) return null;
+    return ds.data.find((row) => row.id === question.meta.entityId) || null;
+}
 
 /**
  * メイン／サイド／結果表示を含めた画面の表示状態を切り替える。
@@ -248,10 +254,7 @@ function loadNextQuestion() {
     currentQuestion = engine.generateQuestion();
     resetSelections(currentQuestion);
 
-    const entity = quizDef.entitySet.entities[currentQuestion.entityId];
-
-    renderQuestionText(currentQuestion.patternTokens, entity, true);
-    renderOptions(currentQuestion, quizDef.entitySet, handleSelectOption);
+    renderQuestion(currentQuestion, quizDef.dataSets, handleSelectOption);
     renderProgress(currentIndex, totalQuestions, currentScore);
 }
 
@@ -283,7 +286,7 @@ function handleSelectOption(answerIndex, optionIndex) {
     const selectionState = selectAnswer(currentQuestion, answerIndex, optionIndex);
 
     // まずはこのパーツだけ本文の穴埋めとボタンを更新し、次のパーツを出す
-    updateInlineBlank(currentQuestion, quizDef.entitySet, answerIndex);
+    updateInlineBlank(currentQuestion, quizDef.dataSets, answerIndex);
     showOptionFeedbackForAnswer(currentQuestion, answerIndex);
     revealNextAnswerGroup(answerIndex);
 
@@ -298,21 +301,21 @@ function handleSelectOption(answerIndex, optionIndex) {
     if (selectionState.fullyCorrect) {
         currentScore += 1;
     } else {
-        addReviewItem(currentQuestion, quizDef.entitySet, currentIndex + 1);
+        addReviewItem(currentQuestion, quizDef.dataSets, currentIndex + 1);
     }
 
     // 全パーツのボタンに最終的なフィードバックを適用（枠・背景の緑/赤など）
     showOptionFeedback(currentQuestion);
 
     // 各ボタン内にパターン全文のプレビューを追記
-    appendPatternPreviewToOptions(currentQuestion, quizDef.entitySet);
+    appendPatternPreviewToOptions(currentQuestion, quizDef.dataSets);
 
     // スコアなどの表示を更新
     renderProgress(currentIndex, totalQuestions, currentScore);
 
-    const entity = quizDef.entitySet.entities[currentQuestion.entityId];
-    if (currentQuestion.patternTips && currentQuestion.patternTips.length && entity) {
-        renderTips(currentQuestion.patternTips, entity, selectionState.fullyCorrect);
+    const row = resolveRowForQuestion(currentQuestion);
+    if (currentQuestion.patternTips && currentQuestion.patternTips.length && row) {
+        renderTips(currentQuestion.patternTips, row, selectionState.fullyCorrect);
     } else {
         resetTips();
     }
@@ -400,7 +403,7 @@ async function bootstrap() {
         // 2. entries と URL (?quiz=...) に基づいてクイズ定義を読み込む
         const def = await loadQuizDefinition(quizEntries);
         console.log('[bootstrap] loadQuizDefinition result =', def);
-        quizDef = def;
+        quizDef = def.definition;
 
         // 3. UI 更新
         document.title = quizDef.meta.title || '4-choice Quiz';

@@ -1,6 +1,82 @@
 // js/quiz-model.js
 import { getQuizNameFromLocation, resolveQuizJsonPath } from './config.js';
 
+function convertEntitySetToDataSet(entitySet) {
+    if (!entitySet || !entitySet.entities) {
+        return {};
+    }
+
+    const id = entitySet.id || 'entity-set';
+    const data = Object.entries(entitySet.entities).map(([entityId, value]) => ({
+        id: entityId,
+        ...(value || {})
+    }));
+
+    return {
+        [id]: {
+            type: 'table',
+            idField: 'id',
+            data
+        }
+    };
+}
+
+function normalizePatterns(rawPatterns, dataSetId) {
+    return (rawPatterns || []).map((p, index) => ({
+        id: p.id || `p_${index}`,
+        questionFormat: p.questionFormat || 'table_fill_choice',
+        dataSet: p.dataSet || dataSetId,
+        tokens: p.tokens || [],
+        entityFilter: p.entityFilter,
+        tokensFromData: p.tokensFromData,
+        matchingSpec: p.matchingSpec,
+        tips: p.tips || []
+    }));
+}
+
+function normalizeModes(rawModes, patterns) {
+    const patternIds = new Set((patterns || []).map((p) => p.id));
+    return (rawModes || []).map((m, idx) => ({
+        id: m.id || `mode_${idx}`,
+        label: m.label || m.id || `Mode ${idx + 1}`,
+        description: m.description,
+        patternWeights: (m.patternWeights || []).filter((pw) => patternIds.has(pw.patternId))
+    }));
+}
+
+function convertToV2(json) {
+    if (json.dataSets) {
+        return {
+            meta: {
+                id: json.id || json.title || 'quiz',
+                title: json.title || json.id || 'quiz',
+                description: json.description || '',
+                colorHue: json.color
+            },
+            dataSets: json.dataSets || {},
+            patterns: normalizePatterns(json.questionRules?.patterns || json.patterns, null),
+            modes: json.questionRules?.modes || json.modes || []
+        };
+    }
+
+    const dataSets = convertEntitySetToDataSet(json.entitySet || {});
+    const dataSetId = Object.keys(dataSets)[0];
+    const patterns = normalizePatterns(json.questionRules?.patterns || json.patterns, dataSetId);
+    const modes = normalizeModes(json.questionRules?.modes || json.modes || [], patterns);
+
+    return {
+        meta: {
+            id: json.id || json.title || 'quiz',
+            title: json.title || json.id || 'quiz',
+            description: json.description || '',
+            colorHue: json.color
+        },
+        dataSets,
+        patterns,
+        modes
+    };
+}
+
 /**
  * URL の指定とエントリ一覧を突き合わせて使用するクイズ ID を決定する。
  *
@@ -145,14 +221,6 @@ export async function loadQuizDefinition(entries) {
 
     return {
         quizName,
-        meta: {
-            id: quizName,
-            title: json.title || quizName,
-            description: json.description || '',
-            colorHue: json.color
-        },
-        entitySet: json.entitySet,
-        patterns: json.questionRules.patterns,
-        modes: json.questionRules.modes
+        definition: convertToV2(json)
     };
 }
