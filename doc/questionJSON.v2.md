@@ -55,8 +55,8 @@ Main Quiz File のトップレベルは、次のフィールドを持つオブ�
 
 ```jsonc
 {
-  "title": "Amino Acid Master Quiz",      // 任意
-  "description": "説明",                  // 任意
+  "title": "Amino Acid Master Quiz",      // 必須
+  "description": "説明",                  // 必須
   "version": 2,                             // 推奨（仕様バージョン）
 
   "imports": ["hoge.json", "fuga.json"], // 任意
@@ -72,7 +72,7 @@ Main Quiz File のトップレベルは、次のフィールドを持つオブ�
 }
 ```
 
-* `title`, `description` はメタ情報（UI 表示などに使用可能）
+* `title`, `description` はメタ情報（UI 表示などに使用）
 * `version` は**本仕様バージョン**を表す整数です
 
   * v2 仕様では **`2` を推奨**
@@ -354,7 +354,9 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 {
   "type": "hide",
   "id": "bond",
-  "value": "アミノ基",
+  "value": [
+    { "type": "text", "value": "アミノ基" }
+  ],
   "array": ["groups", "bondGroup"],
   "answer": { "mode": "choice_from_group" }
 }
@@ -464,9 +466,9 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 
 #### tips フィールド（TipBlock）の仕様
 
-* `tips` は、その Pattern から生成される**各問題に対して、解答後に表示される「小ネタ」や補足情報**を定義するための配列です。
-* 解答のためのヒントではなく、**記憶や理解を助ける豆知識・語源・エピソード**などを表示することを目的とします。
-* 型は **`TipBlock[]`** とし、`TipBlock` は 1 種類の小ネタブロックを表すオブジェクトとします。
+* `tips` は **解答後に表示する小ネタ・補足情報（トリビア）** を定義する配列です。
+* 型は **`TipBlock[]`** です。
+* `TipBlock` は次のようなオブジェクトです：
 
 ```jsonc
 "tips": [
@@ -476,64 +478,69 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
     "tokens": [
       { "type": "text", "value": "🎉 正解！豆知識：" },
       { "type": "br" },
-      { "type": "key",  "field": "desc" }
-    ]
-  },
-  {
-    "id": "t_abbr_incorrect",
-    "when": "after_incorrect",
-    "tokens": [
-      { "type": "text", "value": "残念！ここで覚えておこう：" },
+      { "type": "key",  "field": "desc" },
       { "type": "br" },
-      { "type": "key",  "field": "desc" }
+      { "type": "text", "value": "語源メモ：" },
+      { "type": "br" },
+      { "type": "key",  "field": "mnemonic" }
     ]
   }
 ]
 ```
 
-**TipBlock** のフィールドは次のとおりです。
+* `TipBlock` フィールド：
 
-* `id`（string）
+  * `id: string`
 
-  * 小ネタブロックを一意に識別するための ID です。
-  * ログ出力・デバッグ・テストなどで利用できます。
-* `when`（string）
+    * Pattern 内で一意な Tips の識別子（ログやデバッグ用）
+  * `when?: "after_answer" | "after_correct" | "after_incorrect"`
 
-  * **表示タイミングの条件**を表します。
-  * 代表的な値の例：
+    * **表示タイミング**を指定します。
+    * 省略時は `"after_answer"` とみなします。
 
-    * `"after_answer"` … 正誤に関わらず、その問題に答え終わったあとで表示
-    * `"after_correct"` … その問題に正解した場合にのみ表示
-    * `"after_incorrect"` … その問題が不正解だった場合にのみ表示
-  * 省略時は `"after_answer"` として扱って構いません。
-  * 実装側が解釈可能であれば、これ以外の値を用いても構いません（例：`"after_second_incorrect"`, `"review"` など）。
-* `tokens`（Token[]）
+      * `"after_answer"`: 正解・不正解に関わらず解答後に表示
+      * `"after_correct"`: 正解時のみ表示
+      * `"after_incorrect"`: 不正解時のみ表示
+  * `tokens: Token[]`
 
-  * 小ネタ本文を構成する Token 配列です。
-  * 問題文と同様の Token 記法を使用します。
+    * 実際に表示される小ネタテキストを Token 配列で表現します。
 
-`tokens` 内では、**問題文と同様の Token 記法**が使用できます。
+* 用途：
 
-* 使用可能な `type`：`"text"`, `"key"`, `"ruby"`, `"katex"`, `"smiles"`, `"br"`
-* `styles` も通常どおり使用可能です。
+  * アミノ酸なら：
 
-**制約：**
+    * 「最も単純なアミノ酸で、不斉炭素を持たない」
+    * 「名前の語源はギリシャ語の **glykys（甘い）**」
+    * 「Tyrosine はチーズ（tyros）に由来」など
 
-* `tips` 内では **`type: "hide"` は使用できません。**
+  * 覚えやすくするための情報・語源・臨床的な小話などを入れることを想定します。
 
-  * 小ネタの中に新たな穴埋めを作ることは v2 ではサポートしません。
-* 同様に、`tokens` 内の入れ子構造（`ruby.base` や `ruby.ruby` など）にも `type: "hide"` を含めてはいけません。
-* 設計上、**1 問につき TipBlock は 0〜1 個とする**ことを推奨します（実装上は配列ですが、複数同時表示は想定しない）。
+  * **解答前のヒントではなく、「答え合わせの後に読む小ネタ」** です。
 
-**表示タイミング：**
+* `TipBlock.tokens` 内では、**問題文と同様の Token 記法**が使用できます。
 
-* エンジンは、ユーザーがその問題に対してすべての解答を終えたあとで、`when` の値と正誤結果に従って TipBlock を選択し、`tokens` を描画します。
+  * 使用可能な `type`：`"text"`, `"key"`, `"ruby"`, `"katex"`, `"smiles"`, `"br"`
+  * `styles` も通常どおり使用可能です。
 
-  * 例：
+* **制約：**
 
-    * `fullyCorrect === true` のとき `when: "after_correct"` の TipBlock を表示
-    * `fullyCorrect === false` のとき `when: "after_incorrect"` の TipBlock を表示
-    * 常に表示したい小ネタは `when: "after_answer"` とする
+  * `tips` 内では **`type: "hide"` は使用できません。**
+
+    * 小ネタの中に新たな穴埋めを作ることは v2 ではサポートしません。
+  * `ruby` の中にも `hide` を含めてはいけません（8.4 節と同じ制約）。
+
+* 表示ルール（推奨）：
+
+  * 1 回の解答後に **実際に画面に表示される `TipBlock` は 0〜1 個** とすることを推奨します。
+
+    * `tips` 配列には `when` が異なる `TipBlock` を複数定義して構いません。
+    * 例：`after_correct` 用と `after_incorrect` 用を 1 個ずつ定義し、
+
+      * 正解時 → `after_correct` を 1 つ表示
+      * 不正解時 → `after_incorrect` を 1 つ表示
+  * どのタイミングでどの `TipBlock` を表示するかの詳細はエンジン側の UI 実装に委ねられます。
+
+    * 例：問題を解いたあとで「解説を表示」ボタンを押すと Tips が展開される、など。
 
 #### 処理
 
@@ -542,7 +549,6 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
   * `table_fill_choice` → `tokens` を展開し、各 `hide` から Answer を生成
   * `table_matching` → `matchingSpec` に従いマッチング問題を構成
   * `sentence_fill_choice` → DataSet の `sentences` から 1 件を選択し、その `tokens` を使用
-
 * `entityFilter` は `table_fill_choice` / `table_matching` の両方で任意に利用でき、
 
   * 同じ DataSet に対しても Pattern ごとに異なる Filter を設定することで、
@@ -676,8 +682,13 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 
 #### 制約
 
-* `ruby.base` および `ruby.ruby` の内部には **`type: "hide"` を含めてはいけません**（ruby の中に更なる穴埋めを作ることは禁止）。
-* 一方、`hide.value` に `type: "ruby"` を入れること（ruby 付きテキスト全体を 1 つの穴埋めとして扱うこと）は **許可** されます。
+* `ruby.base` および `ruby.ruby` の内部には **`type: "hide"` を含めてはいけません**
+  （ruby の中に更なる穴埋めを作ることは禁止）。
+* 一方、`hide.value` の配列の中に `type: "ruby"` の Token を 1 要素として含めること
+  （ruby 付きテキスト全体を 1 つの穴埋めとして扱うこと）は **許可** されます。
+
+  * 例：`value: [ { "type": "ruby", "base": ..., "ruby": ... } ]` のように、
+    ruby 全体を 1 要素の Token として持たせることができます。
 
 ---
 
@@ -728,35 +739,78 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 {
   "type": "hide",
   "id": "name",
-  "value": {
-    "type": "key",
-    "field": "nameJa"
-  },
+  "value": [
+    {
+      "type": "key",
+      "field": "nameJa"
+    }
+  ],
   "array": ["groups", "bondGroup"],   // 任意
   "answer": { /* AnswerSpec */ }
 }
 ```
 
 * `id`: 問題内でユニークな穴埋め識別子
-* `value`: 本来表示されるべき内容を表す Token か Token 配列
 
-  * 例：単一の `key`、`ruby`、または `text` + `key` の配列など
+* `value: Token[]`:
+
+  * 本来表示されるべき内容を表す **Token 配列** です。
+  * 配列の長さは **1 以上** である必要があります（空配列は無効）。
+  * 例：
+
+    * 単一の `key` を穴埋めにしたい場合：
+
+      ```jsonc
+      "value": [
+        { "type": "key", "field": "nameJa" }
+      ]
+      ```
+
+    * `text` + `key` のような複合表示をまとめて隠したい場合：
+
+      ```jsonc
+      "value": [
+        { "type": "text", "value": "側鎖は " },
+        { "type": "key",  "field": "sideChainFormulaTex" }
+      ]
+      ```
+
+    * `ruby` 全体を 1 つの穴埋めにしたい場合：
+
+      ```jsonc
+      "value": [
+        {
+          "type": "ruby",
+          "base": { "type": "key", "field": "nameEnCap" },
+          "ruby": { "type": "key", "field": "nameJa" }
+        }
+      ]
+      ```
+
 * `array?: string[]`: Group や他オブジェクトへの参照パス
 
   * v2 では主に `["groups", "groupId"]` を想定
+
 * `answer: AnswerSpec`: この穴埋めの解答モードと選択肢生成ルール
 
 #### 処理
 
 * `value` から「正解表示」を生成し、`answer` に基づいて選択肢を構成します。
-* 画面上では `value` を隠し、ユーザーにはボタン選択で答えさせます。
+* 画面上では `value` の内容を隠し、ユーザーにはボタン選択で答えさせます。
+* 採点ロジックは、`hide` ごとに 1 つの AnswerPart を持ち、
+  `answer.mode` に従って正解・不正解を判定します（9.1 節参照）。
 
 #### 制約
 
-* `value` には **`Token` 1 つ、または `Token[]`** を指定できます。
-* `value` の中に **`type: "hide"` を含めてはいけません**（穴埋めのネスト禁止）。
-* `ruby` の内部にも `hide` を含めてはいけません。
-* 一方、`hide.value` に `ruby` を含めることは許可されます（ruby 付きテキスト全体を 1 つの選択肢として扱う）。
+* `value` には **必ず `Token[]`（Token の配列）** を指定します。
+
+  * 「1 つの `key` だけ」の場合も、長さ 1 の配列とします。
+* `value` の配列内には、直接・間接を問わず **`type: "hide"` の Token を含めてはいけません**（穴埋めのネスト禁止）。
+
+  * 例：`value` 内に `ruby` があり、その `ruby.base` や `ruby.ruby` の中に `hide` が含まれている、といった形も禁止です。
+* `ruby` の内部にも `hide` を含めてはいけません（8.4 節と同様）。
+* ただし、`hide.value` の配列に `ruby` Token を含めること自体は許可されます
+  （ruby 付きテキスト全体を 1 つの穴埋めとして扱う）。
 
 ---
 
@@ -814,7 +868,7 @@ v2 で使用する `answer.mode` は次の 4 種類です：
   "mode": "choice_from_entities",
   "choiceCount": 4,
   "distractorSource": {
-    "scope": "filtered",      // "filtered" または "all"
+    "scope": "filtered",
     "count": 3,
     "avoidSameId": true,
     "avoidSameText": true
@@ -825,39 +879,47 @@ v2 で使用する `answer.mode` は次の 4 種類です：
 * `choiceCount`: 実際に表示する選択肢の個数（正解 + 誤答）
 * `distractorSource`: 誤答候補の取り方を指定するオブジェクト
 
-  * `scope`: 誤答候補を取る元となる行集合の範囲
+  * `scope?: "filtered" | "all"`
 
+    * 誤答候補をどの範囲から取るかを指定します。
+    * 省略時は `"filtered"` とみなします。
     * `"filtered"`:
 
-      * Pattern の `dataSet` に対して `entityFilter` を適用した **後** の行集合を用いる（デフォルト）
+      * Pattern の `entityFilter` を適用した **出題対象行集合** をもとに誤答候補を選びます。
+      * 「同じグループ内だけから誤答を取りたい」場合に向きます。
     * `"all"`:
 
-      * `entityFilter` 適用 **前** の DataSet 全体を用いる
+      * Pattern が参照している DataSet 全体（`type: "table"`）をもとに誤答候補を選びます。
+      * 正解行は `entityFilter` 適用後の行から選びますが、誤答候補はフィルタ前の全行から取ることができます。
+      * 「全体から紛らわしいものを拾いたい」場合に向きます。
   * `count`: 誤答候補として必要な行数
-  * `avoidSameId`: 正解行と同じ `id` の行を誤答候補から除外するか
+  * `avoidSameId`: 正解行と同じ `id` を持つ行を誤答候補から除外するか
   * `avoidSameText`: 正解表示と同じテキストを持つ候補を除外するか（同じ表示内容の選択肢を避ける）
-
-`scope` を省略した場合は、`"filtered"` とみなしてよいものとします。
 
 #### 処理
 
-1. Pattern が参照している DataSet（`type: "table"`）から、候補行集合を得る。
+1. Pattern が参照している DataSet（`type: "table"`）に `entityFilter` を適用し、**出題対象行集合** `rowsFiltered` を得る。
+2. `rowsFiltered` から、現在の問題で使用している **正解行** `correctRow` を 1 行特定する。
+3. 誤答候補の母集合 `rowsForDistractors` を決める：
 
-   * `scope === "filtered"` の場合：
+   * `distractorSource.scope === "all"` の場合：
 
-     * `entityFilter` を適用した後の行集合を用いる。
-   * `scope === "all"` の場合：
+     * DataSet 全体の行集合 `rowsAll` を用いる（`entityFilter` 未適用）。
+   * それ以外（省略または `"filtered"`）の場合：
 
-     * `entityFilter` を適用する前の DataSet 全体を用いる。
-2. その中から **正解行**（現在の問題で文脈に使用している行）を 1 つ特定し、残りを誤答候補集合とする。
-3. 誤答候補集合から以下のフィルタを適用：
+     * `rowsFiltered` を用いる。
+4. `rowsForDistractors` から、以下のフィルタを適用して **誤答候補集合** `rowsCandidates` を得る：
 
-   * `avoidSameId === true` の場合：正解と同じ `id` を持つ行を誤答候補から除外
+   * `avoidSameId === true` の場合：
+
+     * `row.id === correctRow.id` の行を除外。
    * `avoidSameText === true` の場合：
 
-     * `hide.value` をレンダリングしたテキストと同じ表示になる候補を除外
-4. 誤答候補集合から、`distractorSource.count` 行をランダムに選択。
-5. 正解 1 + 誤答候補を配列にし、ランダムシャッフルして `choiceCount` 個の選択肢として使用。
+     * `hide.value` をレンダリングしたテキストと同じ表示になる候補を除外。
+
+       * ここでの「表示テキスト」は、`hide.value` の Token 配列を実際に描画したときの文字列を想定。
+5. `rowsCandidates` から、`distractorSource.count` 行をランダムに選び、誤答候補とする。
+6. 正解 1 行 + 誤答候補行を 1 つの配列にし、ランダムシャッフルして `choiceCount` 個の選択肢として使用する。
 
 #### `choiceCount` と `distractorSource.count` の関係
 
@@ -1087,9 +1149,9 @@ Filter は `table` DataSet の行を絞り込むための構造です。`entityF
 
 ---
 
-# 第2部 例パート（サンプル・改善版）
+# 第2部 例パート（サンプル）
 
-> ここでは、代表的な DataSet と Pattern の組み合わせ例を示します。実際の実装では、この他にも Data Bundle や複数 Pattern を組み合わせた例を用意できます。
+> ここでは、代表的な DataSet と Pattern の組み合わせ例を示します。実装テストや仕様理解の参考として使用できます。
 
 ## A. table_fill_choice：略号 → 名前 n 択穴埋め（小ネタ付き）
 
@@ -1258,7 +1320,9 @@ Filter は `table` DataSet の行を絞り込むための構造です。`entityF
             {
               "type": "hide",
               "id": "bond",
-              "value": "アミノ基",
+              "value": [
+                { "type": "text", "value": "アミノ基" }
+              ],
               "array": ["groups", "bondGroup"],
               "answer": { "mode": "choice_from_group" }
             },
@@ -1266,7 +1330,9 @@ Filter は `table` DataSet の行を絞り込むための構造です。`entityF
             {
               "type": "hide",
               "id": "ring",
-              "value": "ピロリジン環",
+              "value": [
+                { "type": "text", "value": "ピロリジン環" }
+              ],
               "array": ["groups", "ringGroup"],
               "answer": { "mode": "choice_from_group" }
             },
@@ -1305,10 +1371,7 @@ Filter は `table` DataSet の行を絞り込むための構造です。`entityF
   "questionFormat": "sentence_fill_choice",
   "dataSet": "proline-facts",
 
-  // sentence_fill_choice で必要
   "tokensFromData": "sentences",
-
-  // tokens は DataSet 側の sentences[].tokens をそのまま使用するので省略可能
 
   "tips": [
     {
