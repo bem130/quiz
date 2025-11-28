@@ -66,3 +66,4 @@ if __name__ == '__main__':
     merge_directory_files('./js', './tmp/js.txt')
     merge_directory_files('./css', './tmp/css.txt')
     merge_directory_files('./data', './tmp/data.txt')
+    merge_directory_files('./tests', './tmp/tests.txt')
