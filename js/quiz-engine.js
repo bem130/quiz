@@ -1,9 +1,18 @@
 // js/quiz-engine.js
 
+/**
+ * 配列からランダムに 1 要素を選ぶためのユーティリティ。
+ * @template T
+ * @param {Array<T>} arr - 対象の配列。
+ * @returns {T} 配列からランダムに選ばれた要素。
+ */
 function randomChoice(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/**
+ * クイズ定義から問題生成とモード切り替えを管理するエンジン。
+ */
 export class QuizEngine {
     constructor(definition) {
         this.meta = definition.meta;

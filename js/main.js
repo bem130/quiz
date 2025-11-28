@@ -37,7 +37,10 @@ let currentModeId = null;
 // 現在の画面状態 ("menu" | "quiz" | "result")
 let currentScreen = 'menu';
 
-// 画面切り替え: "menu" / "quiz" / "result"
+/**
+ * メイン／サイド／結果表示を含めた画面の表示状態を切り替える。
+ * @param {'menu' | 'quiz' | 'result'} name - 表示する画面の名前。
+ */
 function showScreen(name) {
     currentScreen = name;
 
@@ -70,14 +73,18 @@ function showScreen(name) {
     }
 }
 
-// Next ボタンと Space / Enter / 正答再クリックから共通で使う「次の問題へ」処理
+/**
+ * ボタンやキーボード操作から呼ばれる次の問題への遷移処理。
+ */
 function goToNextQuestion() {
     if (!hasAnswered) return;
     currentIndex += 1;
     loadNextQuestion();
 }
 
-// Mode ボタン生成
+/**
+ * 利用可能なモードの一覧を描画し、選択状態に応じてスタイルを更新する。
+ */
 function populateModeButtons() {
     dom.modeList.innerHTML = '';
     if (!quizDef.modes || quizDef.modes.length === 0) {
@@ -120,8 +127,11 @@ function populateModeButtons() {
     });
 }
 
-// --- Fullscreen helpers ---
+// --- フルスクリーン関連の補助処理 ---
 
+/**
+ * ドキュメントがフルスクリーン表示中かどうかを判定する。
+ */
 function isFullscreen() {
     return !!(
         document.fullscreenElement ||
@@ -131,6 +141,9 @@ function isFullscreen() {
     );
 }
 
+/**
+ * アプリ全体をフルスクリーン表示に切り替える。
+ */
 function requestAppFullscreen() {
     const el = document.documentElement; // 画面全体をフルスクリーンにする
     if (el.requestFullscreen) {
@@ -144,6 +157,9 @@ function requestAppFullscreen() {
     }
 }
 
+/**
+ * フルスクリーン表示を終了させる。
+ */
 function exitAppFullscreen() {
     if (document.exitFullscreen) {
         document.exitFullscreen();
@@ -156,12 +172,18 @@ function exitAppFullscreen() {
     }
 }
 
+/**
+ * 現在のフルスクリーン状態に合わせてメニューのボタンラベルを更新する。
+ */
 function updateFullscreenButton() {
     if (!dom.menuFullscreenToggle) return;
     const active = isFullscreen();
     dom.menuFullscreenToggle.textContent = active ? 'Exit Full' : 'Full';
 }
 
+/**
+ * フルスクリーン状態をトグルし、操作結果に応じてラベルを更新する。
+ */
 function toggleFullscreen() {
     try {
         if (isFullscreen()) {
@@ -178,6 +200,9 @@ function toggleFullscreen() {
 }
 
 
+/**
+ * 選択中のモードと出題数を基にクイズを初期化し、最初の問題を表示する。
+ */
 function startQuiz() {
     const fallbackModeId =
         quizDef.modes && quizDef.modes.length > 0 ? quizDef.modes[0].id : null;
@@ -205,6 +230,9 @@ function startQuiz() {
     loadNextQuestion();
 }
 
+/**
+ * 現在の進行状況に応じて次の問題を生成し、画面を更新する。
+ */
 function loadNextQuestion() {
     if (currentIndex >= totalQuestions) {
         showResult();
@@ -227,6 +255,11 @@ function loadNextQuestion() {
     renderProgress(currentIndex, totalQuestions, currentScore);
 }
 
+/**
+ * 選択肢のクリックに応じて回答状態を更新し、採点とフィードバックを行う。
+ * @param {number} answerIndex - 回答対象のパーツのインデックス。
+ * @param {number} optionIndex - 選択された選択肢のインデックス。
+ */
 function handleSelectOption(answerIndex, optionIndex) {
     if (!currentQuestion || !Array.isArray(currentQuestion.answers)) return;
 
@@ -238,9 +271,7 @@ function handleSelectOption(answerIndex, optionIndex) {
 
         const lastSelectionIsCorrect = optionIndex === target.correctIndex;
 
-        // ★変更ポイント:
-        //  正解しているかどうか（fullyCorrect）は見ず、
-        //  「正解ボタンを押した」のであれば、次の問題へ進める
+        // 採点済みの状態では、正解ボタンを押したときだけ次の問題へ進める
         if (lastSelectionIsCorrect) {
             console.log('[quiz] correct option clicked after answered; goToNextQuestion');
             goToNextQuestion();
@@ -248,7 +279,7 @@ function handleSelectOption(answerIndex, optionIndex) {
         return;
     }
 
-    // ここからは、まだ採点前（hasAnswered === false）の通常処理
+    // ここからは採点前（hasAnswered === false）の通常処理
     const selectionState = selectAnswer(currentQuestion, answerIndex, optionIndex);
 
     // まずはこのパーツだけ本文の穴埋めとボタンを更新し、次のパーツを出す
@@ -256,7 +287,7 @@ function handleSelectOption(answerIndex, optionIndex) {
     showOptionFeedbackForAnswer(currentQuestion, answerIndex);
     revealNextAnswerGroup(answerIndex);
 
-    // 未選択のパーツがある場合は、まだ採点しない（スコア・Mistakes などは保留）
+    // 未選択のパーツがある場合はスコア算出を保留する
     if (!selectionState.allSelected) {
         return;
     }
@@ -273,10 +304,10 @@ function handleSelectOption(answerIndex, optionIndex) {
     // 全パーツのボタンに最終的なフィードバックを適用（枠・背景の緑/赤など）
     showOptionFeedback(currentQuestion);
 
-    // ★各ボタンの中に「pattern 全部」をプレビューとして追記
+    // 各ボタン内にパターン全文のプレビューを追記
     appendPatternPreviewToOptions(currentQuestion, quizDef.entitySet);
 
-    // スコアなどは従来通り
+    // スコアなどの表示を更新
     renderProgress(currentIndex, totalQuestions, currentScore);
 
     const entity = quizDef.entitySet.entities[currentQuestion.entityId];
@@ -289,6 +320,9 @@ function handleSelectOption(answerIndex, optionIndex) {
     dom.nextButton.disabled = false;
 }
 
+/**
+ * クイズ結果を表示し、スコアの概要と画面状態を更新する。
+ */
 function showResult() {
     dom.resultScore.textContent = `${currentScore} / ${totalQuestions}`;
 
@@ -298,7 +332,9 @@ function showResult() {
     showScreen('result');
 }
 
-// キーボード操作のセットアップ
+/**
+ * 数字キーやスペースキーによる回答・遷移を有効化するキーボード操作を登録する。
+ */
 function setupKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
         // 入力フィールドにフォーカスがあるときは邪魔しない
@@ -343,6 +379,9 @@ function setupKeyboardShortcuts() {
     });
 }
 
+/**
+ * アプリ起動時の初期化処理。データ読込、UI 初期化、イベント登録をまとめる。
+ */
 async function bootstrap() {
     initThemeFromStorage();
     initAppHeightObserver();
@@ -396,7 +435,7 @@ async function bootstrap() {
             updateFullscreenButton();
         }
 
-        // Text size: 7 steps
+        // テキストサイズ変更（7 段階）
         if (dom.menuSizeXXSmall) {
             dom.menuSizeXXSmall.addEventListener('click', () => setSize('xxs'));
         }
@@ -419,18 +458,18 @@ async function bootstrap() {
             dom.menuSizeXXLarge.addEventListener('click', () => setSize('xxl'));
         }
 
-        // Quiz start / progress buttons
+        // クイズ開始と進行のボタン
         dom.startButton.addEventListener('click', startQuiz);
 
         dom.nextButton.addEventListener('click', () => {
             goToNextQuestion();
         });
 
-        // Result screen: Retry / Menu buttons
+        // 結果画面のリトライ／メニュー戻りボタン
         if (dom.retryButton) {
             dom.retryButton.addEventListener('click', () => {
                 console.log('[result] Retry button clicked');
-                // Restart quiz with current mode and question count
+                // 選択中のモードと出題数でクイズを再開
                 startQuiz();
             });
         }
@@ -438,7 +477,7 @@ async function bootstrap() {
         if (dom.backToMenuButton) {
             dom.backToMenuButton.addEventListener('click', () => {
                 console.log('[result] Back-to-menu button clicked');
-                // Clear Mistakes and Tips, then go back to menu
+                // Mistakes と Tips をクリアしてメニューに戻る
                 resetReviewList();
                 resetTips();
                 showScreen('menu');
