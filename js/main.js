@@ -39,8 +39,14 @@ let currentScreen = 'menu';
 function resolveRowForQuestion(question) {
     if (!question || !question.meta || !question.meta.dataSetId) return null;
     const ds = quizDef && quizDef.dataSets ? quizDef.dataSets[question.meta.dataSetId] : null;
-    if (!ds || ds.type !== 'table' || !Array.isArray(ds.data)) return null;
-    return ds.data.find((row) => row.id === question.meta.entityId) || null;
+    if (!ds) return null;
+    if (ds.type === 'table' && Array.isArray(ds.data)) {
+        return ds.data.find((row) => row.id === question.meta.entityId) || null;
+    }
+    if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
+        return ds.sentences.find((s) => s.id === question.meta.sentenceId) || null;
+    }
+    return null;
 }
 
 /**

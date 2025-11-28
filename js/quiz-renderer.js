@@ -109,8 +109,9 @@ function renderOptionLabel(option, dataSets, question) {
     if (option.label) {
         return [createStyledSpan(option.label)];
     }
-    if (option.entityId && question.meta && question.meta.dataSetId) {
-        const ds = dataSets[question.meta.dataSetId];
+    const sourceDataSetId = option.dataSetId || (question.meta && question.meta.dataSetId);
+    if (option.entityId && sourceDataSetId) {
+        const ds = dataSets[sourceDataSetId];
         const row = (ds && Array.isArray(ds.data))
             ? ds.data.find((r) => r.id === option.entityId)
             : null;
@@ -156,15 +157,15 @@ export function renderQuestion(question, dataSets, onSelect) {
     dom.questionText.innerHTML = '';
     dom.optionsContainer.innerHTML = '';
 
+    const contextRow = resolveQuestionContext(question, dataSets);
     if (question.format === 'table_matching') {
         const header = document.createElement('div');
         header.className = 'text-sm text-slate-500 dark:text-slate-400 mb-2';
         header.textContent = 'Match the items on the left with the correct options on the right.';
         dom.questionText.appendChild(header);
-    } else {
-        const row = resolveRowForQuestion(question, dataSets);
-        appendTokens(dom.questionText, question.tokens, row, true);
     }
+
+    appendTokens(dom.questionText, question.tokens, contextRow, true);
 
     question.answers.forEach((_, idx) => {
         const group = renderAnswerGroup(question, dataSets, idx, onSelect);
@@ -172,12 +173,17 @@ export function renderQuestion(question, dataSets, onSelect) {
     });
 }
 
-function resolveRowForQuestion(question, dataSets) {
+function resolveQuestionContext(question, dataSets) {
     if (!question.meta || !question.meta.dataSetId) return null;
     const ds = dataSets[question.meta.dataSetId];
-    if (!ds || ds.type !== 'table') return null;
-    if (!Array.isArray(ds.data)) return null;
-    return ds.data.find((row) => row.id === question.meta.entityId) || null;
+    if (!ds) return null;
+    if (ds.type === 'table' && Array.isArray(ds.data)) {
+        return ds.data.find((row) => row.id === question.meta.entityId) || null;
+    }
+    if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
+        return ds.sentences.find((s) => s.id === question.meta.sentenceId) || null;
+    }
+    return null;
 }
 
 export function updateInlineBlank(question, dataSets, answerIndex) {
@@ -185,8 +191,18 @@ export function updateInlineBlank(question, dataSets, answerIndex) {
     if (!answer) return;
     const selected = answer.options[answer.userSelectedIndex];
     const placeholders = dom.questionText.querySelectorAll(`[data-answer-index="${answerIndex}"]`);
+    let fillText = '';
+    if (selected) {
+        if (selected.labelTokens) {
+            const span = document.createElement('span');
+            appendTokens(span, selected.labelTokens, null);
+            fillText = span.textContent || '';
+        } else {
+            fillText = selected.label || selected.displayKey || '';
+        }
+    }
     placeholders.forEach((el) => {
-        el.textContent = selected ? selected.label || selected.displayKey || '' : '';
+        el.textContent = fillText;
     });
 }
 
@@ -231,7 +247,7 @@ export function addReviewItem(question, dataSets, order) {
     dom.reviewEmpty.classList.add('hidden');
     const item = document.createElement('div');
     item.className = 'p-2 border-b border-slate-200 dark:border-slate-700';
-    const row = resolveRowForQuestion(question, dataSets);
+    const row = resolveQuestionContext(question, dataSets);
     const text = document.createElement('div');
     text.className = 'text-sm';
     appendTokens(text, question.tokens, row, false);

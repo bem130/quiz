@@ -25,6 +25,13 @@ export function getFilteredRows(table, filter) {
     return table.data.filter((row) => evaluateFilter(row, filter));
 }
 
+export function getRowById(table, rowId) {
+    if (!table || !Array.isArray(table.data)) {
+        return null;
+    }
+    return table.data.find((row) => row && row.id === rowId) || null;
+}
+
 /**
  * Pick random element from array.
  * @param {Array<T>} arr
@@ -58,6 +65,38 @@ export function shuffled(arr) {
  * @returns {Array<T>}
  */
 export function pickN(arr, count) {
+    if (!Array.isArray(arr) || count <= 0) {
+        return [];
+    }
     const pool = shuffled(arr || []);
-    return pool.slice(0, count);
+    return pool.slice(0, Math.min(count, pool.length));
+}
+
+export function findGroupDefinition(dataSets, groupRef, fallbackDataSetId) {
+    if (!groupRef || !dataSets) {
+        return null;
+    }
+
+    const ref =
+        typeof groupRef === 'string'
+            ? { dataSetId: fallbackDataSetId, groupId: groupRef }
+            : groupRef;
+
+    const dsId = ref && ref.dataSetId ? ref.dataSetId : fallbackDataSetId;
+    if (dsId && dataSets[dsId]) {
+        const ds = dataSets[dsId];
+        if (ds.type === 'factSentences' && ds.groups && ds.groups[ref.groupId]) {
+            return ds.groups[ref.groupId];
+        }
+        if (ds.type === 'groups' && ds.groups && ds.groups[ref.groupId]) {
+            return ds.groups[ref.groupId];
+        }
+    }
+
+    const anyGroups = Object.values(dataSets).find((d) => d && d.type === 'groups');
+    if (anyGroups && anyGroups.groups && ref.groupId && anyGroups.groups[ref.groupId]) {
+        return anyGroups.groups[ref.groupId];
+    }
+
+    return null;
 }

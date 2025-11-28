@@ -1,23 +1,33 @@
 // js/quiz-engine.js
 import { evaluateFilter } from './filters.js';
-import { getDataSet, getFilteredRows, randomChoice, pickN, shuffled } from './dataset-utils.js';
+import {
+    getDataSet,
+    getFilteredRows,
+    randomChoice,
+    pickN,
+    shuffled,
+    findGroupDefinition
+} from './dataset-utils.js';
 
 function tokenDisplayKey(token, row) {
-    if (!token || !row) return '';
+    if (!token) return '';
     if (token.type === 'hideruby') {
         const base = token.base || {};
         const ruby = token.ruby || {};
-        const baseText = base.source === 'key' ? row[base.field] : base.value;
-        const rubyText = ruby.source === 'key' ? row[ruby.field] : ruby.value;
+        const baseText = base.source === 'key' && row ? row[base.field] : base.value;
+        const rubyText = ruby.source === 'key' && row ? row[ruby.field] : ruby.value;
         return `${baseText || ''}|||${rubyText || ''}`;
     }
-    if (token.field && typeof row[token.field] === 'string') {
+    if (token.field && row && typeof row[token.field] === 'string') {
         return row[token.field];
     }
     if (token.value) {
         return token.value;
     }
-    return row.nameEnCap || row.nameEn || '';
+    if (row) {
+        return row.nameEnCap || row.nameEn || row.text || '';
+    }
+    return '';
 }
 
 function optionLabelTokens(token) {
@@ -44,21 +54,29 @@ function optionLabelTokens(token) {
     return null;
 }
 
-function buildChoiceFromEntities(token, correctRow, poolRows) {
+function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
     const choiceCfg = (token.answer && token.answer.choice) || {};
     const ds = choiceCfg.distractorSource || {};
-    const count = typeof ds.count === 'number' ? ds.count : 3;
+    const choiceCount =
+        typeof token.answer?.choiceCount === 'number' && token.answer.choiceCount > 0
+            ? token.answer.choiceCount
+            : typeof ds.count === 'number'
+                ? ds.count + 1
+                : 4;
     const avoidSameId = ds.avoidSameId !== false;
     const avoidSameText = ds.avoidSameText !== false;
+    const pool = Array.isArray(poolRows)
+        ? poolRows.filter((row) => !ds.filter || evaluateFilter(row, ds.filter))
+        : [];
 
     const correctKey = tokenDisplayKey(token, correctRow);
     const usedIds = new Set([correctRow.id]);
     const usedText = new Set([correctKey]);
     const distractors = [];
     let safety = 2000;
-    while (distractors.length < count && safety > 0) {
+    while (distractors.length < choiceCount - 1 && safety > 0) {
         safety -= 1;
-        const candidate = randomChoice(poolRows);
+        const candidate = randomChoice(pool);
         if (!candidate) break;
         if (avoidSameId && usedIds.has(candidate.id)) continue;
         const key = tokenDisplayKey(token, candidate);
@@ -73,13 +91,15 @@ function buildChoiceFromEntities(token, correctRow, poolRows) {
             entityId: correctRow.id,
             isCorrect: true,
             displayKey: correctKey,
-            labelTokens: optionLabelTokens(token)
+            labelTokens: optionLabelTokens(token),
+            dataSetId
         },
         ...distractors.map((row) => ({
             entityId: row.id,
             isCorrect: false,
             displayKey: tokenDisplayKey(token, row),
-            labelTokens: optionLabelTokens(token)
+            labelTokens: optionLabelTokens(token),
+            dataSetId
         }))
     ];
 
@@ -99,10 +119,11 @@ function buildChoiceFromEntities(token, correctRow, poolRows) {
     };
 }
 
-function buildChoiceUniqueProperty(token, correctRow, allRows) {
+function buildChoiceUniqueProperty(token, correctRow, allRows, dataSetId) {
     const propertyFilter = token.answer && token.answer.propertyFilter;
     const choiceCount = token.answer && token.answer.choiceCount ? token.answer.choiceCount : 4;
-    if (!evaluateFilter(correctRow, propertyFilter)) {
+    const matches = allRows.filter((row) => evaluateFilter(row, propertyFilter));
+    if (!matches.find((row) => row.id === correctRow.id) || matches.length !== 1) {
         return null;
     }
     const distractorPool = allRows.filter(
@@ -117,13 +138,15 @@ function buildChoiceUniqueProperty(token, correctRow, allRows) {
             entityId: correctRow.id,
             isCorrect: true,
             displayKey: tokenDisplayKey(token, correctRow),
-            labelTokens: optionLabelTokens(token)
+            labelTokens: optionLabelTokens(token),
+            dataSetId
         },
         ...distractors.map((row) => ({
             entityId: row.id,
             isCorrect: false,
             displayKey: tokenDisplayKey(token, row),
-            labelTokens: optionLabelTokens(token)
+            labelTokens: optionLabelTokens(token),
+            dataSetId
         }))
     ]);
     const correctIndex = options.findIndex((o) => o.isCorrect);
@@ -140,26 +163,9 @@ function buildChoiceUniqueProperty(token, correctRow, allRows) {
     };
 }
 
-function resolveGroupFromToken(token, dataSets, dataSetId) {
-    if (!token || !Array.isArray(token.array)) return null;
-    const root = getDataSet(dataSets, dataSetId);
-    let ref = root;
-    for (const segment of token.array) {
-        if (ref && Object.prototype.hasOwnProperty.call(ref, segment)) {
-            ref = ref[segment];
-        } else {
-            ref = null;
-            break;
-        }
-    }
-    if (ref && Array.isArray(ref.choices)) {
-        return ref;
-    }
-    return null;
-}
-
 function buildChoiceFromGroup(token, correctRow, dataSets, dataSetId) {
-    const group = resolveGroupFromToken(token, dataSets, dataSetId);
+    const groupRef = token.answer.group || token.answer.groupId || token.group;
+    const group = findGroupDefinition(dataSets, groupRef, dataSetId);
     if (!group) return null;
     const correctText = token.value || (token.field ? correctRow[token.field] : '');
     const baseChoices = group.choices || [];
@@ -189,12 +195,28 @@ function buildChoiceFromGroup(token, correctRow, dataSets, dataSetId) {
 function buildAnswerPart(token, correctRow, rows, dataSets, dataSetId) {
     if (!token || !token.answer) return null;
     if (token.answer.mode === 'choice_unique_property') {
-        return buildChoiceUniqueProperty(token, correctRow, rows);
+        return buildChoiceUniqueProperty(token, correctRow, rows, dataSetId);
     }
     if (token.answer.mode === 'choice_from_group') {
         return buildChoiceFromGroup(token, correctRow, dataSets, dataSetId);
     }
-    return buildChoiceFromEntities(token, correctRow, rows);
+    return buildChoiceFromEntities(token, correctRow, rows, dataSetId);
+}
+
+function collectEligibleRowsForUniqueProperties(rows, tokens) {
+    const propertyTokens = (tokens || []).filter(
+        (t) => t && t.answer && t.answer.mode === 'choice_unique_property'
+    );
+    if (!propertyTokens.length) {
+        return rows;
+    }
+    return rows.filter((row) => {
+        return propertyTokens.every((token) => {
+            const filter = token.answer.propertyFilter;
+            const matches = rows.filter((r) => evaluateFilter(r, filter));
+            return matches.length === 1 && matches[0].id === row.id;
+        });
+    });
 }
 
 function generateTableFillChoiceQuestion(pattern, dataSets) {
@@ -203,8 +225,9 @@ function generateTableFillChoiceQuestion(pattern, dataSets) {
         return null;
     }
     const rows = getFilteredRows(table, pattern.entityFilter);
-    if (!rows.length) return null;
-    const correctRow = randomChoice(rows);
+    const eligibleRows = collectEligibleRowsForUniqueProperties(rows, pattern.tokens || []);
+    if (!eligibleRows.length) return null;
+    const correctRow = randomChoice(eligibleRows);
     const answers = [];
     (pattern.tokens || []).forEach((token) => {
         if (!token || !token.answer) return;
@@ -280,12 +303,14 @@ function generateSentenceFillChoiceQuestion(pattern, dataSets) {
     if (!dataSet || dataSet.type !== 'factSentences') {
         return null;
     }
-    const sentence = randomChoice(dataSet.sentences || []);
+    const sentences = getFilteredRows({ data: dataSet.sentences || [] }, pattern.entityFilter);
+    if (!sentences.length) return null;
+    const sentence = randomChoice(sentences);
     if (!sentence) return null;
     const answers = [];
     (sentence.tokens || []).forEach((token) => {
         if (!token || !token.answer) return;
-        const part = buildAnswerPart(token, token, dataSet.sentences || [], dataSets, pattern.dataSet);
+        const part = buildAnswerPart(token, sentence, dataSet.sentences || [], dataSets, pattern.dataSet);
         if (part) {
             answers.push(part);
         }
