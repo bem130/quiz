@@ -32,7 +32,8 @@ test('convertToV2 converts legacy hide.field to value for v2 data', () => {
     const hideToken = def.patterns[0].tokens[0];
     assert.equal(hideToken.type, 'hide');
     assert.ok(hideToken.value, 'hide token should have value after conversion');
-    assert.equal(hideToken.value.type, 'key');
+    assert.ok(Array.isArray(hideToken.value));
+    assert.equal(hideToken.value[0].type, 'key');
 });
 
 test('convertToV2 converts hideruby tokens inside factSentences for v2 data', () => {
@@ -188,5 +189,73 @@ test('validateDefinition enforces tokensFromData for sentence_fill_choice', () =
     assert.throws(
         () => validateDefinition(definition),
         /tokensFromData to "sentences"/
+    );
+});
+
+test('validateDefinition rejects hide tokens without values', () => {
+    const definition = {
+        meta: { id: 'test', title: 'test' },
+        dataSets: {
+            table: {
+                type: 'table',
+                data: [{ id: 'r1', name: 'Row1' }]
+            }
+        },
+        patterns: [
+            {
+                id: 'p1',
+                dataSet: 'table',
+                questionFormat: 'table_fill_choice',
+                tokens: [
+                    {
+                        type: 'hide',
+                        answer: { mode: 'choice_from_entities' }
+                    }
+                ]
+            }
+        ],
+        modes: [
+            { id: 'm1', label: 'Mode', patternWeights: [{ patternId: 'p1', weight: 1 }] }
+        ]
+    };
+
+    assert.throws(
+        () => validateDefinition(definition),
+        /Hide token.*non-empty value array/
+    );
+});
+
+test('validateDefinition requires value or field for katex tokens', () => {
+    const definition = {
+        meta: { id: 'test', title: 'test' },
+        dataSets: {
+            table: {
+                type: 'table',
+                data: [{ id: 'r1', text: 'Hello' }]
+            }
+        },
+        patterns: [
+            {
+                id: 'p1',
+                dataSet: 'table',
+                questionFormat: 'table_fill_choice',
+                tokens: [
+                    { type: 'katex' },
+                    {
+                        type: 'hide',
+                        value: { type: 'text', value: 'answer' },
+                        answer: { mode: 'choice_from_entities' }
+                    }
+                ]
+            }
+        ],
+        modes: [
+            { id: 'm1', label: 'Mode', patternWeights: [{ patternId: 'p1', weight: 1 }] }
+        ]
+    };
+
+    assert.throws(
+        () => validateDefinition(definition),
+        /requires value or field/
     );
 });

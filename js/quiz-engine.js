@@ -9,6 +9,15 @@ import {
     findGroupDefinition
 } from './dataset-utils.js';
 
+const DEFAULT_MAX_CONSECUTIVE_SKIPS = 20;
+
+export class NoQuestionsAvailableError extends Error {
+    constructor(message = 'No questions available for the selected mode or filters.') {
+        super(message);
+        this.name = 'NoQuestionsAvailableError';
+    }
+}
+
 function resolveSubTokenValue(spec, row) {
     if (!spec) return '';
     if (spec.source === 'key') {
@@ -418,13 +427,17 @@ const GENERATORS = {
 };
 
 export class QuizEngine {
-    constructor(definition) {
+    constructor(definition, options = {}) {
         this.meta = definition.meta || {};
         this.dataSets = definition.dataSets || {};
         this.patterns = definition.patterns || [];
         this.modes = definition.modes || [];
         this.currentMode = null;
         this.currentWeights = { list: [], total: 0 };
+        this.maxConsecutiveSkips =
+            typeof options.maxConsecutiveSkips === 'number'
+                ? options.maxConsecutiveSkips
+                : DEFAULT_MAX_CONSECUTIVE_SKIPS;
     }
 
     setMode(modeId) {
@@ -455,16 +468,22 @@ export class QuizEngine {
         if (!this.patterns.length) {
             throw new Error('No patterns available');
         }
-        let attempts = 0;
-        while (attempts < 50) {
-            attempts += 1;
+        let skips = 0;
+        while (skips < this.maxConsecutiveSkips) {
             const pattern = this.choosePattern();
-            if (!pattern) continue;
+            if (!pattern) {
+                skips += 1;
+                continue;
+            }
             const generator = GENERATORS[pattern.questionFormat];
-            if (!generator) continue;
+            if (!generator) {
+                skips += 1;
+                continue;
+            }
             const q = generator(pattern, this.dataSets);
             if (q) return q;
+            skips += 1;
         }
-        throw new Error('Failed to generate question after multiple attempts');
+        throw new NoQuestionsAvailableError();
     }
 }
