@@ -39,6 +39,7 @@ let currentScreen = 'menu';
 
 /**
  * メイン／サイド／結果表示を含めた画面の表示状態を切り替える。
+ * @param {'menu' | 'quiz' | 'result'} name - 表示する画面の名前。
  */
 function showScreen(name) {
     currentScreen = name;
@@ -256,6 +257,8 @@ function loadNextQuestion() {
 
 /**
  * 選択肢のクリックに応じて回答状態を更新し、採点とフィードバックを行う。
+ * @param {number} answerIndex - 回答対象のパーツのインデックス。
+ * @param {number} optionIndex - 選択された選択肢のインデックス。
  */
 function handleSelectOption(answerIndex, optionIndex) {
     if (!currentQuestion || !Array.isArray(currentQuestion.answers)) return;

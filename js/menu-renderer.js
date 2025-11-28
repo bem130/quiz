@@ -4,6 +4,7 @@ import { getQuizNameFromLocation } from './config.js';
 
 /**
  * クイズ一覧をサイドメニューに描画し、URL パラメータと整合した選択状態を示す。
+ * @param {Array<object>} entries - 表示するクイズエントリの配列。
  */
 export function renderQuizMenu(entries) {
     const requested = getQuizNameFromLocation();

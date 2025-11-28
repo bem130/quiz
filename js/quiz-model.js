@@ -7,6 +7,8 @@ import { getQuizNameFromLocation, resolveQuizJsonPath } from './config.js';
  * - URL パラメータがエントリ一覧に存在する場合はそれを優先
  * - 見つからなければ先頭のエントリをデフォルトとして採用
  * - エントリが空で URL だけある場合は URL の値をそのまま利用（互換性用）
+ * @param {Array<object>} entries - クイズエントリの配列。
+ * @returns {string} 使用するクイズの ID。
  */
 function selectQuizIdFromEntries(entries) {
     const requested = getQuizNameFromLocation();
@@ -100,6 +102,8 @@ function resolvePathFromEntry(entry, quizId) {
 
 /**
  * エントリ情報を基にクイズ定義 JSON を取得し、アプリで扱いやすい形に整形する。
+ * @param {Array<object>} entries - クイズエントリの配列。
+ * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
  */
 export async function loadQuizDefinition(entries) {
     const quizName = selectQuizIdFromEntries(entries);

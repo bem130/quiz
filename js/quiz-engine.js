@@ -2,6 +2,9 @@
 
 /**
  * 配列からランダムに 1 要素を選ぶためのユーティリティ。
+ * @template T
+ * @param {Array<T>} arr - 対象の配列。
+ * @returns {T} 配列からランダムに選ばれた要素。
  */
 function randomChoice(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
