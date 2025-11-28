@@ -201,9 +201,12 @@ function validateGroupDefinition(dataSetId, groupId, group) {
     }
 }
 
-function validateDataSets(dataSets) {
+function validateDataSets(dataSets, options = {}) {
     const entries = Object.entries(dataSets || {});
     if (!entries.length) {
+        if (options.allowEmpty) {
+            return;
+        }
         throw new Error('Quiz definition must include at least one dataSet.');
     }
 
@@ -253,7 +256,7 @@ function validateDataSets(dataSets) {
     });
 }
 
-function validateDefinition(definition) {
+function validateDefinition(definition, options = {}) {
     if (!definition || typeof definition !== 'object') {
         throw new Error('Quiz definition is missing or invalid.');
     }
@@ -262,7 +265,7 @@ function validateDefinition(definition) {
         throw new Error('Quiz definition must include dataSets.');
     }
 
-    validateDataSets(definition.dataSets);
+    validateDataSets(definition.dataSets, { allowEmpty: options.allowEmptyDataSets });
 
     if (!Array.isArray(definition.patterns) || definition.patterns.length === 0) {
         throw new Error('At least one pattern is required.');
@@ -335,44 +338,44 @@ function convertToV2(json, options = {}) {
     const patternsSource = json.questionRules?.patterns || json.patterns;
     const modesSource = json.questionRules?.modes || json.modes || [];
 
-    if (json.dataSets) {
-        const dataSets = convertDataSetsToV2(json.dataSets || {}, convertOptions);
-        const patterns = normalizePatterns(patternsSource, null, convertOptions);
-        const modes = normalizeModes(modesSource, patterns);
-        warnUnknownKeys(
-            json,
-            new Set([
-                'id',
-                'title',
-                'description',
-                'version',
-                'color',
-                'imports',
-                'dataSets',
-                'questionRules',
-                'patterns',
-                'modes'
-            ]),
-            'quiz definition'
-        );
-        return validateDefinition({
-            meta,
-            dataSets,
-            patterns,
-            modes
-        });
-    }
-
-    const dataSets = convertEntitySetToDataSet(json.entitySet || {});
+    const dataSets = json.dataSets
+        ? convertDataSetsToV2(json.dataSets || {}, convertOptions)
+        : convertEntitySetToDataSet(json.entitySet || {});
     const dataSetId = Object.keys(dataSets)[0];
     const patterns = normalizePatterns(patternsSource, dataSetId, convertOptions);
     const modes = normalizeModes(modesSource, patterns);
 
-    return validateDefinition({
+    warnUnknownKeys(
+        json,
+        new Set([
+            'id',
+            'title',
+            'description',
+            'version',
+            'color',
+            'imports',
+            'dataSets',
+            'questionRules',
+            'patterns',
+            'modes',
+            'entitySet'
+        ]),
+        'quiz definition'
+    );
+
+    const definition = {
         meta,
         dataSets,
         patterns,
         modes
+    };
+
+    if (options.skipValidation) {
+        return definition;
+    }
+
+    return validateDefinition(definition, {
+        allowEmptyDataSets: options.allowEmptyDataSets
     });
 }
 
@@ -382,6 +385,32 @@ function mergeDataSets(target, source, label) {
             console.warn(`[quiz] DataSet ${id} overridden by ${label}`);
         }
         target[id] = cloneData(ds);
+    });
+}
+
+function mergePatterns(target, source, label) {
+    const existing = new Map((target || []).map((pattern) => [pattern.id, pattern]));
+    (source || []).forEach((pattern) => {
+        if (existing.has(pattern.id)) {
+            console.warn(`[quiz] Pattern ${pattern.id} overridden by ${label}`);
+            const index = target.findIndex((p) => p.id === pattern.id);
+            target.splice(index, 1, pattern);
+            return;
+        }
+        target.push(pattern);
+    });
+}
+
+function mergeModes(target, source, label) {
+    const existing = new Map((target || []).map((mode) => [mode.id, mode]));
+    (source || []).forEach((mode) => {
+        if (existing.has(mode.id)) {
+            console.warn(`[quiz] Mode ${mode.id} overridden by ${label}`);
+            const index = target.findIndex((m) => m.id === mode.id);
+            target.splice(index, 1, mode);
+            return;
+        }
+        target.push(mode);
     });
 }
 
@@ -400,30 +429,46 @@ async function fetchJson(path) {
 }
 
 async function loadDataBundle(mainJson, mainPath) {
-    const imports = Array.isArray(mainJson.imports) ? mainJson.imports : [];
-    const mergedDataSets = {};
+    const visited = new Set();
+    const merged = convertToV2(mainJson, { skipValidation: true, isBundle: true });
+    merged.dataSets = merged.dataSets || {};
+    merged.patterns = merged.patterns || [];
+    merged.modes = merged.modes || [];
 
-    for (const relPath of imports) {
-        const url = resolveImportUrl(mainPath, relPath);
-        const importedJson = await fetchJson(url);
-        if (importedJson.imports) {
-            throw new Error(`Nested imports are not allowed: ${relPath}`);
+    const mainUrl = new URL(mainPath, window.location.href).toString();
+    visited.add(mainUrl);
+
+    async function processImports(json, currentPath) {
+        const imports = Array.isArray(json.imports) ? json.imports : [];
+        for (const relPath of imports) {
+            const url = resolveImportUrl(currentPath, relPath);
+            if (visited.has(url)) {
+                throw new Error(`Circular import detected: ${url}`);
+            }
+            visited.add(url);
+
+            console.log('[quiz] loading import bundle:', url);
+            const importedJson = await fetchJson(url);
+            const importedDefinition = convertToV2(importedJson, { skipValidation: true, isBundle: true });
+            if (!importedDefinition.dataSets || Object.keys(importedDefinition.dataSets).length === 0) {
+                throw new Error(`Import file must include at least one dataSet: ${url}`);
+            }
+
+            mergeDataSets(merged.dataSets, importedDefinition.dataSets, url);
+            mergePatterns(merged.patterns, importedDefinition.patterns, url);
+            mergeModes(merged.modes, importedDefinition.modes, url);
+
+            await processImports(importedJson, url);
         }
-        if (importedJson.questionRules) {
-            throw new Error(`Import file should not contain questionRules: ${relPath}`);
-        }
-        if (!importedJson.dataSets || typeof importedJson.dataSets !== 'object') {
-            throw new Error(`Import file missing dataSets: ${relPath}`);
-        }
-        mergeDataSets(mergedDataSets, importedJson.dataSets, url);
     }
 
-    mergeDataSets(mergedDataSets, mainJson.dataSets || {}, mainPath);
-    const mergedJson = {
-        ...mainJson,
-        dataSets: mergedDataSets
-    };
-    return convertToV2(mergedJson, { isBundle: true });
+    await processImports(mainJson, mainPath);
+
+    if (!merged.dataSets || Object.keys(merged.dataSets).length === 0) {
+        throw new Error('Quiz definition must include at least one dataSet.');
+    }
+
+    return validateDefinition(merged);
 }
 
 /**
@@ -531,7 +576,8 @@ export async function loadQuizDefinition(entries) {
     const json = await fetchJson(path);
     console.log('[quiz] loaded quiz JSON keys =', Object.keys(json || {}));
 
-    const useBundle = json && json.dataSets;
+    const hasImports = Array.isArray(json?.imports) && json.imports.length > 0;
+    const useBundle = json && json.version === 2 && hasImports;
     const definition = useBundle ? await loadDataBundle(json, path) : convertToV2(json);
 
     return {
