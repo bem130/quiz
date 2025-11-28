@@ -9,20 +9,51 @@ import {
     findGroupDefinition
 } from './dataset-utils.js';
 
-function tokenDisplayKey(token, row) {
+function resolveSubTokenValue(spec, row) {
+    if (!spec) return '';
+    if (spec.source === 'key') {
+        return row && spec.field ? row[spec.field] ?? '' : '';
+    }
+    return spec.value ?? '';
+}
+
+function tokenTextFromToken(token, row) {
+    if (Array.isArray(token)) {
+        return token.map((t) => tokenTextFromToken(t, row)).join('');
+    }
     if (!token) return '';
-    if (token.type === 'hideruby') {
-        const base = token.base || {};
-        const ruby = token.ruby || {};
-        const baseText = base.source === 'key' && row ? row[base.field] : base.value;
-        const rubyText = ruby.source === 'key' && row ? row[ruby.field] : ruby.value;
-        return `${baseText || ''}|||${rubyText || ''}`;
+    if (token.type === 'text') {
+        return token.value ?? '';
     }
-    if (token.field && row && typeof row[token.field] === 'string') {
-        return row[token.field];
+    if (token.type === 'katex' || token.type === 'smiles') {
+        if (token.value != null) {
+            return String(token.value);
+        }
+        return row && token.field ? row[token.field] ?? '' : '';
     }
-    if (token.value) {
-        return token.value;
+    if (token.type === 'key') {
+        return row && token.field ? row[token.field] ?? '' : '';
+    }
+    if (token.type === 'ruby' || token.type === 'hideruby') {
+        const baseText = resolveSubTokenValue(token.base, row);
+        const rubyText = resolveSubTokenValue(token.ruby, row);
+        return rubyText ? `${baseText}|${rubyText}` : baseText;
+    }
+    if (token.type === 'hide') {
+        if (token.value) {
+            return tokenTextFromToken(token.value, row);
+        }
+        if (token.field && row) {
+            return row[token.field] ?? '';
+        }
+    }
+    return '';
+}
+
+function tokenDisplayKey(token, row) {
+    const text = tokenTextFromToken(token, row);
+    if (text) {
+        return text;
     }
     if (row) {
         return row.nameEnCap || row.nameEn || row.text || '';
@@ -33,20 +64,27 @@ function tokenDisplayKey(token, row) {
 function optionLabelTokens(token) {
     if (!token) return null;
     const answerMode = token.answer && token.answer.mode;
-    if (
-        answerMode === 'choice_ruby_pair' &&
-        (token.type === 'hideruby' || token.type === 'ruby')
-    ) {
-        return [token];
+    if (answerMode === 'choice_ruby_pair') {
+        if (token.type === 'hideruby' || token.type === 'ruby') {
+            return [token];
+        }
+        if (token.type === 'hide' && token.value) {
+            return Array.isArray(token.value) ? token.value : [token.value];
+        }
     }
-    if (token.type === 'hide' && token.field) {
-        return [
-            {
-                type: 'key',
-                field: token.field,
-                styles: token.styles || []
-            }
-        ];
+    if (token.type === 'hide') {
+        if (token.value) {
+            return Array.isArray(token.value) ? token.value : [token.value];
+        }
+        if (token.field) {
+            return [
+                {
+                    type: 'key',
+                    field: token.field,
+                    styles: token.styles || []
+                }
+            ];
+        }
     }
     if (token.type === 'key') {
         return [token];
@@ -163,28 +201,48 @@ function buildChoiceUniqueProperty(token, correctRow, allRows, dataSetId) {
     };
 }
 
-function buildChoiceFromGroup(token, correctRow, dataSets, dataSetId) {
+function buildChoiceFromGroup(token, correctRow, dataSets, dataSetId, groupUsage) {
     const groupRef = token.answer.group || token.answer.groupId || token.group;
-    const group = findGroupDefinition(dataSets, groupRef, dataSetId);
-    if (!group) return null;
-    const correctText = token.value || (token.field ? correctRow[token.field] : '');
-    const baseChoices = group.choices || [];
+    const resolved = findGroupDefinition(dataSets, groupRef, dataSetId);
+    if (!resolved || !resolved.group) return null;
+    const groupId =
+        (groupRef && typeof groupRef === 'object' && groupRef.groupId) ||
+        (typeof groupRef === 'string' ? groupRef : '');
+    const groupKey = `${resolved.dataSetId || dataSetId || 'groups'}::${groupId}`;
+    const correctText = tokenTextFromToken(token, correctRow);
+    const baseChoices = Array.isArray(resolved.group.choices) ? resolved.group.choices : [];
     const choices = baseChoices.includes(correctText)
         ? baseChoices.slice()
         : baseChoices.concat(correctText);
+    let correctIndex = choices.findIndex((text) => text === correctText);
+    if (correctIndex < 0) {
+        correctIndex = choices.length - 1;
+    }
+    if (resolved.group.drawWithoutReplacement) {
+        const used = groupUsage.get(groupKey) || new Set();
+        const available = choices.map((_, idx) => idx).filter((idx) => !used.has(idx));
+        if (!available.includes(correctIndex) && available.length > 0) {
+            correctIndex = available[Math.floor(Math.random() * available.length)];
+        }
+        if (!available.length) {
+            console.warn(`[quiz] Group ${groupKey} choices exhausted for drawWithoutReplacement.`);
+        }
+        used.add(correctIndex);
+        groupUsage.set(groupKey, used);
+    }
     const options = shuffled(
-        choices.map((text) => ({
-            isCorrect: text === correctText,
+        choices.map((text, idx) => ({
+            isCorrect: idx === correctIndex,
             label: text
         }))
     );
-    const correctIndex = options.findIndex((o) => o.isCorrect);
+    const shuffledCorrect = options.findIndex((o) => o.isCorrect);
     return {
         id: token.id || `ans_${correctRow.id}`,
         mode: 'choice_from_group',
         token,
         options,
-        correctIndex,
+        correctIndex: shuffledCorrect,
         userSelectedIndex: null,
         meta: {
             correctRowId: correctRow.id
@@ -192,13 +250,13 @@ function buildChoiceFromGroup(token, correctRow, dataSets, dataSetId) {
     };
 }
 
-function buildAnswerPart(token, correctRow, rows, dataSets, dataSetId) {
+function buildAnswerPart(token, correctRow, rows, dataSets, dataSetId, groupUsage) {
     if (!token || !token.answer) return null;
     if (token.answer.mode === 'choice_unique_property') {
         return buildChoiceUniqueProperty(token, correctRow, rows, dataSetId);
     }
     if (token.answer.mode === 'choice_from_group') {
-        return buildChoiceFromGroup(token, correctRow, dataSets, dataSetId);
+        return buildChoiceFromGroup(token, correctRow, dataSets, dataSetId, groupUsage);
     }
     return buildChoiceFromEntities(token, correctRow, rows, dataSetId);
 }
@@ -229,9 +287,17 @@ function generateTableFillChoiceQuestion(pattern, dataSets) {
     if (!eligibleRows.length) return null;
     const correctRow = randomChoice(eligibleRows);
     const answers = [];
+    const groupUsage = new Map();
     (pattern.tokens || []).forEach((token) => {
         if (!token || !token.answer) return;
-        const part = buildAnswerPart(token, correctRow, rows, dataSets, pattern.dataSet);
+        const part = buildAnswerPart(
+            token,
+            correctRow,
+            rows,
+            dataSets,
+            pattern.dataSet,
+            groupUsage
+        );
         if (part) {
             answers.push(part);
         }
@@ -303,14 +369,29 @@ function generateSentenceFillChoiceQuestion(pattern, dataSets) {
     if (!dataSet || dataSet.type !== 'factSentences') {
         return null;
     }
+    if (pattern.tokensFromData !== 'sentences') {
+        return null;
+    }
     const sentences = getFilteredRows({ data: dataSet.sentences || [] }, pattern.entityFilter);
     if (!sentences.length) return null;
     const sentence = randomChoice(sentences);
     if (!sentence) return null;
     const answers = [];
-    (sentence.tokens || []).forEach((token) => {
+    const groupUsage = new Map();
+    const sentenceTokens = sentence.tokens || [];
+    const questionTokens = (pattern.tokens && pattern.tokens.length)
+        ? (pattern.tokens || []).concat(sentenceTokens)
+        : sentenceTokens;
+    sentenceTokens.forEach((token) => {
         if (!token || !token.answer) return;
-        const part = buildAnswerPart(token, sentence, dataSet.sentences || [], dataSets, pattern.dataSet);
+        const part = buildAnswerPart(
+            token,
+            sentence,
+            dataSet.sentences || [],
+            dataSets,
+            pattern.dataSet,
+            groupUsage
+        );
         if (part) {
             answers.push(part);
         }
@@ -320,7 +401,7 @@ function generateSentenceFillChoiceQuestion(pattern, dataSets) {
         id: `q_${pattern.id}_${sentence.id}`,
         patternId: pattern.id,
         format: 'sentence_fill_choice',
-        tokens: sentence.tokens || [],
+        tokens: questionTokens,
         patternTips: pattern.tips || [],
         answers,
         meta: {

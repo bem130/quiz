@@ -1,0 +1,128 @@
+{
+    "version": 2,
+    "dataSets": {
+        "alpha-amino-acids": {
+            "type": "table",
+            "idField": "id",
+            "data": [
+                {
+                    "id": "gly",
+                    "nameEnCap": "Glycine",
+                    "nameEn": "glycine",
+                    "nameJa": "グリシン",
+                    "sideChainFormula": "-H",
+                    "sideChainFormulaTex": "\\ce{-H}"
+                },
+                {
+                    "id": "ala",
+                    "nameEnCap": "Alanine",
+                    "nameEn": "alanine",
+                    "nameJa": "アラニン",
+                    "sideChainFormula": "-CH3",
+                    "sideChainFormulaTex": "\\ce{-CH3}"
+                },
+                {
+                    "id": "val",
+                    "nameEnCap": "Valine",
+                    "nameEn": "valine",
+                    "nameJa": "バリン",
+                    "sideChainFormula": "-CH(CH3)2",
+                    "sideChainFormulaTex": "\\ce{-CH(CH3)2}"
+                },
+                {
+                    "id": "leu",
+                    "nameEnCap": "Leucine",
+                    "nameEn": "leucine",
+                    "nameJa": "ロイシン",
+                    "sideChainFormula": "-CH2-CH(CH3)2",
+                    "sideChainFormulaTex": "\\ce{-CH2-CH(CH3)2}"
+                },
+                {
+                    "id": "ser",
+                    "nameEnCap": "Serine",
+                    "nameEn": "serine",
+                    "nameJa": "セリン",
+                    "sideChainFormula": "-CH2OH",
+                    "sideChainFormulaTex": "\\ce{-CH2OH}"
+                },
+                {
+                    "id": "thr",
+                    "nameEnCap": "Threonine",
+                    "nameEn": "threonine",
+                    "nameJa": "スレオニン",
+                    "sideChainFormula": "-CH(OH)CH3",
+                    "sideChainFormulaTex": "\\ce{-CH(OH)CH3}"
+                },
+                {
+                    "id": "phe",
+                    "nameEnCap": "Phenylalanine",
+                    "nameEn": "phenylalanine",
+                    "nameJa": "フェニルアラニン",
+                    "sideChainFormula": "-CH2-Ph",
+                    "sideChainFormulaTex": "\\ce{-CH2-Ph}"
+                },
+                {
+                    "id": "tyr",
+                    "nameEnCap": "Tyrosine",
+                    "nameEn": "tyrosine",
+                    "nameJa": "チロシン",
+                    "sideChainFormula": "-CH2-Ph-OH",
+                    "sideChainFormulaTex": "\\ce{-CH2-Ph-OH}"
+                }
+            ]
+        },
+        "alpha-sentences": {
+            "type": "factSentences",
+            "sentences": [
+                {
+                    "id": "s_gly_sidechain",
+                    "nameEnCap": "Glycine",
+                    "nameJa": "グリシン",
+                    "sideChainFormulaTex": "\\ce{-H}",
+                    "tokens": [
+                        { "type": "text", "value": "The amino acid with the side chain " },
+                        { "type": "katex", "field": "sideChainFormulaTex" },
+                        { "type": "text", "value": " is " },
+                        {
+                            "type": "hide",
+                            "id": "gly_name",
+                            "value": {
+                                "type": "ruby",
+                                "base": { "source": "key", "field": "nameEnCap", "styles": ["sans", "bold"] },
+                                "ruby": { "source": "key", "field": "nameJa", "styles": ["sans"] }
+                            },
+                            "answer": { "mode": "choice_ruby_pair" }
+                        },
+                        { "type": "text", "value": "." }
+                    ]
+                },
+                {
+                    "id": "s_polar_pair",
+                    "tokens": [
+                        { "type": "text", "value": "Two polar amino acids are " },
+                        {
+                            "type": "hide",
+                            "id": "polar_first",
+                            "value": { "type": "text", "value": "Serine" },
+                            "answer": { "mode": "choice_from_group", "group": "polar" }
+                        },
+                        { "type": "text", "value": " and " },
+                        {
+                            "type": "hide",
+                            "id": "polar_second",
+                            "value": { "type": "text", "value": "Threonine" },
+                            "answer": { "mode": "choice_from_group", "group": "polar" }
+                        },
+                        { "type": "text", "value": "." }
+                    ]
+                }
+            ],
+            "groups": {
+                "polar": {
+                    "choices": ["Serine", "Threonine", "Glycine", "Alanine"],
+                    "drawWithoutReplacement": true
+                }
+            }
+        }
+    }
+}

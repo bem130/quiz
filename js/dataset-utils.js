@@ -86,16 +86,18 @@ export function findGroupDefinition(dataSets, groupRef, fallbackDataSetId) {
     if (dsId && dataSets[dsId]) {
         const ds = dataSets[dsId];
         if (ds.type === 'factSentences' && ds.groups && ds.groups[ref.groupId]) {
-            return ds.groups[ref.groupId];
+            return { group: ds.groups[ref.groupId], dataSetId: dsId };
         }
         if (ds.type === 'groups' && ds.groups && ds.groups[ref.groupId]) {
-            return ds.groups[ref.groupId];
+            return { group: ds.groups[ref.groupId], dataSetId: dsId };
         }
     }
 
-    const anyGroups = Object.values(dataSets).find((d) => d && d.type === 'groups');
-    if (anyGroups && anyGroups.groups && ref.groupId && anyGroups.groups[ref.groupId]) {
-        return anyGroups.groups[ref.groupId];
+    const anyEntry = Object.entries(dataSets).find(
+        ([, d]) => d && d.type === 'groups' && d.groups && ref.groupId && d.groups[ref.groupId]
+    );
+    if (anyEntry) {
+        return { group: anyEntry[1].groups[ref.groupId], dataSetId: anyEntry[0] };
     }
 
     return null;

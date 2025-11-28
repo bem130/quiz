@@ -50,12 +50,49 @@ function renderRubyToken(token, row) {
     return rubyEl;
 }
 
+function renderHideValueIntoSpan(span, token, row) {
+    if (Array.isArray(token.value)) {
+        appendTokens(span, token.value, row, null);
+        return;
+    }
+    if (token.value && typeof token.value === 'object') {
+        appendTokens(span, [token.value], row, null);
+        return;
+    }
+    const field = token.field;
+    const value = field && row ? row[field] ?? '' : '';
+    span.appendChild(createStyledSpan(value || '____', token.styles || []));
+}
+
 function appendTokens(parent, tokens, row, placeholders = null) {
     let answerIndexCounter = 0;
     (tokens || []).forEach((token) => {
         if (!token || !token.type) return;
         if (token.type === 'text') {
             parent.appendChild(createStyledSpan(token.value ?? '', token.styles || []));
+            return;
+        }
+        if (token.type === 'katex') {
+            const text =
+                token.value != null
+                    ? token.value
+                    : token.field && row
+                        ? row[token.field] ?? ''
+                        : '';
+            parent.appendChild(createStyledSpan(String(text), ['katex', ...(token.styles || [])]));
+            return;
+        }
+        if (token.type === 'smiles') {
+            const text =
+                token.value != null
+                    ? token.value
+                    : token.field && row
+                        ? row[token.field] ?? ''
+                        : '';
+            const span = document.createElement('span');
+            span.textContent = text ? `[SMILES: ${text}]` : '[SMILES]';
+            span.classList.add('font-mono');
+            parent.appendChild(span);
             return;
         }
         if (token.type === 'key') {
@@ -76,9 +113,9 @@ function appendTokens(parent, tokens, row, placeholders = null) {
                 span.textContent = ' ';
                 parent.appendChild(span);
             } else {
-                const field = token.field;
-                const value = field && row ? row[field] ?? '' : '';
-                parent.appendChild(createStyledSpan(value || '____', token.styles || []));
+                const span = document.createElement('span');
+                renderHideValueIntoSpan(span, token, row);
+                parent.appendChild(span);
             }
             answerIndexCounter += 1;
             return;
@@ -101,25 +138,27 @@ function createOptionButton(labelNodes, isDisabled, onClick) {
 }
 
 function renderOptionLabel(option, dataSets, question) {
+    const sourceDataSetId = option.dataSetId || (question.meta && question.meta.dataSetId);
+    const ds = sourceDataSetId ? dataSets[sourceDataSetId] : null;
+    const row = option.entityId && ds
+        ? ds.type === 'table' && Array.isArray(ds.data)
+            ? ds.data.find((r) => r.id === option.entityId)
+            : ds.type === 'factSentences' && Array.isArray(ds.sentences)
+                ? ds.sentences.find((s) => s.id === option.entityId)
+                : null
+        : null;
     if (option.labelTokens) {
         const span = document.createElement('span');
-        appendTokens(span, option.labelTokens, null);
+        appendTokens(span, option.labelTokens, row);
         return [span];
     }
     if (option.label) {
         return [createStyledSpan(option.label)];
     }
-    const sourceDataSetId = option.dataSetId || (question.meta && question.meta.dataSetId);
-    if (option.entityId && sourceDataSetId) {
-        const ds = dataSets[sourceDataSetId];
-        const row = (ds && Array.isArray(ds.data))
-            ? ds.data.find((r) => r.id === option.entityId)
-            : null;
-        if (row) {
-            const span = document.createElement('span');
-            appendTokens(span, [{ type: 'key', field: 'nameEnCap' }], row);
-            return [span];
-        }
+    if (row) {
+        const span = document.createElement('span');
+        appendTokens(span, [{ type: 'key', field: 'nameEnCap' }], row);
+        return [span];
     }
     return [createStyledSpan(String(option.label || option.displayKey || ''))];
 }

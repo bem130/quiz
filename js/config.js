@@ -18,6 +18,24 @@ export function resolveQuizJsonPath(quizName) {
     return `data/quizzes/${quizName}.json`;
 }
 
+// Resolve quiz JSON path from entry data
+export function resolveQuizJsonFromEntry(entry) {
+    if (!entry) {
+        return null;
+    }
+
+    if (typeof entry.dir === 'string' && entry.id) {
+        const trimmed = entry.dir.replace(/\/+$/, '');
+        return `${trimmed}/${entry.id}.json`;
+    }
+
+    if (typeof entry.file === 'string') {
+        return entry.file;
+    }
+
+    return null;
+}
+
 // Path to entry generator (quiz list)
 export const ENTRY_JSON_PATH = 'entry.php';
 export const ENTRY_JSON_FALLBACK_PATH = 'data/entry.json';
