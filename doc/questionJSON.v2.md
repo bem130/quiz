@@ -72,7 +72,7 @@ Main Quiz File のトップレベルは、次のフィールドを持つオブ�
 }
 ```
 
-* `title`, `description` はメタ情報（UI 表示などに使用）
+* `title`, `description` は 必須のメタ情報（UI 表示などに使用）
 * `version` は**本仕様バージョン**を表す整数です
 
   * v2 仕様では **`2` を推奨**
@@ -1220,7 +1220,9 @@ Filter は `table` DataSet の行を絞り込むための構造です。`entityF
     {
       "type": "hide",
       "id": "class",
-      "value": { "type": "key", "field": "classJa" },
+      "value": [
+        { "type": "key", "field": "classJa" }
+      ],
       "answer": {
         "mode": "choice_from_entities",
         "choiceCount": 4,
