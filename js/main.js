@@ -38,8 +38,62 @@ let questionHistory = [];
 // 現在選択中の modeId
 let currentModeId = null;
 
-// 現在の画面状態 ("menu" | "quiz" | "result")
+// Current screen ("menu" | "quiz" | "result")
 let currentScreen = 'menu';
+
+// Timer state
+let quizStartTime = null;
+let quizTimerId = null;
+
+/**
+ * Update timer text with given elapsed seconds.
+ * Format: mm:ss
+ */
+function updateQuizTimerDisplay(elapsedSeconds) {
+    if (!dom.quizTimer) return;
+    const minutes = Math.floor(elapsedSeconds / 60);
+    const seconds = elapsedSeconds % 60;
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(seconds).padStart(2, '0');
+    dom.quizTimer.textContent = `${mm}:${ss}`;
+}
+
+/**
+ * Reset timer state and display to 00:00.
+ */
+function resetQuizTimer() {
+    quizStartTime = null;
+    if (quizTimerId) {
+        clearInterval(quizTimerId);
+        quizTimerId = null;
+    }
+    updateQuizTimerDisplay(0);
+}
+
+/**
+ * Start timer from zero.
+ */
+function startQuizTimer() {
+    resetQuizTimer();
+    quizStartTime = Date.now();
+    quizTimerId = window.setInterval(() => {
+        if (!quizStartTime) return;
+        const elapsedMs = Date.now() - quizStartTime;
+        const elapsedSeconds = Math.floor(elapsedMs / 1000);
+        updateQuizTimerDisplay(elapsedSeconds);
+    }, 1000);
+}
+
+/**
+ * Stop timer but keep current display value.
+ */
+function stopQuizTimer() {
+    if (quizTimerId) {
+        clearInterval(quizTimerId);
+        quizTimerId = null;
+    }
+}
+
 
 function resolveRowForQuestion(question) {
     if (!question || !question.meta || !question.meta.dataSetId) return null;
@@ -61,23 +115,22 @@ function resolveRowForQuestion(question) {
 function showScreen(name) {
     currentScreen = name;
 
-    // メイン
+    // Main
     dom.mainMenu.classList.add('hidden');
     dom.mainQuiz.classList.add('hidden');
     if (dom.questionView) {
         dom.questionView.classList.remove('hidden');
     }
 
-    // サイド（下半分だけ切り替える）
+    // Side
     dom.sideMenu.classList.add('hidden');
     dom.sideQuiz.classList.add('hidden');
 
-    // ヘッダスコア
+    // Header/score area (bottom bar center)
     dom.quizHeaderScore.classList.add('hidden');
 
-    // 結果パネル
+    // Result panel
     dom.resultScreen.classList.add('hidden');
-
     if (dom.resultListPanel) {
         dom.resultListPanel.classList.add('hidden');
     }
@@ -85,7 +138,13 @@ function showScreen(name) {
         dom.mistakesPanel.classList.add('hidden');
     }
 
-    dom.nextButton.classList.remove('hidden');
+    // Bottom buttons: hide by default
+    if (dom.nextButton) {
+        dom.nextButton.classList.add('hidden');
+    }
+    if (dom.interruptButton) {
+        dom.interruptButton.classList.add('hidden');
+    }
 
     if (name === 'menu') {
         dom.mainMenu.classList.remove('hidden');
@@ -100,6 +159,12 @@ function showScreen(name) {
         if (dom.mistakesPanel) {
             dom.mistakesPanel.classList.remove('hidden');
         }
+        if (dom.nextButton) {
+            dom.nextButton.classList.remove('hidden');
+        }
+        if (dom.interruptButton) {
+            dom.interruptButton.classList.remove('hidden');
+        }
     } else if (name === 'result') {
         dom.mainQuiz.classList.remove('hidden');
         dom.sideQuiz.classList.remove('hidden');
@@ -111,7 +176,7 @@ function showScreen(name) {
         if (dom.resultListPanel) {
             dom.resultListPanel.classList.remove('hidden');
         }
-        dom.nextButton.classList.add('hidden');
+        // In result screen: Next and interrupt remain hidden
     }
 }
 
@@ -274,6 +339,7 @@ function startQuiz() {
     }
 
     showScreen('quiz');
+    startQuizTimer();
     loadNextQuestion();
 }
 
@@ -391,6 +457,9 @@ function handleSelectOption(answerIndex, optionIndex) {
  * クイズ結果を表示し、スコアの概要と画面状態を更新する。
  */
 function showResult() {
+    // Stop timer when quiz is finished or interrupted
+    stopQuizTimer();
+
     dom.resultScore.textContent = `Score: ${currentScore} / ${totalQuestions}`;
     dom.resultTotal.textContent = `${totalQuestions}`;
     dom.resultCorrect.textContent = `${currentScore}`;
@@ -541,6 +610,16 @@ async function bootstrap() {
             goToNextQuestion();
         });
 
+        // Interrupt button: end quiz early and show result
+        if (dom.interruptButton) {
+            dom.interruptButton.addEventListener('click', () => {
+                console.log('[quiz] Interrupt button clicked');
+                if (currentScreen === 'quiz') {
+                    showResult();
+                }
+            });
+        }
+
         // 結果画面のリトライ／メニュー戻りボタン
         if (dom.retryButton) {
             dom.retryButton.addEventListener('click', () => {
@@ -553,9 +632,10 @@ async function bootstrap() {
         if (dom.backToMenuButton) {
             dom.backToMenuButton.addEventListener('click', () => {
                 console.log('[result] Back-to-menu button clicked');
-                // Mistakes と Tips をクリアしてメニューに戻る
+                // Clear Mistakes and Tips when returning to menu
                 resetReviewList();
                 resetTips();
+                resetQuizTimer();        // ← 追加：00:00 に戻す
                 showScreen('menu');
             });
         }

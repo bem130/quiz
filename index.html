@@ -45,11 +45,6 @@
                         Loading quiz definition...
                     </p>
                 </div>
-                <!-- クイズ中に右上にスコア表示 -->
-                <div id="quiz-header-score" class="hidden text-right text-xs">
-                    <div class="uppercase text-[0.7rem] tracking-wide text-slate-500 dark:text-slate-400">Score</div>
-                    <div class="text-lg font-semibold text-emerald-500" id="current-score">0</div>
-                </div>
             </header>
 
             <!-- メイン: メニュー画面 -->
@@ -79,17 +74,6 @@
 
             <!-- メイン: クイズ画面 -->
             <section id="main-quiz" class="hidden flex-1 overflow-y-auto flex flex-col">
-                <!-- 進捗バー -->
-                <div class="px-6 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-900/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 transition-colors duration-300">
-                    <div>
-                        <div class="uppercase text-[0.7rem] tracking-wide">Progress</div>
-                        <div class="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                            <span id="current-q-num">1</span>
-                            <span class="text-xs text-slate-400 mx-1">/</span>
-                            <span id="total-q-num" class="text-slate-500 dark:text-slate-300">10</span>
-                        </div>
-                    </div>
-                </div>
 
                 <div id="question-view" class="flex-1 overflow-y-auto p-6 flex flex-col">
                     <!-- 内側ラッパーを flex-1 + flex-col にする -->
@@ -150,17 +134,72 @@
                     </div>
                 </div>
 
-                <!-- Nextボタン -->
-                <footer class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex justify-end transition-colors duration-300">
+                <!-- Bottom bar: interrupt / progress / score / timer / next -->
+                <footer class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center gap-4 text-xs transition-colors duration-300">
+                    <!-- Interrupt button -->
+                    <button
+                        id="interrupt-button"
+                        type="button"
+                        class="px-3 py-2 rounded-xl
+                            border border-slate-300 dark:border-slate-700
+                            text-slate-700 dark:text-slate-200
+                            bg-white dark:bg-slate-900
+                            hover:border-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30
+                            disabled:opacity-40
+                            transition-colors
+                            hidden"
+                    >
+                        中断して結果へ
+                    </button>
+
+                    <!-- Center status: Progress + Score + Timer -->
+                    <div
+                        id="quiz-header-score"
+                        class="flex-1 flex items-center justify-center gap-6 text-[0.7rem] sm:text-xs hidden"
+                    >
+                        <!-- Progress -->
+                        <div class="flex items-baseline gap-1">
+                            <span class="uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Progress
+                            </span>
+                            <span class="text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100">
+                                <span id="current-q-num">1</span>
+                                <span class="text-[0.7rem] text-slate-400 mx-1">/</span>
+                                <span id="total-q-num" class="text-slate-500 dark:text-slate-300">10</span>
+                            </span>
+                        </div>
+
+                        <!-- Score -->
+                        <div class="flex items-baseline gap-1">
+                            <span class="uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Score
+                            </span>
+                            <span class="text-sm sm:text-base font-semibold text-emerald-500" id="current-score">
+                                0
+                            </span>
+                        </div>
+
+                        <!-- Timer -->
+                        <div class="flex items-baseline gap-1">
+                            <span class="uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Time
+                            </span>
+                            <span class="text-sm sm:text-base font-mono text-slate-900 dark:text-slate-100" id="quiz-timer">
+                                00:00
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Next button -->
                     <button
                         id="next-button"
                         class="px-4 py-2 text-xs rounded-xl
-                               border border-slate-300 dark:border-slate-700
-                               text-slate-700 dark:text-slate-200
-                               bg-white dark:bg-slate-900
-                               hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800
-                               disabled:opacity-40
-                               transition-colors"
+                            border border-slate-300 dark:border-slate-700
+                            text-slate-700 dark:text-slate-200
+                            bg-white dark:bg-slate-900
+                            hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800
+                            disabled:opacity-40
+                            transition-colors"
                         disabled
                     >
                         Next

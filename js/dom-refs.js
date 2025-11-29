@@ -42,8 +42,25 @@ export const dom = {
     // クイズ画面: Tips コンテナ
     tipContainer: document.getElementById('tip-container'),
 
-    // クイズ画面: Next ボタン
+    // Quiz screen: progress
+    currentQNum: document.getElementById('current-q-num'),
+    totalQNum: document.getElementById('total-q-num'),
+
+    // Quiz screen: timer
+    quizTimer: document.getElementById('quiz-timer'),
+
+    // Quiz screen: question and options
+    questionText: document.getElementById('question-text'),
+    optionsContainer: document.getElementById('options-container'),
+
+    // Quiz screen: Tips container
+    tipContainer: document.getElementById('tip-container'),
+
+    // Quiz screen: Next button
     nextButton: document.getElementById('next-button'),
+
+    // Quiz screen: Interrupt button
+    interruptButton: document.getElementById('interrupt-button'),
 
     // サイドパネル: メニュー用
     sideMenu: document.getElementById('side-menu'),
