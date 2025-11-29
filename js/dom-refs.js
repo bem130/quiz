@@ -16,6 +16,7 @@ export const dom = {
     quizList: document.getElementById('quiz-list'),
     modeList: document.getElementById('mode-list'),
     startButton: document.getElementById('start-button'),
+    modeMessage: document.getElementById('mode-message'),
 
     // メニュー側: テキストサイズ & テーマ
     menuSizeXXSmall: document.getElementById('size-xxs-menu'),
@@ -64,6 +65,9 @@ export const dom = {
 
     // サイドパネル: メニュー用
     sideMenu: document.getElementById('side-menu'),
+    entryList: document.getElementById('entry-list'),
+    entryUrlInput: document.getElementById('entry-url-input'),
+    entryAddButton: document.getElementById('entry-add-button'),
 
     // サイドパネル: クイズ用（Mistakes）
     sideQuiz: document.getElementById('side-quiz'),

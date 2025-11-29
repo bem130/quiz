@@ -1,5 +1,5 @@
 // js/quiz-model.js
-import { getQuizNameFromLocation, resolveQuizJsonFromEntry, resolveQuizJsonPath } from './config.js';
+import { getQuizNameFromLocation } from './config.js';
 
 const ALLOWED_DATASET_TYPES = new Set(['table', 'factSentences', 'groups']);
 const ALLOWED_FORMATS = new Set([
@@ -583,16 +583,32 @@ function selectQuizIdFromEntries(entries) {
 }
 
 /**
- * エントリから実際に読み込む JSON パスを決定する。
- * 優先順位:
- *  1. entry.dir があれば: dir/<quizId>.json とみなす（dir は必ず "data/" で始まること）
- *  2. entry.file があれば: そのまま使う（file も必ず "data/" で始まること）
- *  3. どちらも無ければ null
- *
- * これで:
- *  - PHP 環境: entry.php から "dir": "data/quizzes" → data/quizzes/<id>.json
- *  - 非 PHP: entry.json から "file": "data/sample/xxx.json" → そのまま data/sample/xxx.json
+ * エントリ定義に基づいてクイズ JSON の URL を解決する。
+ * @param {object} entry - クイズエントリ。
+ * @returns {string|null} 解決された URL。要素不足の場合は null。
  */
+export function resolveQuizJsonFromEntry(entry) {
+    if (!entry) {
+        return null;
+    }
+
+    const base = entry._entryBaseUrl
+        ? new URL('.', entry._entryBaseUrl)
+        : new URL('.', window.location.href);
+
+    if (typeof entry.file === 'string' && entry.file) {
+        return new URL(entry.file, base).toString();
+    }
+
+    if (typeof entry.dir === 'string' && entry.dir && entry.id) {
+        const trimmed = entry.dir.replace(/\/+$/, '');
+        const relative = `${trimmed}/${entry.id}.json`;
+        return new URL(relative, base).toString();
+    }
+
+    return null;
+}
+
 function resolvePathFromEntry(entry, quizId) {
     const resolved = resolveQuizJsonFromEntry(entry);
     if (!resolved) {
@@ -605,18 +621,24 @@ function resolvePathFromEntry(entry, quizId) {
         return null;
     }
 
-    if (!resolved.startsWith('data/')) {
-        const msg = `[quiz] Invalid path for quiz "${quizId}": "${resolved}" (must start with "data/")`;
-        console.error(msg);
-        throw new Error(msg);
-    }
-
     console.log('[quiz] resolvePathFromEntry: using entry-based path =', resolved);
     return resolved;
 }
 
+async function loadQuizDefinitionInternal(quizName, path) {
+    const json = await fetchJson(path);
+    const hasImports = Array.isArray(json?.imports) && json.imports.length > 0;
+    const useBundle = json && json.version === 2 && hasImports;
+    const definition = useBundle ? await loadDataBundle(json, path) : convertToV2(json);
+
+    return {
+        quizName,
+        definition
+    };
+}
+
 /**
- * エントリ情報を基にクイズ定義 JSON を取得し、アプリで扱いやすい形に整形する。
+ * クイズエントリ配列からクイズ定義を読み込む（互換 API）。
  * @param {Array<object>} entries - クイズエントリの配列。
  * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
  */
@@ -626,31 +648,28 @@ export async function loadQuizDefinition(entries) {
         ? entries.find((e) => e && e.id === quizName)
         : null;
 
-    let path = resolvePathFromEntry(entry, quizName);
-
-    // entries からパスが解決できなかった場合のみ、従来の data/quizzes/<id>.json にフォールバック
+    const path = resolvePathFromEntry(entry, quizName);
     if (!path) {
-        path = resolveQuizJsonPath(quizName);
-        console.warn(
-            '[quiz] loadQuizDefinition: falling back to resolveQuizJsonPath =',
-            path
-        );
+        throw new Error('Failed to resolve quiz JSON path from entry.');
     }
 
-    console.log('[quiz] loadQuizDefinition quizName =', quizName);
-    console.log('[quiz] resolved JSON path =', path);
+    return loadQuizDefinitionInternal(quizName, path);
+}
 
-    const json = await fetchJson(path);
-    console.log('[quiz] loaded quiz JSON keys =', Object.keys(json || {}));
-
-    const hasImports = Array.isArray(json?.imports) && json.imports.length > 0;
-    const useBundle = json && json.version === 2 && hasImports;
-    const definition = useBundle ? await loadDataBundle(json, path) : convertToV2(json);
-
-    return {
-        quizName,
-        definition
-    };
+/**
+ * 個別のクイズエントリからクイズ定義を読み込む。
+ * @param {object} quizEntry - 読み込むクイズエントリ。
+ * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
+ */
+export async function loadQuizDefinitionFromQuizEntry(quizEntry) {
+    if (!quizEntry) {
+        throw new Error('Quiz entry is required to load definition.');
+    }
+    const path = resolveQuizJsonFromEntry(quizEntry);
+    if (!path) {
+        throw new Error('Failed to resolve quiz JSON path from entry.');
+    }
+    return loadQuizDefinitionInternal(quizEntry.id, path);
 }
 
 export { convertToV2, validateDefinition };

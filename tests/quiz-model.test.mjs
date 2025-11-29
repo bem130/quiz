@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { convertToV2, validateDefinition } from '../js/quiz-model.js';
+import { convertToV2, resolveQuizJsonFromEntry, validateDefinition } from '../js/quiz-model.js';
 
 test('convertToV2 converts legacy hide.field to value for v2 data', () => {
     const json = {
@@ -223,6 +223,28 @@ test('validateDefinition rejects hide tokens without values', () => {
         () => validateDefinition(definition),
         /Hide token.*non-empty value array/
     );
+});
+
+test('resolveQuizJsonFromEntry resolves relative paths against entry base', () => {
+    const entry = {
+        id: 'sample-quiz',
+        dir: 'data/quizzes',
+        _entryBaseUrl: 'https://example.com/quiz/entry.php'
+    };
+
+    const url = resolveQuizJsonFromEntry(entry);
+    assert.equal(url, 'https://example.com/quiz/data/quizzes/sample-quiz.json');
+});
+
+test('resolveQuizJsonFromEntry respects file field', () => {
+    const entry = {
+        id: 'custom',
+        file: './data/custom/custom.json',
+        _entryBaseUrl: 'https://example.com/app/entry.php'
+    };
+
+    const url = resolveQuizJsonFromEntry(entry);
+    assert.equal(url, 'https://example.com/app/data/custom/custom.json');
 });
 
 test('validateDefinition requires value or field for katex tokens', () => {
