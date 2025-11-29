@@ -1,0 +1,438 @@
+{
+  "version": 2,
+  "dataSets": {
+    "alpha-amino-acids": {
+      "type": "table",
+      "label": "α amino acids (Japanese metadata)",
+      "idField": "id",
+      "data": [
+        {
+          "id": "gly",
+          "nameEnCap": "Glycine",
+          "nameEn": "glycine",
+          "nameJa": "グリシン",
+          "code3": "Gly",
+          "classJa": "非極性",
+          "isEssential": false,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-H}",
+          "descJa": "最も単純なアミノ酸で、側鎖は水素原子 1 個だけであり、柔軟な構造をとりやすい。",
+          "classHintJa": "疎水性の非極性側鎖を持つ。"
+        },
+        {
+          "id": "ala",
+          "nameEnCap": "Alanine",
+          "nameEn": "alanine",
+          "nameJa": "アラニン",
+          "code3": "Ala",
+          "classJa": "非極性",
+          "isEssential": false,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH3}",
+          "descJa": "側鎖がメチル基（-CH3）の小さなアミノ酸で、タンパク質中によく見られる。",
+          "classHintJa": "疎水性の非極性側鎖を持つ。"
+        },
+        {
+          "id": "val",
+          "nameEnCap": "Valine",
+          "nameEn": "valine",
+          "nameJa": "バリン",
+          "code3": "Val",
+          "classJa": "非極性",
+          "isEssential": true,
+          "isAromatic": false,
+          "isBCAA": true,
+          "sideChainFormulaTex": "\\ce{-CH(CH3)2}",
+          "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、側鎖にイソプロピル基を持つ必須アミノ酸。",
+          "classHintJa": "疎水性の分岐した非極性側鎖を持つ。"
+        },
+        {
+          "id": "leu",
+          "nameEnCap": "Leucine",
+          "nameEn": "leucine",
+          "nameJa": "ロイシン",
+          "code3": "Leu",
+          "classJa": "非極性",
+          "isEssential": true,
+          "isAromatic": false,
+          "isBCAA": true,
+          "sideChainFormulaTex": "\\ce{-CH2-CH(CH3)2}",
+          "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、筋タンパク質に多く含まれる必須アミノ酸。",
+          "classHintJa": "疎水性の分岐した非極性側鎖を持つ。"
+        },
+        {
+          "id": "ile",
+          "nameEnCap": "Isoleucine",
+          "nameEn": "isoleucine",
+          "nameJa": "イソロイシン",
+          "code3": "Ile",
+          "classJa": "非極性",
+          "isEssential": true,
+          "isAromatic": false,
+          "isBCAA": true,
+          "sideChainFormulaTex": "\\ce{-CH(CH3)-CH2-CH3}",
+          "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、立体異性体としてロイシンとよく比較される必須アミノ酸。",
+          "classHintJa": "疎水性の分岐した非極性側鎖を持つ。"
+        },
+        {
+          "id": "met",
+          "nameEnCap": "Methionine",
+          "nameEn": "methionine",
+          "nameJa": "メチオニン",
+          "code3": "Met",
+          "classJa": "非極性",
+          "isEssential": true,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-CH2-S-CH3}",
+          "descJa": "側鎖に硫黄原子（スルフィド基）を含む必須アミノ酸で、タンパク質合成の開始アミノ酸としても重要。",
+          "classHintJa": "疎水性で、側鎖に硫黄原子を含む。"
+        },
+        {
+          "id": "pro",
+          "nameEnCap": "Proline",
+          "nameEn": "proline",
+          "nameJa": "プロリン",
+          "code3": "Pro",
+          "classJa": "非極性",
+          "isEssential": false,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-CH2-CH2-}",
+          "descJa": "環状構造をとるイミノ酸で、ポリペプチド鎖に折れ曲がり（ターン）を作りやすい。",
+          "classHintJa": "疎水性の非極性側鎖を持ち、環状構造により剛直な骨格を与える。"
+        },
+        {
+          "id": "phe",
+          "nameEnCap": "Phenylalanine",
+          "nameEn": "phenylalanine",
+          "nameJa": "フェニルアラニン",
+          "code3": "Phe",
+          "classJa": "非極性",
+          "isEssential": true,
+          "isAromatic": true,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-Ph}",
+          "descJa": "側鎖にベンゼン環（フェニル基）を持つ芳香族の必須アミノ酸。",
+          "classHintJa": "疎水性の芳香族側鎖を持つ。"
+        },
+        {
+          "id": "trp",
+          "nameEnCap": "Tryptophan",
+          "nameEn": "tryptophan",
+          "nameJa": "トリプトファン",
+          "code3": "Trp",
+          "classJa": "非極性",
+          "isEssential": true,
+          "isAromatic": true,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-Indole}",
+          "descJa": "インドール環を側鎖にもつ芳香族の必須アミノ酸で、紫外吸収を示す。",
+          "classHintJa": "疎水性の芳香族側鎖を持つ。"
+        },
+        {
+          "id": "ser",
+          "nameEnCap": "Serine",
+          "nameEn": "serine",
+          "nameJa": "セリン",
+          "code3": "Ser",
+          "classJa": "極性（中性）",
+          "isEssential": false,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-OH}",
+          "descJa": "側鎖にヒドロキシ基（-OH）を持ち、水素結合に関与しやすい極性アミノ酸。",
+          "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。"
+        },
+        {
+          "id": "thr",
+          "nameEnCap": "Threonine",
+          "nameEn": "threonine",
+          "nameJa": "スレオニン",
+          "code3": "Thr",
+          "classJa": "極性（中性）",
+          "isEssential": true,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH(OH)-CH3}",
+          "descJa": "側鎖に不斉炭素とヒドロキシ基を持つ極性の必須アミノ酸。",
+          "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。"
+        },
+        {
+          "id": "cys",
+          "nameEnCap": "Cysteine",
+          "nameEn": "cysteine",
+          "nameJa": "システイン",
+          "code3": "Cys",
+          "classJa": "極性（中性）",
+          "isEssential": false,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-SH}",
+          "descJa": "側鎖にチオール基（-SH）を持ち、2 分子が酸化されるとシスチンとしてジスルフィド結合を形成する。",
+          "classHintJa": "電荷を持たないが、側鎖にチオール基を持つ極性アミノ酸。"
+        },
+        {
+          "id": "asn",
+          "nameEnCap": "Asparagine",
+          "nameEn": "asparagine",
+          "nameJa": "アスパラギン",
+          "code3": "Asn",
+          "classJa": "極性（中性）",
+          "isEssential": false,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-CONH2}",
+          "descJa": "側鎖にアミド基（-CONH2）を持つ極性アミノ酸で、アスパラギン酸のアミド。",
+          "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。"
+        },
+        {
+          "id": "gln",
+          "nameEnCap": "Glutamine",
+          "nameEn": "glutamine",
+          "nameJa": "グルタミン",
+          "code3": "Gln",
+          "classJa": "極性（中性）",
+          "isEssential": false,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-CH2-CONH2}",
+          "descJa": "側鎖にアミド基を持つ極性アミノ酸で、グルタミン酸のアミド。窒素代謝にも関与する。",
+          "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。"
+        },
+        {
+          "id": "tyr",
+          "nameEnCap": "Tyrosine",
+          "nameEn": "tyrosine",
+          "nameJa": "チロシン",
+          "code3": "Tyr",
+          "classJa": "極性（中性）",
+          "isEssential": false,
+          "isAromatic": true,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-Ph-OH}",
+          "descJa": "フェノール性ヒドロキシ基をもつ芳香族アミノ酸で、ホルモンや色素の前駆体となる。",
+          "classHintJa": "芳香環とヒドロキシ基を持つ電荷を持たない極性側鎖を持つ。"
+        },
+        {
+          "id": "asp",
+          "nameEnCap": "Aspartic acid",
+          "nameEn": "aspartic acid",
+          "nameJa": "アスパラギン酸",
+          "code3": "Asp",
+          "classJa": "酸性",
+          "isEssential": false,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-COOH}",
+          "descJa": "側鎖にカルボキシル基を 1 つ持つ酸性アミノ酸で、負電荷を帯びやすい。",
+          "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。"
+        },
+        {
+          "id": "glu",
+          "nameEnCap": "Glutamic acid",
+          "nameEn": "glutamic acid",
+          "nameJa": "グルタミン酸",
+          "code3": "Glu",
+          "classJa": "酸性",
+          "isEssential": false,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-CH2-COOH}",
+          "descJa": "側鎖にカルボキシル基を持つ酸性アミノ酸で、うま味成分としても知られる。",
+          "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。"
+        },
+        {
+          "id": "lys",
+          "nameEnCap": "Lysine",
+          "nameEn": "lysine",
+          "nameJa": "リシン",
+          "code3": "Lys",
+          "classJa": "塩基性",
+          "isEssential": true,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-CH2-CH2-CH2-NH2}",
+          "descJa": "側鎖末端にアミノ基を持つ塩基性の必須アミノ酸で、正電荷を帯びやすい。",
+          "classHintJa": "側鎖にアミノ基を持つ塩基性アミノ酸。"
+        },
+        {
+          "id": "arg",
+          "nameEnCap": "Arginine",
+          "nameEn": "arginine",
+          "nameJa": "アルギニン",
+          "code3": "Arg",
+          "classJa": "塩基性",
+          "isEssential": true,
+          "isAromatic": false,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-CH2-CH2-NH-C(=NH)-NH2}",
+          "descJa": "側鎖にグアニジノ基を持つ強塩基性アミノ酸で、多くの pH 条件で正電荷を帯びる。",
+          "classHintJa": "側鎖にグアニジノ基を持つ塩基性アミノ酸。"
+        },
+        {
+          "id": "his",
+          "nameEnCap": "Histidine",
+          "nameEn": "histidine",
+          "nameJa": "ヒスチジン",
+          "code3": "His",
+          "classJa": "塩基性",
+          "isEssential": true,
+          "isAromatic": true,
+          "isBCAA": false,
+          "sideChainFormulaTex": "\\ce{-CH2-Imidazole}",
+          "descJa": "イミダゾール環を持つ塩基性アミノ酸で、pH 付近でプロトンの受け渡しに関与しやすい。",
+          "classHintJa": "イミダゾール環を持つ塩基性アミノ酸。"
+        }
+      ],
+      "groups": {
+        "classJaGroup": {
+          "choices": ["酸性", "塩基性", "極性（中性）", "非極性"],
+          "mode": "choice"
+        },
+        "essentialGroup": {
+          "choices": ["必須アミノ酸", "非必須アミノ酸", "条件付き必須アミノ酸"],
+          "mode": "choice"
+        }
+      }
+    },
+    "amino-sentences-def-ja": {
+      "type": "factSentences",
+      "label": "Amino acid definitions (Japanese)",
+      "sentences": [
+        {
+          "id": "def_amino_acid_1",
+          "tokens": [
+            { "type": "text", "value": "アミノ酸とは、分子内に " },
+            { "type": "hide", "id": "def_aa_fg1", "value": [{ "type": "text", "value": "アミノ基（−NH2）" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " と " },
+            { "type": "hide", "id": "def_aa_fg2", "value": [{ "type": "text", "value": "カルボキシル基（−COOH）" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " を持つ " },
+            { "type": "hide", "id": "def_aa_kind", "value": [{ "type": "text", "value": "有機化合物" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " である。" }
+          ]
+        },
+        {
+          "id": "def_alpha_amino_acid_1",
+          "tokens": [
+            { "type": "text", "value": "α-アミノ酸とは、同じ炭素原子（α炭素）上に " },
+            { "type": "hide", "id": "def_alpha_fg1", "value": [{ "type": "text", "value": "アミノ基（−NH2）" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " と " },
+            { "type": "hide", "id": "def_alpha_fg2", "value": [{ "type": "text", "value": "カルボキシル基（−COOH）" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " を持つ " },
+            { "type": "hide", "id": "def_alpha_kind", "value": [{ "type": "text", "value": "アミノ酸" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " である。" }
+          ]
+        },
+        {
+          "id": "def_peptide_bond_1",
+          "tokens": [
+            { "type": "text", "value": "ペプチド結合とは、アミノ酸の " },
+            { "type": "hide", "id": "def_pep_fg1", "value": [{ "type": "text", "value": "カルボキシル基（−COOH）" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " と " },
+            { "type": "hide", "id": "def_pep_fg2", "value": [{ "type": "text", "value": "アミノ基（−NH2）" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " が脱水縮合してできる " },
+            { "type": "hide", "id": "def_pep_bondtype", "value": [{ "type": "text", "value": "アミド結合" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " である。" }
+          ]
+        },
+        {
+          "id": "def_peptide_1",
+          "tokens": [
+            { "type": "text", "value": "ペプチドとは、複数のアミノ酸が " },
+            { "type": "hide", "id": "def_peptide_link", "value": [{ "type": "text", "value": "ペプチド結合" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " によって連結した " },
+            { "type": "hide", "id": "def_peptide_kind", "value": [{ "type": "text", "value": "化合物" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " である。" }
+          ]
+        },
+        {
+          "id": "def_zwitterion_1",
+          "tokens": [
+            { "type": "text", "value": "双性イオンとは、分子内に " },
+            { "type": "hide", "id": "def_zwit_pos", "value": [{ "type": "text", "value": "正電荷" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " と " },
+            { "type": "hide", "id": "def_zwit_neg", "value": [{ "type": "text", "value": "負電荷" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " を同時に持ち、全体として " },
+            { "type": "hide", "id": "def_zwit_charge0", "value": [{ "type": "text", "value": "電荷が 0" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " である粒子である。" }
+          ]
+        },
+        {
+          "id": "def_isoelectric_point_1",
+          "tokens": [
+            { "type": "text", "value": "等電点とは、アミノ酸の " },
+            { "type": "hide", "id": "def_pi_pos", "value": [{ "type": "text", "value": "正電荷" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " と " },
+            { "type": "hide", "id": "def_pi_neg", "value": [{ "type": "text", "value": "負電荷" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " がつり合い、全体の " },
+            { "type": "hide", "id": "def_pi_net", "value": [{ "type": "text", "value": "正味電荷" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " が 0 になる pH である。" }
+          ]
+        }
+      ]
+    },
+    "amino-sentences-theory-ja": {
+      "type": "factSentences",
+      "label": "Amino acid theory (Japanese)",
+      "sentences": [
+        {
+          "id": "theory_carboxyl_high_pH_1",
+          "tokens": [
+            { "type": "text", "value": "アミノ酸のカルボキシル基（−COOH）は、十分に高い pH（強い塩基性条件）では主に " },
+            { "type": "hide", "id": "theory_cooh_highpH", "value": [{ "type": "text", "value": "−COO−（カルボキシラートイオン）" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " の形で存在する。" }
+          ]
+        },
+        {
+          "id": "theory_amino_low_pH_1",
+          "tokens": [
+            { "type": "text", "value": "アミノ酸のアミノ基（−NH2）は、十分に低い pH（強い酸性条件）では主に " },
+            { "type": "hide", "id": "theory_nh2_lowpH", "value": [{ "type": "text", "value": "−NH3+（アンモニウムイオン）" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " の形で存在する。" }
+          ]
+        },
+        {
+          "id": "theory_isoelectric_zwitterion_1",
+          "tokens": [
+            { "type": "text", "value": "アミノ酸の等電点（pI）では、そのアミノ酸は主に " },
+            { "type": "hide", "id": "theory_pi_mainform", "value": [{ "type": "text", "value": "双性イオン" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " として存在する。" }
+          ]
+        },
+        {
+          "id": "theory_peptide_bond_formation_1",
+          "tokens": [
+            { "type": "text", "value": "ペプチド結合は、2 つのアミノ酸の一方のカルボキシル基と、もう一方の " },
+            { "type": "hide", "id": "theory_pep_amino", "value": [{ "type": "text", "value": "アミノ基" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " との間で、 " },
+            { "type": "hide", "id": "theory_pep_dehydration", "value": [{ "type": "text", "value": "脱水縮合" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " によって形成される。" }
+          ]
+        },
+        {
+          "id": "theory_ninhydrin_1",
+          "tokens": [
+            { "type": "text", "value": "ニンヒドリン反応とは、アミノ酸の " },
+            { "type": "hide", "id": "theory_ninh_alpha", "value": [{ "type": "text", "value": "α-アミノ基" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " と反応して " },
+            { "type": "hide", "id": "theory_ninh_color", "value": [{ "type": "text", "value": "青紫〜紫色" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " の呈色を示す反応である。" }
+          ]
+        },
+        {
+          "id": "theory_sequence_direction_1",
+          "tokens": [
+            { "type": "text", "value": "ペプチドやタンパク質のアミノ酸配列は、通常 " },
+            { "type": "hide", "id": "theory_seq_from", "value": [{ "type": "text", "value": "N末端" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " から " },
+            { "type": "hide", "id": "theory_seq_to", "value": [{ "type": "text", "value": "C末端" }], "answer": { "mode": "input" } },
+            { "type": "text", "value": " に向かって並べて書く。" }
+          ]
+        }
+      ]
+    }
+  }
+}
