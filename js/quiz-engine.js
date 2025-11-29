@@ -331,6 +331,7 @@ function generateTableMatchingQuestion(pattern, dataSets) {
     if (!table || table.type !== 'table') {
         return null;
     }
+
     const spec = pattern.matchingSpec || {};
     const count = spec.count || 4;
     const leftField = spec.leftField || 'left';
@@ -338,10 +339,46 @@ function generateTableMatchingQuestion(pattern, dataSets) {
     const rows = getFilteredRows(table, pattern.entityFilter);
     if (rows.length < count) return null;
 
-    const selected = pickN(rows, count);
-    const leftList = spec.shuffle && spec.shuffle.left ? shuffled(selected) : selected.slice();
+    // --------------------------------------------------
+    // 1:1 対応を作るために、右側の値が重複しないように行を選ぶ
+    // --------------------------------------------------
+    const shuffledRows = shuffled(rows);
+    const selected = [];
+    const usedRightValues = new Set();
+
+    for (const row of shuffledRows) {
+        const val = row[rightField];
+        if (val == null) continue;
+        if (usedRightValues.has(val)) {
+            continue;
+        }
+        selected.push(row);
+        usedRightValues.add(val);
+        if (selected.length === count) break;
+    }
+
+    // 4 つ揃わなければ、このパターンではマッチングを作らない
+    if (selected.length < count) {
+        console.warn(
+            '[quiz][table_matching] 1:1 対応を作れなかったのでスキップします:',
+            {
+                patternId: pattern.id,
+                rightField,
+                requestedCount: count,
+                uniqueRightCount: usedRightValues.size
+            }
+        );
+        return null;
+    }
+
+    // 左側だけシャッフルするかどうか
+    const leftList =
+        spec.shuffle && spec.shuffle.left ? shuffled(selected) : selected.slice();
+
+    // 右側は「選ばれた行の rightField」だけを使う（1:1）
     const rightValues = selected.map((row) => row[rightField]);
-    const shuffledRight = spec.shuffle && spec.shuffle.right ? shuffled(rightValues) : rightValues;
+    const shuffledRight =
+        spec.shuffle && spec.shuffle.right ? shuffled(rightValues) : rightValues;
 
     // 右側フィールドが "Tex" で終わるなら KaTeX 用とみなす
     const isTexField =
@@ -361,7 +398,7 @@ function generateTableMatchingQuestion(pattern, dataSets) {
                 base.labelTokens = [
                     {
                         type: 'katex',
-                        value: text   // 例: "\\ce{-CH3}"
+                        value: text // 例: "\\ce{-CH3}"
                     }
                 ];
             } else {

@@ -128,13 +128,14 @@ function appendTokens(parent, tokens, row, placeholders = null) {
     });
 }
 
-function createOptionButton(labelNodes, isDisabled, onClick) {
+function createOptionButton(labelNodes, isDisabled, onClick, { fullHeight = true } = {}) {
     const btn = document.createElement('button');
     btn.type = 'button';
 
     // 高さも幅もセルいっぱいに広げる
     btn.className = [
-        'w-full h-full',
+        'w-full',
+        fullHeight ? 'h-full' : '',   // ★ ここで制御
         // items-start → items-stretch にして中身をフル幅に
         'flex flex-col items-stretch justify-between',
         'px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700',
@@ -178,6 +179,7 @@ function createOptionButton(labelNodes, isDisabled, onClick) {
     // ここで高さ予約
     previewSlot.style.minHeight = '72px'; // 必要に応じて調整
     btn.appendChild(previewSlot);
+    btn._previewSlot = previewSlot;
 
     return btn;
 }
@@ -212,39 +214,198 @@ function renderOptionLabel(option, dataSets, question) {
 function renderAnswerGroup(question, dataSets, answerIndex, onSelect) {
     const answer = question.answers[answerIndex];
 
-    // ★ space-y-2 をやめて、フルサイズでストレッチ
+    // 4択・穴埋め用のグループ（元のレイアウト）
     const group = document.createElement('div');
+    // ★ 完全に元と同じ: hidden + h-full w-full
     group.className = 'hidden h-full w-full';
     group.dataset.answerIndex = String(answerIndex);
 
+    // 左側に表示するタイトル（例:「側鎖 (R基) が〜であるアミノ酸として正しいものを1つ選べ」）
     if (answer.meta && answer.meta.leftText) {
         const title = document.createElement('div');
-        // ここは必要なら mb-2 でちょっとだけ余白を付ける
-        title.className = 'text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2';
+        // ★ ここも元のまま
+        title.className =
+            'text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2';
         title.textContent = answer.meta.leftText;
         group.appendChild(title);
     }
 
+    // 2×2 グリッドで4択ボタンを並べる（元のレイアウト）
     const optionsWrapper = document.createElement('div');
-    // ★ ここで 2x2 グリッド + フルサイズ
+    // ★ 完全に元と同じクラス
     optionsWrapper.className =
         'grid grid-cols-2 gap-4 auto-rows-fr h-full w-full';
 
     answer.options.forEach((opt, idx) => {
         const labelNodes = renderOptionLabel(opt, dataSets, question);
+
+        // createOptionButton の第4引数は省略（デフォルト fullHeight=true）
         const btn = createOptionButton(
             labelNodes,
-            question.meta.disabled,
+            answer.meta && answer.meta.disabled,
             () => {
                 onSelect(answerIndex, idx);
             }
         );
+
+        // data-* 属性も元と同じ
         btn.dataset.answerIndex = String(answerIndex);
         btn.dataset.optionIndex = String(idx);
         optionsWrapper.appendChild(btn);
     });
 
     group.appendChild(optionsWrapper);
+    return group;
+}
+
+function renderTableMatchingQuestion(question, dataSets, onSelect) {
+    const group = document.createElement('div');
+    group.className =
+        'flex flex-col sm:flex-row gap-4 sm:gap-6';
+
+    const answers = question.answers || [];
+    if (!answers.length || !answers[0].options || !answers[0].options.length) {
+        console.warn('[quiz][table_matching] answers が空です');
+        return group;
+    }
+
+    const optionCount = answers[0].options.length;
+
+    // 右側の候補は全ての穴で同じ並びになっている前提
+    const globalOptions = answers[0].options;
+
+    const leftCol = document.createElement('div');
+    leftCol.className = 'flex-1 flex flex-col gap-3';
+
+    const rightCol = document.createElement('div');
+    rightCol.className = 'flex-1 flex flex-col gap-3';
+
+    group.appendChild(leftCol);
+    group.appendChild(rightCol);
+
+    // マッチング用の状態
+    const matchingState = {
+        leftButtons: [],
+        rightButtons: [],
+        firstSelection: null, // { side: 'left' | 'right', index: number }
+        pairsByLeft: new Array(answers.length).fill(null),
+        pairsByRight: new Array(optionCount).fill(null),
+        updateStyles: null
+    };
+    question._matchingState = matchingState;
+
+    function updateStyles() {
+        const first = matchingState.firstSelection;
+
+        matchingState.leftButtons.forEach((btn, idx) => {
+            btn.classList.remove('ring-2', 'ring-emerald-500');
+            if (first && first.side === 'left' && first.index === idx) {
+                btn.classList.add('ring-2', 'ring-emerald-500');
+            }
+        });
+
+        matchingState.rightButtons.forEach((btn, idx) => {
+            btn.classList.remove('ring-2', 'ring-emerald-500');
+            if (first && first.side === 'right' && first.index === idx) {
+                btn.classList.add('ring-2', 'ring-emerald-500');
+            }
+        });
+    }
+    matchingState.updateStyles = updateStyles;
+
+    function handleClick(side, index) {
+        if (question.meta && question.meta.disabled) return;
+
+        const first = matchingState.firstSelection;
+
+        // 同じボタンをもう一度押した → 選択解除
+        if (first && first.side === side && first.index === index) {
+            matchingState.firstSelection = null;
+            updateStyles();
+            return;
+        }
+
+        // まだ 1 個目が選ばれていない → 1 個目として記録
+        if (!first) {
+            matchingState.firstSelection = { side, index };
+            updateStyles();
+            return;
+        }
+
+        // 1 個目と同じ側を押した → 1 個目を差し替え
+        if (first.side === side) {
+            matchingState.firstSelection = { side, index };
+            updateStyles();
+            return;
+        }
+
+        // ここに来ると「左右 1 個ずつ」が揃ったのでペア確定
+        const leftIndex = first.side === 'left' ? first.index : index;
+        const rightIndex = first.side === 'right' ? first.index : index;
+
+        // 既存ペアがあれば解除してから新しいペアを張る
+        const oldRight = matchingState.pairsByLeft[leftIndex];
+        if (oldRight != null) {
+            matchingState.pairsByRight[oldRight] = null;
+        }
+        const oldLeft = matchingState.pairsByRight[rightIndex];
+        if (oldLeft != null) {
+            matchingState.pairsByLeft[oldLeft] = null;
+        }
+
+        matchingState.pairsByLeft[leftIndex] = rightIndex;
+        matchingState.pairsByRight[rightIndex] = leftIndex;
+
+        matchingState.firstSelection = null;
+        updateStyles();
+
+        // 内部状態（userSelectedIndex）と採点ロジックを更新
+        answers[leftIndex].userSelectedIndex = rightIndex;
+        onSelect(leftIndex, rightIndex);
+    }
+
+    // 左列（アミノ酸名）
+    answers.forEach((answer, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = [
+            'w-full',
+            'px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700',
+            'bg-white dark:bg-slate-900',
+            'text-sm text-left text-slate-800 dark:text-slate-100',
+            'hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+            'transition-colors'
+        ].join(' ');
+
+        btn.textContent = answer.meta && answer.meta.leftText
+            ? answer.meta.leftText
+            : '';
+
+        btn.addEventListener('click', () => handleClick('left', i));
+
+        matchingState.leftButtons[i] = btn;
+        leftCol.appendChild(btn);
+    });
+
+    // 右列（分類）
+    globalOptions.forEach((opt, j) => {
+        const labelNodes = renderOptionLabel(opt, dataSets, question);
+        const btn = createOptionButton(
+            labelNodes,
+            question.meta && question.meta.disabled,
+            () => handleClick('right', j),
+            { fullHeight: false }
+        );
+
+        // マッチング専用 UI では data-* は使わない（従来ロジックと混線しないように）
+        delete btn.dataset.answerIndex;
+        delete btn.dataset.optionIndex;
+
+        matchingState.rightButtons[j] = btn;
+        rightCol.appendChild(btn);
+    });
+
+    updateStyles();
     return group;
 }
 
@@ -314,6 +475,8 @@ export function renderQuestion(question, dataSets, onSelect) {
     dom.optionsContainer.innerHTML = '';
 
     const contextRow = resolveQuestionContext(question, dataSets);
+
+    // table_matching 専用のヘッダー
     if (question.format === 'table_matching') {
         const header = document.createElement('div');
         header.className = 'text-sm text-slate-500 dark:text-slate-400 mb-2';
@@ -324,6 +487,25 @@ export function renderQuestion(question, dataSets, onSelect) {
 
     appendTokens(dom.questionText, question.tokens, contextRow, true);
 
+    // ───────────────────────────────────────
+    // ① マッチング形式は専用 UI で 4+4 ボタンを描画
+    // ───────────────────────────────────────
+    if (question.format === 'table_matching') {
+        const group = renderTableMatchingQuestion(question, dataSets, onSelect);
+        question._answerGroups = [group];
+        question.useNavigation = false;
+
+        group.classList.remove('hidden');
+        dom.optionsContainer.appendChild(group);
+
+        // 高さ予約は従来どおり
+        reserveQuestionTextHeight(question, dataSets);
+        return;
+    }
+
+    // ───────────────────────────────────────
+    // ② それ以外（4択・穴埋め）は従来どおり
+    // ───────────────────────────────────────
     const answerGroups = question.answers.map((_, idx) =>
         renderAnswerGroup(question, dataSets, idx, onSelect)
     );
@@ -340,14 +522,12 @@ export function renderQuestion(question, dataSets, onSelect) {
         answerGroups.forEach((g) => g.classList.remove('hidden'));
     }
 
-    // ★ group をそのまま optionsContainer の子にする
     answerGroups.forEach((g) => dom.optionsContainer.appendChild(g));
 
     if (useNavigation) {
         updateAnswerNavigation(question, question.currentAnswerIndex || 0);
     }
 
-    // この問題の「最大高さ」を最初から確保しておく
     reserveQuestionTextHeight(question, dataSets);
 }
 
@@ -550,6 +730,42 @@ export function updateInlineBlank(
     });
 }
 
+function buildSentencePreview(question, dataSets, answerIndex, optionIndex) {
+    if (question.format !== 'sentence_fill_choice') return null;
+
+    const container = document.createElement('span');
+
+    // 現在の選択状態をバックアップ
+    const backup = (question.answers || []).map((ans) =>
+        ans ? ans.userSelectedIndex : null
+    );
+
+    // 「この穴だけ optionIndex を選んだ」状態を仮に作る
+    (question.answers || []).forEach((ans, i) => {
+        if (!ans) return;
+        if (i === answerIndex) {
+            ans.userSelectedIndex = optionIndex;
+        }
+        // 他の穴は backup のまま → 未回答は null → ___ のまま
+    });
+
+    // プレビュー用の文章ノードを生成
+    const contextRow = resolveQuestionContext(question, dataSets);
+    appendTokens(container, question.tokens, contextRow, true);
+
+    // 全ての穴を更新（未回答は ___）
+    (question.answers || []).forEach((_, i) => {
+        updateInlineBlank(question, dataSets, i, container);
+    });
+
+    // 状態を元に戻す
+    (question.answers || []).forEach((ans, i) => {
+        if (ans) ans.userSelectedIndex = backup[i];
+    });
+
+    return container;
+}
+
 export function renderProgress(currentIndex, total, score) {
     dom.currentQNum.textContent = `${currentIndex + 1}`;
     dom.totalQNum.textContent = `${total}`;
@@ -557,6 +773,63 @@ export function renderProgress(currentIndex, total, score) {
 }
 
 export function showOptionFeedback(question) {
+    // ───────────────────────────────────────
+    // table_matching（1:1 マッチング）用のフィードバック
+    // ───────────────────────────────────────
+    if (
+        question &&
+        question.format === 'table_matching' &&
+        question._matchingState &&
+        Array.isArray(question._matchingState.leftButtons)
+    ) {
+        const state = question._matchingState;
+
+        (question.answers || []).forEach((answer, answerIndex) => {
+            const btn = state.leftButtons[answerIndex];
+            if (!btn) return;
+
+            // ベースの枠線を一度クリア
+            btn.classList.remove(
+                'border-slate-300',
+                'dark:border-slate-700',
+                'border-emerald-400',
+                'border-rose-400',
+                'bg-emerald-50',
+                'bg-rose-50',
+                'dark:bg-emerald-900/30',
+                'dark:bg-rose-900/30'
+            );
+            btn.classList.add('border-slate-300', 'dark:border-slate-700');
+
+            const selected = answer.userSelectedIndex;
+            const correct = answer.correctIndex;
+
+            if (selected == null) {
+                // 未回答はそのまま
+                return;
+            }
+
+            if (selected === correct) {
+                btn.classList.add(
+                    'border-emerald-400',
+                    'bg-emerald-50',
+                    'dark:bg-emerald-900/30'
+                );
+            } else {
+                btn.classList.add(
+                    'border-rose-400',
+                    'bg-rose-50',
+                    'dark:bg-rose-900/30'
+                );
+            }
+        });
+
+        return;
+    }
+
+    // ───────────────────────────────────────
+    // 従来フォーマット（4択など）
+    // ───────────────────────────────────────
     question.answers.forEach((answer, answerIndex) => {
         answer.options.forEach((opt, optIndex) => {
             const btn = dom.optionsContainer.querySelector(
@@ -565,9 +838,17 @@ export function showOptionFeedback(question) {
             if (!btn) return;
             btn.classList.remove('border-slate-300', 'dark:border-slate-700');
             if (optIndex === answer.correctIndex) {
-                btn.classList.add('border-emerald-400', 'bg-emerald-50', 'dark:bg-emerald-900/30');
+                btn.classList.add(
+                    'border-emerald-400',
+                    'bg-emerald-50',
+                    'dark:bg-emerald-900/30'
+                );
             } else if (answer.userSelectedIndex === optIndex) {
-                btn.classList.add('border-rose-400', 'bg-rose-50', 'dark:bg-rose-900/30');
+                btn.classList.add(
+                    'border-rose-400',
+                    'bg-rose-50',
+                    'dark:bg-rose-900/30'
+                );
             }
         });
     });
@@ -594,6 +875,10 @@ export function revealNextAnswerGroup() {
 export function appendPatternPreviewToOptions(question, dataSets) {
     if (!question || !Array.isArray(question.answers)) return;
 
+    if (question.format === 'table_matching') {
+        return;
+    }
+
     question.answers.forEach((answer, answerIndex) => {
         (answer.options || []).forEach((opt, optIndex) => {
             const btn = dom.optionsContainer.querySelector(
@@ -601,54 +886,82 @@ export function appendPatternPreviewToOptions(question, dataSets) {
             );
             if (!btn) return;
 
-            // createOptionButton で用意したスロットを取得
             const preview = btn.querySelector('.option-preview');
             if (!preview) return;
-
-            // すでに描画済みならスキップ
             if (preview.dataset.filled === '1') return;
 
-            // --------------------------------------------------
-            // 1) この option 用の row を解決する
-            // --------------------------------------------------
-            let rowContext = null;
+            // sentence_fill_choice は従来通り
+            if (question.format === 'sentence_fill_choice') {
+                const node = buildSentencePreview(
+                    question,
+                    dataSets,
+                    answerIndex,
+                    optIndex
+                );
+                if (node) {
+                    preview.innerHTML = '';
+                    preview.appendChild(node);
+                    preview.dataset.filled = '1';
+                }
+                return;
+            }
 
-            // option ごとの dataSetId / entityId があればそちらを優先
+            // ------- ここから: 行データを特定 -------
+            let rowContext = null;
             const sourceDataSetId =
                 opt.dataSetId || (question.meta && question.meta.dataSetId);
             const ds = sourceDataSetId ? dataSets[sourceDataSetId] : null;
 
             if (opt.entityId && ds) {
                 if (ds.type === 'table' && Array.isArray(ds.data)) {
-                    rowContext = ds.data.find((r) => r.id === opt.entityId) || null;
-                } else if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
+                    rowContext =
+                        ds.data.find((r) => r.id === opt.entityId) || null;
+                } else if (
+                    ds.type === 'factSentences' &&
+                    Array.isArray(ds.sentences)
+                ) {
                     rowContext =
                         ds.sentences.find((s) => s.id === opt.entityId) || null;
                 }
             }
 
-            // row が取れなかった場合は、従来どおり設問コンテキストを使用
             if (!rowContext) {
                 rowContext = resolveQuestionContext(question, dataSets);
             }
-
             if (!rowContext || !Array.isArray(question.tokens)) {
                 return;
             }
 
-            // --------------------------------------------------
-            // 2) ボタン下部の「問題文領域」に文章を描画
-            // --------------------------------------------------
+            // ------- 1) まずプレースホルダ付きで問題文を描画 -------
             preview.innerHTML = '';
+            appendTokens(preview, question.tokens, rowContext, true);
 
-            appendTokens(
-                preview,
-                question.tokens || [],
-                rowContext,
-                false // hide トークンは値を出す
+            // ------- 2) この answerIndex に対応する span の中身を埋める -------
+            // data-answer-index="0" などを持つ span を拾う
+            const placeholder = preview.querySelector(
+                `[data-answer-index="${answerIndex}"]`
             );
+            if (placeholder) {
+                // 対応する hide トークンを探す
+                let targetToken = null;
+                let counter = 0;
+                (question.tokens || []).forEach((t) => {
+                    if (t && t.type === 'hide' && t.answer) {
+                        if (counter === answerIndex) {
+                            targetToken = t;
+                        }
+                        counter += 1;
+                    }
+                });
 
-            // 描画済みフラグ
+                if (targetToken) {
+                    // 一度空にしてから、この span の「中に」値を描画
+                    placeholder.textContent = '';
+                    renderHideValueIntoSpan(placeholder, targetToken, rowContext);
+                    // class はそのままなので、下線付きの枠の中に値が入る
+                }
+            }
+
             preview.dataset.filled = '1';
         });
     });
