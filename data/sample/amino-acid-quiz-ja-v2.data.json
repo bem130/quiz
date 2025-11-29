@@ -325,80 +325,401 @@
         {
           "id": "def_amino_acid_1",
           "tokens": [
-            { "type": "text", "value": "アミノ酸とは、分子内に " },
-            { "type": "hide", "id": "def_aa_fg1", "value": [{ "type": "text", "value": "アミノ基（−NH2）" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " と " },
-            { "type": "hide", "id": "def_aa_fg2", "value": [{ "type": "text", "value": "カルボキシル基（−COOH）" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " を持つ " },
-            { "type": "hide", "id": "def_aa_kind", "value": [{ "type": "text", "value": "有機化合物" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " である。" }
+            {
+              "type": "text",
+              "value": "アミノ酸とは、分子内に "
+            },
+            {
+              "type": "hide",
+              "id": "def_aa_fg1",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "アミノ基（−NH2）"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "fgGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " と "
+            },
+            {
+              "type": "hide",
+              "id": "def_aa_fg2",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "カルボキシル基（−COOH）"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "fgGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " を持つ "
+            },
+            {
+              "type": "hide",
+              "id": "def_aa_kind",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "有機化合物"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "kindGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " である。"
+            }
           ],
           "explainJa": "アミノ酸の定義では「アミノ基」と「カルボキシル基」を同じ分子内に持つことが最重要ポイント。"
         },
         {
           "id": "def_alpha_amino_acid_1",
           "tokens": [
-            { "type": "text", "value": "α-アミノ酸とは、同じ炭素原子（α炭素）上に " },
-            { "type": "hide", "id": "def_alpha_fg1", "value": [{ "type": "text", "value": "アミノ基（−NH2）" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " と " },
-            { "type": "hide", "id": "def_alpha_fg2", "value": [{ "type": "text", "value": "カルボキシル基（−COOH）" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " を持つ " },
-            { "type": "hide", "id": "def_alpha_kind", "value": [{ "type": "text", "value": "アミノ酸" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " である。" }
+            {
+              "type": "text",
+              "value": "α-アミノ酸とは、同じ炭素原子（α炭素）上に "
+            },
+            {
+              "type": "hide",
+              "id": "def_alpha_fg1",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "アミノ基（−NH2）"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "fgGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " と "
+            },
+            {
+              "type": "hide",
+              "id": "def_alpha_fg2",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "カルボキシル基（−COOH）"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "fgGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " を持つ "
+            },
+            {
+              "type": "hide",
+              "id": "def_alpha_kind",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "アミノ酸"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "kindGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " である。"
+            }
           ],
           "explainJa": "α-アミノ酸では、アミノ基とカルボキシル基が同じ炭素（α炭素）につながっている点が特徴。"
         },
         {
           "id": "def_peptide_bond_1",
           "tokens": [
-            { "type": "text", "value": "ペプチド結合とは、アミノ酸の " },
-            { "type": "hide", "id": "def_pep_fg1", "value": [{ "type": "text", "value": "カルボキシル基（−COOH）" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " と " },
-            { "type": "hide", "id": "def_pep_fg2", "value": [{ "type": "text", "value": "アミノ基（−NH2）" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " が脱水縮合してできる " },
-            { "type": "hide", "id": "def_pep_bondtype", "value": [{ "type": "text", "value": "アミド結合" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " である。" }
+            {
+              "type": "text",
+              "value": "ペプチド結合とは、アミノ酸の "
+            },
+            {
+              "type": "hide",
+              "id": "def_pep_fg1",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "カルボキシル基（−COOH）"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "fgGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " と "
+            },
+            {
+              "type": "hide",
+              "id": "def_pep_fg2",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "アミノ基（−NH2）"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "fgGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " が脱水縮合してできる "
+            },
+            {
+              "type": "hide",
+              "id": "def_pep_bondtype",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "アミド結合"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "peptideBondWordGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " である。"
+            }
           ],
           "explainJa": "ペプチド結合はカルボキシル基とアミノ基の間にできるアミド結合であり、脱水縮合によって形成される。"
         },
         {
           "id": "def_peptide_1",
           "tokens": [
-            { "type": "text", "value": "ペプチドとは、複数のアミノ酸が " },
-            { "type": "hide", "id": "def_peptide_link", "value": [{ "type": "text", "value": "ペプチド結合" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " によって連結した " },
-            { "type": "hide", "id": "def_peptide_kind", "value": [{ "type": "text", "value": "化合物" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " である。" }
+            {
+              "type": "text",
+              "value": "ペプチドとは、複数のアミノ酸が "
+            },
+            {
+              "type": "hide",
+              "id": "def_peptide_link",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "ペプチド結合"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "peptideBondWordGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " によって連結した "
+            },
+            {
+              "type": "hide",
+              "id": "def_peptide_kind",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "化合物"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "kindGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " である。"
+            }
           ],
           "explainJa": "ペプチドは「複数のアミノ酸がペプチド結合でつながったもの」として理解すると、タンパク質との関係が整理しやすい。"
         },
         {
           "id": "def_zwitterion_1",
           "tokens": [
-            { "type": "text", "value": "双性イオンとは、分子内に " },
-            { "type": "hide", "id": "def_zwit_pos", "value": [{ "type": "text", "value": "正電荷" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " と " },
-            { "type": "hide", "id": "def_zwit_neg", "value": [{ "type": "text", "value": "負電荷" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " を同時に持ち、全体として " },
-            { "type": "hide", "id": "def_zwit_charge0", "value": [{ "type": "text", "value": "電荷が 0" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " である粒子である。" }
+            {
+              "type": "text",
+              "value": "双性イオンとは、分子内に "
+            },
+            {
+              "type": "hide",
+              "id": "def_zwit_pos",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "正電荷"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "chargeSignGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " と "
+            },
+            {
+              "type": "hide",
+              "id": "def_zwit_neg",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "負電荷"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "chargeSignGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " を同時に持ち、全体として "
+            },
+            {
+              "type": "hide",
+              "id": "def_zwit_charge0",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "電荷が 0"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "chargeZeroGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " である粒子である。"
+            }
           ],
           "explainJa": "双性イオンは分子内に＋と−の電荷を同時に持つが、全体としては電荷 0 になる状態を表す。"
         },
         {
           "id": "def_isoelectric_point_1",
           "tokens": [
-            { "type": "text", "value": "等電点とは、アミノ酸の " },
-            { "type": "hide", "id": "def_pi_pos", "value": [{ "type": "text", "value": "正電荷" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " と " },
-            { "type": "hide", "id": "def_pi_neg", "value": [{ "type": "text", "value": "負電荷" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " がつり合い、全体の " },
-            { "type": "hide", "id": "def_pi_net", "value": [{ "type": "text", "value": "正味電荷" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " が 0 になる pH である。" }
+            {
+              "type": "text",
+              "value": "等電点とは、アミノ酸の "
+            },
+            {
+              "type": "hide",
+              "id": "def_pi_pos",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "正電荷"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "chargeSignGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " と "
+            },
+            {
+              "type": "hide",
+              "id": "def_pi_neg",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "負電荷"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "chargeSignGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " がつり合い、全体の "
+            },
+            {
+              "type": "hide",
+              "id": "def_pi_net",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "正味電荷"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "netChargeWordGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " が 0 になる pH である。"
+            }
           ],
           "explainJa": "等電点では、正電荷と負電荷がつり合い、分子全体の正味電荷が 0 になる pH である。"
         }
-      ]
+      ],
+      "groups": {
+        "fgGroup": {
+          "choices": [
+            "アミノ基（−NH2）",
+            "カルボキシル基（−COOH）",
+            "ヒドロキシ基（−OH）",
+            "スルフィド基（−S−）"
+          ],
+          "mode": "choice"
+        },
+        "kindGroup": {
+          "choices": ["アミノ酸", "有機化合物", "化合物", "分子"],
+          "mode": "choice"
+        },
+        "peptideBondWordGroup": {
+          "choices": ["ペプチド結合", "アミド結合", "エステル結合", "水素結合"],
+          "mode": "choice"
+        },
+        "chargeSignGroup": {
+          "choices": ["正電荷", "負電荷", "中性"],
+          "mode": "choice"
+        },
+        "chargeZeroGroup": {
+          "choices": ["電荷が 0", "電荷が正", "電荷が負", "電荷が 0 でない"],
+          "mode": "choice"
+        },
+        "netChargeWordGroup": {
+          "choices": ["正味電荷", "全体電荷", "局所電荷", "平均電荷"],
+          "mode": "choice"
+        }
+      }
     },
     "amino-sentences-theory-ja": {
       "type": "factSentences",
@@ -407,64 +728,257 @@
         {
           "id": "theory_carboxyl_high_pH_1",
           "tokens": [
-            { "type": "text", "value": "アミノ酸のカルボキシル基（−COOH）は、十分に高い pH（強い塩基性条件）では主に " },
-            { "type": "hide", "id": "theory_cooh_highpH", "value": [{ "type": "text", "value": "−COO−（カルボキシラートイオン）" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " の形で存在する。" }
+            {
+              "type": "text",
+              "value": "アミノ酸のカルボキシル基（−COOH）は、十分に高い pH（強い塩基性条件）では主に "
+            },
+            {
+              "type": "hide",
+              "id": "theory_cooh_highpH",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "−COO−（カルボキシラートイオン）"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "ionicFormGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " の形で存在する。"
+            }
           ],
           "explainJa": "高い pH では酸性基であるカルボキシル基はプロトンを失い、−COO−（カルボキシラートイオン）の形が優勢になる。"
         },
         {
           "id": "theory_amino_low_pH_1",
           "tokens": [
-            { "type": "text", "value": "アミノ酸のアミノ基（−NH2）は、十分に低い pH（強い酸性条件）では主に " },
-            { "type": "hide", "id": "theory_nh2_lowpH", "value": [{ "type": "text", "value": "−NH3+（アンモニウムイオン）" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " の形で存在する。" }
+            {
+              "type": "text",
+              "value": "アミノ酸のアミノ基（−NH2）は、十分に低い pH（強い酸性条件）では主に "
+            },
+            {
+              "type": "hide",
+              "id": "theory_nh2_lowpH",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "−NH3+（アンモニウムイオン）"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "ionicFormGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " の形で存在する。"
+            }
           ],
           "explainJa": "低い pH では塩基性のアミノ基がプロトンを受け取り、−NH3+（アンモニウムイオン）の形が優勢になる。"
         },
         {
           "id": "theory_isoelectric_zwitterion_1",
           "tokens": [
-            { "type": "text", "value": "アミノ酸の等電点（pI）では、そのアミノ酸は主に " },
-            { "type": "hide", "id": "theory_pi_mainform", "value": [{ "type": "text", "value": "双性イオン" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " として存在する。" }
+            {
+              "type": "text",
+              "value": "アミノ酸の等電点（pI）では、そのアミノ酸は主に "
+            },
+            {
+              "type": "hide",
+              "id": "theory_pi_mainform",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "双性イオン"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "zwitterionFormGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " として存在する。"
+            }
           ],
           "explainJa": "等電点では、アミノ酸は主に双性イオンの形をとり、＋と−の電荷が打ち消し合って全体が電荷 0 になる。"
         },
         {
           "id": "theory_peptide_bond_formation_1",
           "tokens": [
-            { "type": "text", "value": "ペプチド結合は、2 つのアミノ酸の一方のカルボキシル基と、もう一方の " },
-            { "type": "hide", "id": "theory_pep_amino", "value": [{ "type": "text", "value": "アミノ基" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " との間で、 " },
-            { "type": "hide", "id": "theory_pep_dehydration", "value": [{ "type": "text", "value": "脱水縮合" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " によって形成される。" }
+            {
+              "type": "text",
+              "value": "ペプチド結合は、2 つのアミノ酸の一方のカルボキシル基と、もう一方の "
+            },
+            {
+              "type": "hide",
+              "id": "theory_pep_amino",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "アミノ基"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "aminoGroupTypeGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " との間で、 "
+            },
+            {
+              "type": "hide",
+              "id": "theory_pep_dehydration",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "脱水縮合"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "reactionTypeGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " によって形成される。"
+            }
           ],
           "explainJa": "ペプチド結合はカルボキシル基とアミノ基の間の脱水縮合で生じるアミド結合であり、アミノ酸同士をつなぐ役割を持つ。"
         },
         {
           "id": "theory_ninhydrin_1",
           "tokens": [
-            { "type": "text", "value": "ニンヒドリン反応とは、アミノ酸の " },
-            { "type": "hide", "id": "theory_ninh_alpha", "value": [{ "type": "text", "value": "α-アミノ基" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " と反応して " },
-            { "type": "hide", "id": "theory_ninh_color", "value": [{ "type": "text", "value": "青紫〜紫色" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " の呈色を示す反応である。" }
+            {
+              "type": "text",
+              "value": "ニンヒドリン反応とは、アミノ酸の "
+            },
+            {
+              "type": "hide",
+              "id": "theory_ninh_alpha",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "α-アミノ基"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "aminoGroupTypeGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " と反応して "
+            },
+            {
+              "type": "hide",
+              "id": "theory_ninh_color",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "青紫〜紫色"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "ninhColorGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " の呈色を示す反応である。"
+            }
           ],
           "explainJa": "ニンヒドリン反応はアミノ酸の検出に用いられ、α-アミノ基との反応で特徴的な青紫〜紫色の呈色を示す。"
         },
         {
           "id": "theory_sequence_direction_1",
           "tokens": [
-            { "type": "text", "value": "ペプチドやタンパク質のアミノ酸配列は、通常 " },
-            { "type": "hide", "id": "theory_seq_from", "value": [{ "type": "text", "value": "N末端" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " から " },
-            { "type": "hide", "id": "theory_seq_to", "value": [{ "type": "text", "value": "C末端" }], "answer": { "mode": "input" } },
-            { "type": "text", "value": " に向かって並べて書く。" }
+            {
+              "type": "text",
+              "value": "ペプチドやタンパク質のアミノ酸配列は、通常 "
+            },
+            {
+              "type": "hide",
+              "id": "theory_seq_from",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "N末端"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "sequenceEndGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " から "
+            },
+            {
+              "type": "hide",
+              "id": "theory_seq_to",
+              "value": [
+                {
+                  "type": "text",
+                  "value": "C末端"
+                }
+              ],
+              "answer": {
+                "mode": "choice_from_group",
+                "group": "sequenceEndGroup"
+              }
+            },
+            {
+              "type": "text",
+              "value": " に向かって並べて書く。"
+            }
           ],
           "explainJa": "アミノ酸配列は慣習的に N末端から C末端に向かって書き、合成や翻訳の方向と対応させている。"
         }
-      ]
+      ],
+      "groups": {
+        "ionicFormGroup": {
+          "choices": [
+            "−COO−（カルボキシラートイオン）",
+            "−NH3+（アンモニウムイオン）",
+            "−COOH",
+            "−NH2"
+          ],
+          "mode": "choice"
+        },
+        "zwitterionFormGroup": {
+          "choices": ["双性イオン", "カチオン", "アニオン", "中性分子"],
+          "mode": "choice"
+        },
+        "reactionTypeGroup": {
+          "choices": ["脱水縮合", "加水分解", "酸化還元反応", "中和反応"],
+          "mode": "choice"
+        },
+        "aminoGroupTypeGroup": {
+          "choices": ["アミノ基", "α-アミノ基", "カルボキシル基", "側鎖"],
+          "mode": "choice"
+        },
+        "ninhColorGroup": {
+          "choices": ["青紫〜紫色", "赤色", "黄色", "無色"],
+          "mode": "choice"
+        },
+        "sequenceEndGroup": {
+          "choices": ["N末端", "C末端", "中央部", "任意の位置"],
+          "mode": "choice"
+        }
+      }
     }
   }
 }

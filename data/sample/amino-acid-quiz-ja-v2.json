@@ -2,9 +2,7 @@
   "title": "アミノ酸クイズ",
   "description": "20種類のαアミノ酸について、構造・略号・分類・理論（双性イオン、等電点、電離、ペプチド結合など）を日本語で学習するためのクイズ問題ファイル。",
   "version": 2,
-  "imports": [
-    "./amino-acid-quiz-ja-v2.data.json"
-  ],
+  "imports": ["./amino-acid-quiz-ja-v2.data.json"],
   "questionRules": {
     "patterns": [
       {
@@ -13,17 +11,36 @@
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
-          { "type": "text", "value": "側鎖（R基）が " },
-          { "type": "katex", "field": "sideChainFormulaTex" },
-          { "type": "text", "value": " であるアミノ酸として正しいものを 1 つ選べ。" },
-          { "type": "br" },
+          {
+            "type": "text",
+            "value": "側鎖（R基）が "
+          },
+          {
+            "type": "katex",
+            "field": "sideChainFormulaTex"
+          },
+          {
+            "type": "text",
+            "value": " であるアミノ酸として正しいものを 1 つ選べ。"
+          },
+          {
+            "type": "br"
+          },
           {
             "type": "hide",
             "id": "answer_name_ja",
             "value": {
               "type": "ruby",
-              "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
-              "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
+              "base": {
+                "source": "key",
+                "field": "nameJa",
+                "styles": ["sans", "bold"]
+              },
+              "ruby": {
+                "source": "key",
+                "field": "nameEnCap",
+                "styles": ["sans"]
+              }
             },
             "answer": {
               "mode": "choice_ruby_pair",
@@ -42,15 +59,40 @@
             "id": "t_rgroup_name_always",
             "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【分類】このアミノ酸は " },
-              { "type": "key",  "field": "classJa" },
-              { "type": "text", "value": " に分類される。" },
-              { "type": "br" },
-              { "type": "text", "value": "【特徴】" },
-              { "type": "key",  "field": "descJa" },
-              { "type": "br" },
-              { "type": "text", "value": "【語源メモ】" },
-              { "type": "key",  "field": "etymologyJa" }
+              {
+                "type": "text",
+                "value": "【分類】このアミノ酸は "
+              },
+              {
+                "type": "key",
+                "field": "classJa"
+              },
+              {
+                "type": "text",
+                "value": " に分類される。"
+              },
+              {
+                "type": "br"
+              },
+              {
+                "type": "text",
+                "value": "【特徴】"
+              },
+              {
+                "type": "key",
+                "field": "descJa"
+              },
+              {
+                "type": "br"
+              },
+              {
+                "type": "text",
+                "value": "【語源メモ】"
+              },
+              {
+                "type": "key",
+                "field": "etymologyJa"
+              }
             ]
           }
         ]
@@ -61,18 +103,36 @@
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
-          { "type": "text", "value": "次のアミノ酸の側鎖（R基）として正しいものを 1 つ選べ：" },
-          { "type": "br" },
+          {
+            "type": "text",
+            "value": "次のアミノ酸の側鎖（R基）として正しいものを 1 つ選べ："
+          },
+          {
+            "type": "br"
+          },
           {
             "type": "ruby",
-            "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
-            "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
+            "base": {
+              "source": "key",
+              "field": "nameJa",
+              "styles": ["sans", "bold"]
+            },
+            "ruby": {
+              "source": "key",
+              "field": "nameEnCap",
+              "styles": ["sans"]
+            }
           },
-          { "type": "br" },
+          {
+            "type": "br"
+          },
           {
             "type": "hide",
             "id": "answer_rgroup",
-            "value": { "type": "katex", "field": "sideChainFormulaTex" },
+            "value": {
+              "type": "katex",
+              "field": "sideChainFormulaTex"
+            },
             "answer": {
               "mode": "choice_katex",
               "choice": {
@@ -90,20 +150,54 @@
             "id": "t_name_to_rgroup_always",
             "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【解説】" },
+              {
+                "type": "text",
+                "value": "【解説】"
+              },
               {
                 "type": "ruby",
-                "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
-                "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
+                "base": {
+                  "source": "key",
+                  "field": "nameJa",
+                  "styles": ["sans", "bold"]
+                },
+                "ruby": {
+                  "source": "key",
+                  "field": "nameEnCap",
+                  "styles": ["sans"]
+                }
               },
-              { "type": "text", "value": " の側鎖は " },
-              { "type": "katex", "field": "sideChainFormulaTex" },
-              { "type": "text", "value": " であり、分類は " },
-              { "type": "key",  "field": "classJa" },
-              { "type": "text", "value": " に属する。" },
-              { "type": "br" },
-              { "type": "text", "value": "【語源メモ】" },
-              { "type": "key",  "field": "etymologyJa" }
+              {
+                "type": "text",
+                "value": " の側鎖は "
+              },
+              {
+                "type": "katex",
+                "field": "sideChainFormulaTex"
+              },
+              {
+                "type": "text",
+                "value": " であり、分類は "
+              },
+              {
+                "type": "key",
+                "field": "classJa"
+              },
+              {
+                "type": "text",
+                "value": " に属する。"
+              },
+              {
+                "type": "br"
+              },
+              {
+                "type": "text",
+                "value": "【語源メモ】"
+              },
+              {
+                "type": "key",
+                "field": "etymologyJa"
+              }
             ]
           }
         ]
@@ -114,18 +208,37 @@
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
-          { "type": "text", "value": "アミノ酸 " },
+          {
+            "type": "text",
+            "value": "アミノ酸 "
+          },
           {
             "type": "ruby",
-            "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
-            "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
+            "base": {
+              "source": "key",
+              "field": "nameJa",
+              "styles": ["sans", "bold"]
+            },
+            "ruby": {
+              "source": "key",
+              "field": "nameEnCap",
+              "styles": ["sans"]
+            }
           },
-          { "type": "text", "value": " の 3 文字略号として正しいものを 1 つ選べ。" },
-          { "type": "br" },
+          {
+            "type": "text",
+            "value": " の 3 文字略号として正しいものを 1 つ選べ。"
+          },
+          {
+            "type": "br"
+          },
           {
             "type": "hide",
             "id": "answer_code3",
-            "value": { "type": "text", "field": "code3" },
+            "value": {
+              "type": "key",
+              "field": "code3"
+            },
             "answer": {
               "mode": "choice_from_entities",
               "choice": {
@@ -143,18 +256,46 @@
             "id": "t_name_to_code3_always",
             "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【確認】" },
+              {
+                "type": "text",
+                "value": "【確認】"
+              },
               {
                 "type": "ruby",
-                "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
-                "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
+                "base": {
+                  "source": "key",
+                  "field": "nameJa",
+                  "styles": ["sans", "bold"]
+                },
+                "ruby": {
+                  "source": "key",
+                  "field": "nameEnCap",
+                  "styles": ["sans"]
+                }
               },
-              { "type": "text", "value": " の 3 文字略号は " },
-              { "type": "text", "field": "code3" },
-              { "type": "text", "value": " である。" },
-              { "type": "br" },
-              { "type": "text", "value": "【語源メモ】" },
-              { "type": "key",  "field": "etymologyJa" }
+              {
+                "type": "text",
+                "value": " の 3 文字略号は "
+              },
+              {
+                "type": "key",
+                "field": "code3"
+              },
+              {
+                "type": "text",
+                "value": " である。"
+              },
+              {
+                "type": "br"
+              },
+              {
+                "type": "text",
+                "value": "【語源メモ】"
+              },
+              {
+                "type": "key",
+                "field": "etymologyJa"
+              }
             ]
           }
         ]
@@ -165,17 +306,36 @@
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
-          { "type": "text", "value": "3 文字略号 \"" },
-          { "type": "text", "field": "code3" },
-          { "type": "text", "value": "\" を持つアミノ酸として正しいものを 1 つ選べ。" },
-          { "type": "br" },
+          {
+            "type": "text",
+            "value": "3 文字略号 \""
+          },
+          {
+            "type": "key",
+            "field": "code3"
+          },
+          {
+            "type": "text",
+            "value": "\" を持つアミノ酸として正しいものを 1 つ選べ。"
+          },
+          {
+            "type": "br"
+          },
           {
             "type": "hide",
             "id": "answer_name_from_code3",
             "value": {
               "type": "ruby",
-              "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
-              "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
+              "base": {
+                "source": "key",
+                "field": "nameJa",
+                "styles": ["sans", "bold"]
+              },
+              "ruby": {
+                "source": "key",
+                "field": "nameEnCap",
+                "styles": ["sans"]
+              }
             },
             "answer": {
               "mode": "choice_ruby_pair",
@@ -194,17 +354,42 @@
             "id": "t_code3_to_name_always",
             "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【確認】略号と名前の対応：" },
-              { "type": "text", "field": "code3" },
-              { "type": "text", "value": " → " },
+              {
+                "type": "text",
+                "value": "【確認】略号と名前の対応："
+              },
+              {
+                "type": "key",
+                "field": "code3"
+              },
+              {
+                "type": "text",
+                "value": " → "
+              },
               {
                 "type": "ruby",
-                "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
-                "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
+                "base": {
+                  "source": "key",
+                  "field": "nameJa",
+                  "styles": ["sans", "bold"]
+                },
+                "ruby": {
+                  "source": "key",
+                  "field": "nameEnCap",
+                  "styles": ["sans"]
+                }
               },
-              { "type": "br" },
-              { "type": "text", "value": "【語源メモ】" },
-              { "type": "key",  "field": "etymologyJa" }
+              {
+                "type": "br"
+              },
+              {
+                "type": "text",
+                "value": "【語源メモ】"
+              },
+              {
+                "type": "key",
+                "field": "etymologyJa"
+              }
             ]
           }
         ]
@@ -215,18 +400,37 @@
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
-          { "type": "text", "value": "アミノ酸 " },
+          {
+            "type": "text",
+            "value": "アミノ酸 "
+          },
           {
             "type": "ruby",
-            "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
-            "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
+            "base": {
+              "source": "key",
+              "field": "nameJa",
+              "styles": ["sans", "bold"]
+            },
+            "ruby": {
+              "source": "key",
+              "field": "nameEnCap",
+              "styles": ["sans"]
+            }
           },
-          { "type": "text", "value": " の側鎖の性質として正しいものを 1 つ選べ。" },
-          { "type": "br" },
+          {
+            "type": "text",
+            "value": " の側鎖の性質として正しいものを 1 つ選べ。"
+          },
+          {
+            "type": "br"
+          },
           {
             "type": "hide",
             "id": "answer_class",
-            "value": { "type": "text", "field": "classJa" },
+            "value": {
+              "type": "text",
+              "field": "classJa"
+            },
             "answer": {
               "mode": "choice_from_group",
               "group": "classJaGroup"
@@ -238,14 +442,37 @@
             "id": "t_name_to_class_always",
             "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【分類のポイント】" },
-              { "type": "key",  "field": "classJa" },
-              { "type": "text", "value": " に分類されるアミノ酸は、側鎖が " },
-              { "type": "key",  "field": "classHintJa" },
-              { "type": "text", "value": " という特徴を持つ。" },
-              { "type": "br" },
-              { "type": "text", "value": "【語源メモ】" },
-              { "type": "key",  "field": "etymologyJa" }
+              {
+                "type": "text",
+                "value": "【分類のポイント】"
+              },
+              {
+                "type": "key",
+                "field": "classJa"
+              },
+              {
+                "type": "text",
+                "value": " に分類されるアミノ酸は、側鎖が "
+              },
+              {
+                "type": "key",
+                "field": "classHintJa"
+              },
+              {
+                "type": "text",
+                "value": " という特徴を持つ。"
+              },
+              {
+                "type": "br"
+              },
+              {
+                "type": "text",
+                "value": "【語源メモ】"
+              },
+              {
+                "type": "key",
+                "field": "etymologyJa"
+              }
             ]
           }
         ]
@@ -256,10 +483,16 @@
         "questionFormat": "table_matching",
         "dataSet": "alpha-amino-acids",
         "entityFilter": {
-          "in": { "field": "classJa", "values": ["酸性", "塩基性", "極性（中性）", "非極性"] }
+          "in": {
+            "field": "classJa",
+            "values": ["酸性", "塩基性", "極性（中性）", "非極性"]
+          }
         },
         "tokens": [
-          { "type": "text", "value": "アミノ酸の名前（左）と、側鎖の性質による分類（右）を対応付けよ。" }
+          {
+            "type": "text",
+            "value": "アミノ酸の名前（左）と、側鎖の性質による分類（右）を対応付けよ。"
+          }
         ],
         "matchingSpec": {
           "mode": "matching_pairs_from_entities",
@@ -273,7 +506,10 @@
             "id": "t_match_name_class_always",
             "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【復習】非極性・極性・酸性・塩基性アミノ酸をグループごとにイメージして覚えよう。" }
+              {
+                "type": "text",
+                "value": "【復習】非極性・極性・酸性・塩基性アミノ酸をグループごとにイメージして覚えよう。"
+              }
             ]
           }
         ]
@@ -284,7 +520,10 @@
         "questionFormat": "table_matching",
         "dataSet": "alpha-amino-acids",
         "tokens": [
-          { "type": "text", "value": "アミノ酸の名前（左）と、側鎖（R基）の構造式（右）を対応付けよ。" }
+          {
+            "type": "text",
+            "value": "アミノ酸の名前（左）と、側鎖（R基）の構造式（右）を対応付けよ。"
+          }
         ],
         "matchingSpec": {
           "mode": "matching_pairs_from_entities",
@@ -298,7 +537,10 @@
             "id": "t_match_name_rgroup_always",
             "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【コツ】R基の大まかな形（直鎖・分岐・芳香環・含硫黄など）に注目すると対応付けしやすい。" }
+              {
+                "type": "text",
+                "value": "【コツ】R基の大まかな形（直鎖・分岐・芳香環・含硫黄など）に注目すると対応付けしやすい。"
+              }
             ]
           }
         ]
@@ -314,8 +556,14 @@
             "id": "t_sentence_def_always",
             "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【解説】" },
-              { "type": "key",  "field": "explainJa" }
+              {
+                "type": "text",
+                "value": "【解説】"
+              },
+              {
+                "type": "key",
+                "field": "explainJa"
+              }
             ]
           }
         ]
@@ -331,8 +579,14 @@
             "id": "t_sentence_theory_always",
             "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【解説】" },
-              { "type": "key",  "field": "explainJa" }
+              {
+                "type": "text",
+                "value": "【解説】"
+              },
+              {
+                "type": "key",
+                "field": "explainJa"
+              }
             ]
           }
         ]
@@ -344,8 +598,14 @@
         "label": "日本語：基本 R基 ↔ 名前（全アミノ酸）",
         "description": "20種類すべてのアミノ酸について、R基と名前の対応を日本語で確認する基礎モード。",
         "patternWeights": [
-          { "patternId": "p_rgroup_to_name_ja_tips", "weight": 5 },
-          { "patternId": "p_name_to_rgroup_ja_tips", "weight": 5 }
+          {
+            "patternId": "p_rgroup_to_name_ja_tips",
+            "weight": 5
+          },
+          {
+            "patternId": "p_name_to_rgroup_ja_tips",
+            "weight": 5
+          }
         ]
       },
       {
@@ -353,8 +613,14 @@
         "label": "日本語：3文字略号 ↔ 名前（全アミノ酸）",
         "description": "20種類すべてのアミノ酸について、3文字略号と名前の対応を確認するモード。",
         "patternWeights": [
-          { "patternId": "p_name_to_code3_ja_tips", "weight": 5 },
-          { "patternId": "p_code3_to_name_ja_tips", "weight": 5 }
+          {
+            "patternId": "p_name_to_code3_ja_tips",
+            "weight": 5
+          },
+          {
+            "patternId": "p_code3_to_name_ja_tips",
+            "weight": 5
+          }
         ]
       },
       {
@@ -362,8 +628,14 @@
         "label": "日本語：分類集中（非極性・極性・酸性・塩基性）",
         "description": "側鎖の性質による分類（非極性・極性（中性）・酸性・塩基性）に集中して練習するモード。",
         "patternWeights": [
-          { "patternId": "p_name_to_class_ja_tips", "weight": 6 },
-          { "patternId": "p_match_name_class_ja", "weight": 4 }
+          {
+            "patternId": "p_name_to_class_ja_tips",
+            "weight": 6
+          },
+          {
+            "patternId": "p_match_name_class_ja",
+            "weight": 4
+          }
         ]
       },
       {
@@ -371,8 +643,14 @@
         "label": "日本語：定義＋理論（sentence型）",
         "description": "アミノ酸・αアミノ酸・ペプチド・ペプチド結合・双性イオン・等電点・ニンヒドリン反応などの定義と、pH・電離・等電点の理論を文章穴埋めで確認するモード。",
         "patternWeights": [
-          { "patternId": "p_sentence_definitions_ja", "weight": 5 },
-          { "patternId": "p_sentence_theory_ja", "weight": 5 }
+          {
+            "patternId": "p_sentence_definitions_ja",
+            "weight": 5
+          },
+          {
+            "patternId": "p_sentence_theory_ja",
+            "weight": 5
+          }
         ]
       },
       {
@@ -380,15 +658,42 @@
         "label": "日本語：総合ミックス（試験対策）",
         "description": "構造、略号、分類、定義、理論をバランスよく混ぜた総合演習モード。",
         "patternWeights": [
-          { "patternId": "p_rgroup_to_name_ja_tips", "weight": 3 },
-          { "patternId": "p_name_to_rgroup_ja_tips", "weight": 3 },
-          { "patternId": "p_name_to_code3_ja_tips", "weight": 2 },
-          { "patternId": "p_code3_to_name_ja_tips", "weight": 2 },
-          { "patternId": "p_name_to_class_ja_tips", "weight": 3 },
-          { "patternId": "p_match_name_class_ja", "weight": 2 },
-          { "patternId": "p_match_name_rgroup_ja", "weight": 2 },
-          { "patternId": "p_sentence_definitions_ja", "weight": 3 },
-          { "patternId": "p_sentence_theory_ja", "weight": 3 }
+          {
+            "patternId": "p_rgroup_to_name_ja_tips",
+            "weight": 3
+          },
+          {
+            "patternId": "p_name_to_rgroup_ja_tips",
+            "weight": 3
+          },
+          {
+            "patternId": "p_name_to_code3_ja_tips",
+            "weight": 2
+          },
+          {
+            "patternId": "p_code3_to_name_ja_tips",
+            "weight": 2
+          },
+          {
+            "patternId": "p_name_to_class_ja_tips",
+            "weight": 3
+          },
+          {
+            "patternId": "p_match_name_class_ja",
+            "weight": 2
+          },
+          {
+            "patternId": "p_match_name_rgroup_ja",
+            "weight": 2
+          },
+          {
+            "patternId": "p_sentence_definitions_ja",
+            "weight": 3
+          },
+          {
+            "patternId": "p_sentence_theory_ja",
+            "weight": 3
+          }
         ]
       },
       {
@@ -396,11 +701,26 @@
         "label": "日本語：ショートチェック（5問想定）",
         "description": "5問程度で、名前・R基・略号・分類・定義を軽く一通り確認するショートテストモード。",
         "patternWeights": [
-          { "patternId": "p_rgroup_to_name_ja_tips", "weight": 2 },
-          { "patternId": "p_name_to_rgroup_ja_tips", "weight": 2 },
-          { "patternId": "p_name_to_code3_ja_tips", "weight": 1 },
-          { "patternId": "p_name_to_class_ja_tips", "weight": 1 },
-          { "patternId": "p_sentence_definitions_ja", "weight": 1 }
+          {
+            "patternId": "p_rgroup_to_name_ja_tips",
+            "weight": 2
+          },
+          {
+            "patternId": "p_name_to_rgroup_ja_tips",
+            "weight": 2
+          },
+          {
+            "patternId": "p_name_to_code3_ja_tips",
+            "weight": 1
+          },
+          {
+            "patternId": "p_name_to_class_ja_tips",
+            "weight": 1
+          },
+          {
+            "patternId": "p_sentence_definitions_ja",
+            "weight": 1
+          }
         ]
       }
     ]
