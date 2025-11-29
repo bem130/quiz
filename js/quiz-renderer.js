@@ -950,7 +950,52 @@ export function showOptionFeedback(question) {
 }
 
 export function showOptionFeedbackForAnswer(question, answerIndex) {
-    showOptionFeedback(question);
+    if (!question || !Array.isArray(question.answers)) return;
+
+    // sentence_fill_choice 以外は従来どおり「問題全体」を採点
+    if (question.format !== 'sentence_fill_choice') {
+        showOptionFeedback(question);
+        return;
+    }
+
+    const answer = question.answers[answerIndex];
+    if (!answer || !Array.isArray(answer.options)) return;
+
+    answer.options.forEach((opt, optIndex) => {
+        const btn = dom.optionsContainer.querySelector(
+            `button[data-answer-index="${answerIndex}"][data-option-index="${optIndex}"]`
+        );
+        if (!btn) return;
+
+        // まずこの穴のボタンの色だけリセット
+        btn.classList.remove(
+            'border-emerald-400',
+            'bg-emerald-50',
+            'dark:bg-emerald-900/30',
+            'border-rose-400',
+            'bg-rose-50',
+            'dark:bg-rose-900/30'
+        );
+        // デフォルト枠に戻す
+        btn.classList.add('border-slate-300', 'dark:border-slate-700');
+
+        // 正解 or ユーザが選んだ誤答だけ色を付ける
+        if (optIndex === answer.correctIndex) {
+            btn.classList.remove('border-slate-300', 'dark:border-slate-700');
+            btn.classList.add(
+                'border-emerald-400',
+                'bg-emerald-50',
+                'dark:bg-emerald-900/30'
+            );
+        } else if (answer.userSelectedIndex === optIndex) {
+            btn.classList.remove('border-slate-300', 'dark:border-slate-700');
+            btn.classList.add(
+                'border-rose-400',
+                'bg-rose-50',
+                'dark:bg-rose-900/30'
+            );
+        }
+    });
 }
 
 export function revealNextAnswerGroup() {
