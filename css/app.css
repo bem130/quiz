@@ -1,25 +1,33 @@
 /* css/app.css */
 
-/* スケールと高さの変数 */
+/* スケール・高さ・レイアウト比率の変数 */
 :root {
     --app-height: 100vh;
     --app-scale: 1;
+
+    /* 横長レイアウト時の main:sub 比率 */
+    --layout-main-weight-land: 3;
+    --layout-side-weight-land: 2;
+
+    /* 縦長レイアウト時の main:sub 比率 */
+    --layout-main-weight-port: 3;
+    --layout-side-weight-port: 2;
 }
 
 /* 画面サイズ + ユーザ設定スケールでフォントサイズを決める */
 html {
-    font-size: calc(clamp(14px, 1.8vmin + 0.5rem, 24px) * var(--app-scale));
+    font-size: calc((1vw + 1vh) * var(--app-scale));
 }
 
+/* 全体設定 */
 body {
     height: var(--app-height); /* モバイルブラウザ対策 */
     overflow: hidden;          /* 全体スクロールを防ぎ、中身だけスクロール */
-    font-size: 1rem;
 
-    /* ▼ ここから追加：テキスト選択を無効化 ▼ */
+    /* テキスト選択禁止（ドラッグ選択でレイアウトが崩れないように） */
     -webkit-user-select: none; /* Safari / Chrome */
     -moz-user-select: none;    /* Firefox */
-    -ms-user-select: none;     /* 旧 Edge / IE 対策（いらなければ削ってOK） */
+    -ms-user-select: none;     /* 旧 Edge / IE */
     user-select: none;         /* 標準 */
 }
 
@@ -30,7 +38,11 @@ body {
     height: 100%;
 }
 
-/* 横長（ランドスケープ）: 左右 2 分割 */
+/* =========================================================
+   横長（ランドスケープ）レイアウト
+   条件: aspect-ratio >= 3/4
+   → 左右 2 分割（main | side）
+   ====================================================== */
 @media (min-aspect-ratio: 1/1) {
     .layout-container {
         flex-direction: row;
@@ -46,10 +58,15 @@ body {
         border-left-width: 1px;
         display: flex;
         flex-direction: column;
+        min-height: 0;
     }
 }
 
-/* 縦長（ポートレート）: 上下 2 分割 */
+/* =========================================================
+   縦長（ポートレート）レイアウト
+   条件: aspect-ratio <= 3/4
+   → 上下 2 分割（main ↑, side ↓）
+   ====================================================== */
 @media (max-aspect-ratio: 1/1) {
     .layout-container {
         flex-direction: column;
@@ -65,24 +82,31 @@ body {
         border-top-width: 1px;
         display: flex;
         flex-direction: column;
+        min-height: 0;
     }
 }
 
-/* 内側スクロール用のカスタムスクロールバー */
+/* ===========================
+   カスタムスクロールバー
+   =========================== */
 ::-webkit-scrollbar {
     width: 0.35rem;
     height: 0.35rem;
 }
+
 ::-webkit-scrollbar-track {
     background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 9999px;
 }
+
 .dark ::-webkit-scrollbar-thumb {
     background: #475569;
 }
+
 ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
 }
@@ -91,15 +115,25 @@ body {
 .fade-in {
     animation: fadeIn 0.25s ease-in-out;
 }
+
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(0.25rem); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(0.25rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ボタンの押し込み表現用 */
 button {
-    transition: background-color 0.15s ease, border-color 0.15s ease,
-                color 0.15s ease, transform 0.05s ease;
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease,
+        transform 0.05s ease;
 }
 
 button:active {

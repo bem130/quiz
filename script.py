@@ -1,69 +1,99 @@
 import os
+import shutil
+from datetime import datetime
+
+
+def clear_directory(directory_path):
+    """
+    Delete the directory if it exists and recreate it as empty.
+    """
+    if os.path.exists(directory_path):
+        # Remove the whole directory tree
+        shutil.rmtree(directory_path)
+    # Recreate the empty directory
+    os.makedirs(directory_path, exist_ok=True)
+    print(f"Cleared directory: {directory_path}")
+
 
 def merge_directory_files(src_directory, output_filename):
     """
-    指定されたディレクトリ内の全てのファイルを探索し、一つのテキストファイルにまとめます。
+    Explore all files under a specified directory and merge them
+    into a single text file.
 
     Args:
-        src_directory (str): 探索するソースディレクトリのパス
-        output_filename (str): 出力するファイルのパス
+        src_directory (str): Path of the source directory to explore
+        output_filename (str): Path of the output file
     """
-    # srcディレクトリが存在するか確認
+    # Check if src directory exists
     if not os.path.isdir(src_directory):
-        print(f"エラー: ディレクトリ '{src_directory}' が見つかりません。スキップします。")
+        print(f"Error: directory '{src_directory}' not found. Skipping.")
         return
 
-    # 出力ファイルのディレクトリが存在しない場合は作成する
+    # Ensure output directory exists
     output_dir = os.path.dirname(output_filename)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        print(f"出力先ディレクトリを作成しました: {output_dir}")
+        print(f"Created output directory: {output_dir}")
 
-    print(f"--- 開始: '{src_directory}' から '{output_filename}' への結合 ---")
+    print(f"--- Start: merging from '{src_directory}' to '{output_filename}' ---")
 
     try:
-        # 出力ファイルを開く (UTF-8で書き込み)
+        # Open the output file (UTF-8 write)
         with open(output_filename, 'w', encoding='utf-8') as outfile:
             file_count = 0
-            # os.walkを使ってディレクトリを再帰的に探索
+            # Walk through the directory tree
             for dirpath, dirnames, filenames in os.walk(src_directory):
-                # ファイル名順不同にならないようソートして処理
+                # Sort filenames to keep stable order
                 for filename in sorted(filenames):
                     filepath = os.path.join(dirpath, filename)
 
-                    # 出力ファイル自身を読み込まないようにする（同じディレクトリに出力する場合など）
+                    # Skip the output file itself (in case same directory)
                     if os.path.abspath(filepath) == os.path.abspath(output_filename):
                         continue
 
-                    print(f"処理中: {filepath}")
+                    print(f"Processing: {filepath}")
                     file_count += 1
 
-                    # ファイルパスを書き込む（実行場所からの相対パスで見やすくする）
+                    # Write file path (relative from current directory)
                     relative_path = os.path.relpath(filepath, start='.')
                     outfile.write(f"{relative_path}\n---\n")
 
-                    # ファイルの内容を読み込んで書き込む
+                    # Read file contents and write into output
                     try:
                         with open(filepath, 'r', encoding='utf-8') as infile:
                             content = infile.read()
                             outfile.write(content)
                     except UnicodeDecodeError:
-                         outfile.write(f"\n--- エラー: ファイル '{relative_path}' はUTF-8でデコードできませんでした（バイナリファイルの可能性があります） ---\n")
+                        outfile.write(
+                            f"\n--- Error: file '{relative_path}' "
+                            f"cannot be decoded as UTF-8 "
+                            f"(maybe a binary file) ---\n"
+                        )
                     except Exception as e:
-                        outfile.write(f"\n--- エラー: ファイル '{relative_path}' を読み込めませんでした: {e} ---\n")
+                        outfile.write(
+                            f"\n--- Error: cannot read file "
+                            f"'{relative_path}': {e} ---\n"
+                        )
 
-                    # 内容と次のファイルの間に区切り線を入れる
+                    # Separator between files
                     outfile.write("\n---\n\n")
 
-        print(f"完了: {file_count} 個のファイルを '{output_filename}' にまとめました。\n")
+        print(f"Done: merged {file_count} files into '{output_filename}'.\n")
 
     except Exception as e:
-        print(f"予期せぬエラーが発生しました: {e}")
+        print(f"Unexpected error: {e}")
 
 
 if __name__ == '__main__':
-    # 例1: ./src ディレクトリを src.txt にまとめる
-    merge_directory_files('./js', './tmp/js.txt')
-    merge_directory_files('./css', './tmp/css.txt')
-    merge_directory_files('./data', './tmp/data.txt')
-    merge_directory_files('./tests', './tmp/tests.txt')
+    # 1. Clear ./tmp directory first
+    TMP_DIR = './tmp'
+    clear_directory(TMP_DIR)
+
+    # 2. Generate timestamp in MMDDhhmmss format
+    timestamp = datetime.now().strftime('%m%d%H%M%S')
+
+    # 3. Use timestamp at the front of output filenames
+    merge_directory_files('./js',   f'./tmp/{timestamp}_js.txt')
+    merge_directory_files('./css',  f'./tmp/{timestamp}_css.txt')
+    merge_directory_files('./data', f'./tmp/{timestamp}_data.txt')
+    merge_directory_files('./tests', f'./tmp/{timestamp}_tests.txt')

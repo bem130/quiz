@@ -424,23 +424,11 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
             </section>
 
             <!-- ③ クイズ専用: Mistakes / Tips / Result list -->
-            <section id="side-quiz" class="hidden flex-1 flex flex-col">
-                <!-- ヘッダ -->
-                <div class="px-4 py-3 border-b ...">
-                    <!-- 既存のヘッダのままでOK -->
-                </div>
+            <section id="side-quiz" class="hidden flex-1 min-h-0 flex flex-col">
 
-                <!-- コンテンツ: 上に Tips, 下にスクロール領域 -->
-                <div class="flex-1 px-4 py-3 flex flex-col gap-3">
-                    <!-- Tips: 常に一番上 -->
-                    <section id="tips-panel" class="space-y-2">
-                        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                            Tips
-                        </div>
-                        <div id="tip-container" class="space-y-2 text-xs"></div>
-                    </section>
-
-                    <!-- 下側: Mistakes or Result Questions を切り替え表示するスクロール領域 -->
+                <!-- コンテンツ全体: 上が Mistakes/Result（スクロール）、下が Tips（固定） -->
+                <div class="flex-1 min-h-0 px-4 py-3 flex flex-col gap-3">
+                    <!-- 上: Mistakes / Result Questions のスクロール領域 -->
                     <div class="flex-1 min-h-0 overflow-y-auto space-y-3">
                         <!-- Mistakes パネル -->
                         <section id="mistakes-panel" class="space-y-2">
@@ -464,7 +452,7 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
                             <ul id="review-list" class="space-y-2 hidden"></ul>
                         </section>
 
-                        <!-- Result Questions パネル（結果画面のみ表示） -->
+                        <!-- Result Questions パネル（結果画面のときだけ表示） -->
                         <section id="result-list-panel" class="space-y-2 hidden">
                             <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                 Result Questions
@@ -472,6 +460,14 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
                             <ul id="result-list" class="space-y-2"></ul>
                         </section>
                     </div>
+
+                    <!-- 下: Tips（固定表示・スクロールさせない） -->
+                    <section id="tips-panel" class="space-y-2 shrink-0">
+                        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            Tips
+                        </div>
+                        <div id="tip-container" class="space-y-2 text-xs"></div>
+                    </section>
                 </div>
             </section>
         </aside>
