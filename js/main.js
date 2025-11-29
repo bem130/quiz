@@ -81,6 +81,10 @@ function showScreen(name) {
     if (dom.resultListPanel) {
         dom.resultListPanel.classList.add('hidden');
     }
+    if (dom.mistakesPanel) {
+        dom.mistakesPanel.classList.add('hidden');
+    }
+
     dom.nextButton.classList.remove('hidden');
 
     if (name === 'menu') {
@@ -90,6 +94,12 @@ function showScreen(name) {
         dom.mainQuiz.classList.remove('hidden');
         dom.sideQuiz.classList.remove('hidden');
         dom.quizHeaderScore.classList.remove('hidden');
+        if (dom.questionView) {
+            dom.questionView.classList.remove('hidden');
+        }
+        if (dom.mistakesPanel) {
+            dom.mistakesPanel.classList.remove('hidden');
+        }
     } else if (name === 'result') {
         dom.mainQuiz.classList.remove('hidden');
         dom.sideQuiz.classList.remove('hidden');
@@ -352,8 +362,7 @@ function handleSelectOption(answerIndex, optionIndex) {
 
     const historyItem = {
         index: currentIndex + 1,
-        patternId: currentQuestion.patternId,
-        questionText: summarizeQuestion(currentQuestion, quizDef.dataSets),
+        question: currentQuestion, // question オブジェクトへの参照
         userAnswerSummary: summarizeAnswers(currentQuestion, quizDef.dataSets),
         correct: selectionState.fullyCorrect
     };
@@ -392,7 +401,9 @@ function showResult() {
     resetTips();
 
     resetResultList();
-    questionHistory.forEach((item) => addResultItem(item));
+    questionHistory.forEach((item) =>
+        addResultItem(item, quizDef.dataSets)
+    );
 
     showScreen('result');
 }

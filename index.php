@@ -175,14 +175,18 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
                 </div>
 
                 <!-- 問題 + 選択肢 -->
-                <div class="flex-1 overflow-y-auto p-6 flex flex-col justify-center">
-                    <div class="max-w-2xl mx-auto w-full space-y-4">
-                        <div id="question-text" class="text-sm leading-relaxed space-y-1">
-                            <!-- question -->
+                <div id="question-view" class="flex-1 overflow-y-auto p-6 flex flex-col">
+                    <!-- 内側ラッパーを flex-1 + flex-col にする -->
+                    <div class="max-w-4xl w-full mx-auto flex-1 flex flex-col space-y-4">
+                        <div id="question-text" class="text-base leading-relaxed space-y-2">
+                            <!-- 問題文 -->
                         </div>
-                        <div id="options-container" class="mt-4 space-y-2">
-                            <!-- options -->
-                        </div>
+
+                        <!-- 選択肢領域：フル高さの 2x2 グリッド -->
+                        <div
+                            id="options-container"
+                            class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-fr"
+                        ></div>
                     </div>
                 </div>
 
@@ -377,24 +381,53 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
 
             <!-- ③ クイズ専用: Mistakes -->
             <section id="side-quiz" class="hidden flex-1 flex flex-col">
-                <!-- Mistakes ヘッダー -->
-                <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 flex items-center justify-between transition-colors duration-300">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Mistakes</span>
-                    </div>
-                    <span id="mistake-count" class="hidden bg-red-500 text-white text-[0.7rem] font-semibold px-2 py-0.5 rounded-full">
-                        0
-                    </span>
+                <!-- ヘッダ -->
+                <div class="px-4 py-3 border-b ...">
+                    <!-- 既存のヘッダのままでOK -->
                 </div>
 
-                <!-- Mistakes リスト -->
-                <div class="flex-1 overflow-y-auto p-3" id="review-container">
-                    <div id="review-empty" class="h-full flex flex-col items-center justify-center text-slate-500 text-xs">
-                        No mistakes yet.
+                <!-- コンテンツ: 上に Tips, 下にスクロール領域 -->
+                <div class="flex-1 px-4 py-3 flex flex-col gap-3">
+                    <!-- Tips: 常に一番上 -->
+                    <section id="tips-panel" class="space-y-2">
+                        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            Tips
+                        </div>
+                        <div id="tip-container" class="space-y-2 text-xs"></div>
+                    </section>
+
+                    <!-- 下側: Mistakes or Result Questions を切り替え表示するスクロール領域 -->
+                    <div class="flex-1 min-h-0 overflow-y-auto space-y-3">
+                        <!-- Mistakes パネル -->
+                        <section id="mistakes-panel" class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                    Mistakes
+                                </span>
+                                <span
+                                    id="mistake-count"
+                                    class="hidden bg-red-500 text-white text-[0.7rem] font-semibold px-2 py-0.5 rounded-full"
+                                >
+                                    0
+                                </span>
+                            </div>
+                            <div
+                                id="review-empty"
+                                class="h-full flex flex-col items-center justify-center text-slate-500 text-xs"
+                            >
+                                No mistakes yet.
+                            </div>
+                            <ul id="review-list" class="space-y-2 hidden"></ul>
+                        </section>
+
+                        <!-- Result Questions パネル（結果画面のみ表示） -->
+                        <section id="result-list-panel" class="space-y-2 hidden">
+                            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Result Questions
+                            </div>
+                            <ul id="result-list" class="space-y-2"></ul>
+                        </section>
                     </div>
-                    <ul id="review-list" class="space-y-2 hidden">
-                        <!-- mistake items -->
-                    </ul>
                 </div>
             </section>
         </aside>

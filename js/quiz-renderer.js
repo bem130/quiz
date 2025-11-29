@@ -131,13 +131,29 @@ function appendTokens(parent, tokens, row, placeholders = null) {
 function createOptionButton(labelNodes, isDisabled, onClick) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className =
-        'w-full text-left px-3 py-2 rounded-xl border text-sm transition-colors bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-emerald-400';
+
+    btn.className = [
+        // セルいっぱいに広げる
+        'w-full h-full',
+        // 中身のレイアウト
+        'flex flex-col items-start justify-center gap-1',
+        'text-left',
+        // 余白・見た目
+        'px-3 py-3 rounded-xl border text-sm',
+        'transition-colors',
+        'bg-white dark:bg-slate-900',
+        'border-slate-300 dark:border-slate-700',
+        'hover:border-emerald-400 dark:hover:border-emerald-400',
+        // フォーカス枠
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500'
+    ].join(' ');
+
     btn.disabled = isDisabled;
     labelNodes.forEach((node) => btn.appendChild(node));
     btn.addEventListener('click', onClick);
     return btn;
 }
+
 
 function renderOptionLabel(option, dataSets, question) {
     const sourceDataSetId = option.dataSetId || (question.meta && question.meta.dataSetId);
@@ -309,23 +325,120 @@ function resolveQuestionContext(question, dataSets) {
     return null;
 }
 
-export function updateInlineBlank(question, dataSets, answerIndex) {
-    const answer = question.answers[answerIndex];
+export function updateInlineBlank(
+    question,
+    dataSets,
+    answerIndex,
+    rootElement = dom.questionText
+) {
+    const answers = question.answers || [];
+    const answer = answers[answerIndex];
     if (!answer) return;
-    const selected = answer.options[answer.userSelectedIndex];
-    const placeholders = dom.questionText.querySelectorAll(`[data-answer-index="${answerIndex}"]`);
-    let fillText = '';
-    if (selected) {
-        if (selected.labelTokens) {
-            const span = document.createElement('span');
-            appendTokens(span, selected.labelTokens, null);
-            fillText = span.textContent || '';
-        } else {
-            fillText = selected.label || selected.displayKey || '';
+
+    const placeholders = rootElement.querySelectorAll(
+        `[data-answer-index="${answerIndex}"]`
+    );
+    if (!placeholders.length) return;
+
+    const options = answer.options || [];
+    const selectedIndex = answer.userSelectedIndex;
+    const selectedOpt =
+        selectedIndex != null ? options[selectedIndex] : null;
+    const correctOpt =
+        typeof answer.correctIndex === 'number'
+            ? options[answer.correctIndex]
+            : null;
+
+    const isCorrect =
+        selectedIndex != null &&
+        typeof answer.correctIndex === 'number' &&
+        selectedIndex === answer.correctIndex;
+
+    const isReviewContext = rootElement !== dom.questionText;
+
+    function resolveRowForOption(opt) {
+        if (!opt) return null;
+        const sourceDataSetId =
+            opt.dataSetId || (question.meta && question.meta.dataSetId);
+        const ds = sourceDataSetId ? dataSets[sourceDataSetId] : null;
+        if (!ds) return null;
+
+        if (ds.type === 'table' && Array.isArray(ds.data)) {
+            return opt.entityId
+                ? ds.data.find((r) => r.id === opt.entityId) || null
+                : null;
         }
+        if (
+            ds.type === 'factSentences' &&
+            Array.isArray(ds.sentences)
+        ) {
+            return opt.entityId
+                ? ds.sentences.find((s) => s.id === opt.entityId) || null
+                : null;
+        }
+        return null;
     }
-    placeholders.forEach((el) => {
-        el.textContent = fillText;
+
+    function buildLabelNode(opt) {
+        const span = document.createElement('span');
+        if (!opt) return span;
+
+        const row = resolveRowForOption(opt);
+
+        if (opt.labelTokens && opt.labelTokens.length) {
+            appendTokens(span, opt.labelTokens, row, null);
+        } else if (opt.label) {
+            span.appendChild(createStyledSpan(String(opt.label), []));
+        } else if (opt.displayKey) {
+            span.appendChild(createStyledSpan(String(opt.displayKey), []));
+        } else if (row) {
+            const text =
+                row.nameEnCap || row.nameEn || row.text || '';
+            span.appendChild(createStyledSpan(String(text), []));
+        }
+
+        return span;
+    }
+
+    placeholders.forEach((placeholder) => {
+        // プレースホルダを「縦積み構造」にリセット
+        placeholder.innerHTML = '';
+        placeholder.className =
+            'inline-flex flex-col items-start mx-1 align-baseline leading-tight';
+
+        // 上段: 正答（下線つき）
+        const correctLine = document.createElement('span');
+        correctLine.className =
+            'block px-2 border-b border-slate-500 min-w-[2.5rem] whitespace-nowrap';
+
+        if (isReviewContext) {
+            // Mistakes では正答を少し強調（青緑）
+            correctLine.classList.add(
+                'text-emerald-300',
+                'dark:text-emerald-200'
+            );
+        }
+
+        correctLine.appendChild(buildLabelNode(correctOpt));
+        placeholder.appendChild(correctLine);
+
+        // 間違えている場合のみ下段に「× ユーザの解答」を表示
+        if (!isCorrect && selectedOpt) {
+            const wrongLine = document.createElement('span');
+            wrongLine.className =
+                'mt-0.5 text-[0.7rem] text-rose-400 dark:text-rose-300 ' +
+                'flex items-center gap-1 whitespace-nowrap';
+
+            const mark = document.createElement('span');
+            mark.textContent = '×';
+            wrongLine.appendChild(mark);
+
+            const wrongLabel = buildLabelNode(selectedOpt);
+            wrongLabel.style.fontSize = '0.85em';
+            wrongLine.appendChild(wrongLabel);
+
+            placeholder.appendChild(wrongLine);
+        }
     });
 }
 
@@ -372,43 +485,113 @@ export function revealNextAnswerGroup() {
 
 export function appendPatternPreviewToOptions(question, dataSets) {
     if (!question || !Array.isArray(question.answers)) return;
+
+    const rowContext = resolveQuestionContext(question, dataSets);
+
     question.answers.forEach((answer, answerIndex) => {
-        answer.options.forEach((opt, optIndex) => {
+        (answer.options || []).forEach((opt, optIndex) => {
             const btn = dom.optionsContainer.querySelector(
                 `button[data-answer-index="${answerIndex}"][data-option-index="${optIndex}"]`
             );
             if (!btn || btn.querySelector('.option-preview')) return;
+
             const preview = document.createElement('div');
-            preview.className = 'option-preview text-[0.7rem] text-slate-500 dark:text-slate-400 mt-1';
-            const rowContext = resolveQuestionContext(question, dataSets);
-            const text = tokensToPlainText(question.tokens || [], rowContext);
-            preview.textContent = text || '';
+            preview.className =
+                'option-preview text-[0.7rem] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed';
+
+            appendTokens(
+                preview,
+                question.tokens || [],
+                rowContext,
+                false // hide トークンは値を出す
+            );
+
             btn.appendChild(preview);
         });
     });
 }
 
 export function resetReviewList() {
-    dom.reviewList.innerHTML = '';
-    dom.mistakeCount.textContent = '0';
-    dom.reviewEmpty.classList.remove('hidden');
+    if (dom.reviewList) {
+        dom.reviewList.innerHTML = '';
+        dom.reviewList.classList.add('hidden');
+    }
+    if (dom.reviewEmpty) {
+        dom.reviewEmpty.classList.remove('hidden');
+    }
+    if (dom.mistakeCount) {
+        dom.mistakeCount.textContent = '0';
+        dom.mistakeCount.classList.add('hidden');
+    }
 }
 
-export function addReviewItem(question, dataSets, order) {
-    dom.reviewEmpty.classList.add('hidden');
-    const item = document.createElement('div');
-    item.className = 'p-2 border-b border-slate-200 dark:border-slate-700';
+export function addReviewItem(question, dataSets, questionNumber) {
+    if (!dom.reviewList) return;
+
+    // 空状態メッセージを隠し、リストを表示
+    if (dom.reviewEmpty) {
+        dom.reviewEmpty.classList.add('hidden');
+    }
+    dom.reviewList.classList.remove('hidden');
+
+    // カウントバッジを表示
+    if (dom.mistakeCount) {
+        const current = Number(dom.mistakeCount.textContent || '0') + 1;
+        dom.mistakeCount.textContent = String(current);
+        dom.mistakeCount.classList.remove('hidden');
+    }
+
+    const li = document.createElement('li');
+    li.className = [
+        'rounded-lg border border-slate-300 dark:border-slate-700',
+        'bg-white dark:bg-slate-900',
+        'px-3 py-2',
+        'text-xs'
+    ].join(' ');
+
+    const topRow = document.createElement('div');
+    topRow.className = 'flex items-start gap-3 justify-between';
+
+    // 左側: Q番号 + Incorrectバッジ
+    const headerBox = document.createElement('div');
+    headerBox.className = 'flex flex-col gap-1 min-w-[3.5rem]';
+
+    const headerLine = document.createElement('div');
+    headerLine.className = 'flex items-center gap-2';
+
+    const qLabel = document.createElement('span');
+    qLabel.className = 'font-semibold text-slate-800 dark:text-slate-100';
+    qLabel.textContent = `Q${questionNumber}`;
+
+    const badge = document.createElement('span');
+    badge.className =
+        'text-[0.7rem] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 ' +
+        'dark:text-red-300 border border-red-300/60 dark:border-red-500/50';
+    badge.textContent = 'Incorrect';
+
+    headerLine.appendChild(qLabel);
+    headerLine.appendChild(badge);
+    headerBox.appendChild(headerLine);
+
+    // 右側: 問題文（穴埋め付き）
+    const qText = document.createElement('div');
+    qText.className = 'flex-1 text-slate-700 dark:text-slate-200';
+
     const row = resolveQuestionContext(question, dataSets);
-    const text = document.createElement('div');
-    text.className = 'text-sm';
-    appendTokens(text, question.tokens, row, false);
-    const info = document.createElement('div');
-    info.className = 'text-xs text-slate-500';
-    info.textContent = `Q${order}`;
-    item.appendChild(info);
-    item.appendChild(text);
-    dom.reviewList.appendChild(item);
-    dom.mistakeCount.textContent = String(Number(dom.mistakeCount.textContent || '0') + 1);
+
+    // まずはプレースホルダ付きで本文を描画（question-view と同じロジック）
+    appendTokens(qText, question.tokens || [], row, true);
+
+    // 各パーツごとに正答 / 誤答を埋め込む
+    (question.answers || []).forEach((_, idx) => {
+        updateInlineBlank(question, dataSets, idx, qText);
+    });
+
+    topRow.appendChild(headerBox);
+    topRow.appendChild(qText);
+    li.appendChild(topRow);
+
+    dom.reviewList.appendChild(li);
 }
 
 export function renderTips(tips, row, isCorrect) {
@@ -522,26 +705,40 @@ export function resetResultList() {
     }
 }
 
-export function addResultItem(historyItem) {
-    if (!dom.resultList) return;
+export function addResultItem(historyItem, dataSets) {
+    if (!dom.resultList || !historyItem || !historyItem.question) return;
+
+    const question = historyItem.question;
     const item = document.createElement('li');
     item.className = historyItem.correct
         ? 'p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
         : 'p-2 rounded-lg border border-rose-200 dark:border-rose-700 bg-rose-50/70 dark:bg-rose-900/40';
 
     const header = document.createElement('div');
-    header.className = 'flex items-center justify-between text-xs text-slate-500 dark:text-slate-400';
+    header.className =
+        'flex items-center justify-between text-xs text-slate-500 dark:text-slate-400';
+
     const orderSpan = document.createElement('span');
     orderSpan.textContent = `Q${historyItem.index}`;
-    const status = document.createElement('span');
-    status.textContent = historyItem.correct ? 'Correct' : 'Incorrect';
     header.appendChild(orderSpan);
-    header.appendChild(status);
 
+    // 正解 / 不正解バッジ
+    const badge = document.createElement('span');
+    badge.className = historyItem.correct
+        ? 'px-2 py-0.5 rounded-full text-[0.7rem] bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-300/70 dark:border-emerald-500/60'
+        : 'px-2 py-0.5 rounded-full text-[0.7rem] bg-rose-500/10 text-rose-600 dark:text-rose-300 border border-rose-300/70 dark:border-rose-500/60';
+    badge.textContent = historyItem.correct ? 'Correct' : 'Incorrect';
+    header.appendChild(badge);
+
+    // 問題文：tokens をそのまま描画（ルビ・KaTeX 対応）
     const text = document.createElement('div');
-    text.className = 'text-sm text-slate-800 dark:text-slate-100 mt-1';
-    text.textContent = historyItem.questionText;
+    text.className = 'text-sm text-slate-800 dark:text-slate-100 mt-1 leading-relaxed';
 
+    const rowContext = resolveQuestionContext(question, dataSets);
+    appendTokens(text, question.tokens || [], rowContext, false);
+    // ↑ hide トークンは値を出す
+
+    // ユーザ回答サマリ（文字列のまま）
     const answer = document.createElement('div');
     answer.className = 'text-xs text-slate-500 dark:text-slate-400 mt-1';
     answer.textContent = historyItem.userAnswerSummary;
