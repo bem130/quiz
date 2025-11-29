@@ -10,6 +10,7 @@ export const dom = {
     // メイン側（左パネル）
     mainMenu: document.getElementById('main-menu'),
     mainQuiz: document.getElementById('main-quiz'),
+    questionView: document.getElementById('question-view'),
 
     // メニュー（メイン）
     quizList: document.getElementById('quiz-list'),
@@ -52,10 +53,15 @@ export const dom = {
     reviewEmpty: document.getElementById('review-empty'),
     reviewList: document.getElementById('review-list'),
     mistakeCount: document.getElementById('mistake-count'),
+    resultListPanel: document.getElementById('result-list-panel'),
+    resultList: document.getElementById('result-list'),
 
     // 結果画面
     resultScreen: document.getElementById('result-screen'),
     resultScore: document.getElementById('result-score'),
+    resultTotal: document.getElementById('result-total'),
+    resultCorrect: document.getElementById('result-correct'),
+    resultAccuracy: document.getElementById('result-accuracy'),
     retryButton: document.getElementById('retry-button'),
     backToMenuButton: document.getElementById('back-to-menu-button')
 };
