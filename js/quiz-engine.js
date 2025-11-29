@@ -337,17 +337,43 @@ function generateTableMatchingQuestion(pattern, dataSets) {
     const rightField = spec.rightField || 'right';
     const rows = getFilteredRows(table, pattern.entityFilter);
     if (rows.length < count) return null;
+
     const selected = pickN(rows, count);
     const leftList = spec.shuffle && spec.shuffle.left ? shuffled(selected) : selected.slice();
     const rightValues = selected.map((row) => row[rightField]);
     const shuffledRight = spec.shuffle && spec.shuffle.right ? shuffled(rightValues) : rightValues;
+
+    // 右側フィールドが "Tex" で終わるなら KaTeX 用とみなす
+    const isTexField =
+        typeof rightField === 'string' && /tex$/i.test(rightField);
+
     const answers = leftList.map((row) => {
         const correctText = row[rightField];
-        const options = shuffledRight.map((text) => ({
-            label: text,
-            isCorrect: text === correctText
-        }));
+
+        const options = shuffledRight.map((text) => {
+            const base = {
+                // 採点用フラグは従来どおり
+                isCorrect: text === correctText
+            };
+
+            if (isTexField) {
+                // KaTeX で描画させる
+                base.labelTokens = [
+                    {
+                        type: 'katex',
+                        value: text   // 例: "\\ce{-CH3}"
+                    }
+                ];
+            } else {
+                // 通常テキストのときは従来どおり
+                base.label = text;
+            }
+
+            return base;
+        });
+
         const correctIndex = options.findIndex((o) => o.isCorrect);
+
         return {
             id: `${pattern.id}_${row.id}_match`,
             mode: 'matching_pairs_from_entities',
@@ -360,8 +386,9 @@ function generateTableMatchingQuestion(pattern, dataSets) {
             }
         };
     });
+
     return {
-        id: `q_${pattern.id}_match`,
+        id: pattern.id,
         patternId: pattern.id,
         format: 'table_matching',
         tokens: pattern.tokens || [],
@@ -372,6 +399,7 @@ function generateTableMatchingQuestion(pattern, dataSets) {
         }
     };
 }
+
 
 function generateSentenceFillChoiceQuestion(pattern, dataSets) {
     const dataSet = getDataSet(dataSets, pattern.dataSet);

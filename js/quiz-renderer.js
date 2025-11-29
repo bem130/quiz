@@ -132,25 +132,31 @@ function createOptionButton(labelNodes, isDisabled, onClick) {
     const btn = document.createElement('button');
     btn.type = 'button';
 
+    // 高さも幅もセルいっぱいに広げる
     btn.className = [
-        // セルいっぱいに広げる
-        'w-full h-full',
-        // 中身のレイアウト
-        'flex flex-col items-start justify-center gap-1',
-        'text-left',
-        // 余白・見た目
-        'px-3 py-3 rounded-xl border text-sm',
-        'transition-colors',
-        'bg-white dark:bg-slate-900',
-        'border-slate-300 dark:border-slate-700',
-        'hover:border-emerald-400 dark:hover:border-emerald-400',
-        // フォーカス枠
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500'
+        'w-full h-full', // ★ ここが重要：セル全体を占有
+        'flex flex-col items-start justify-between', // 縦方向ストレッチ
+        'px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700',
+        'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100',
+        'hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+        'text-sm leading-relaxed',
+        'transition-colors'
     ].join(' ');
 
-    btn.disabled = isDisabled;
-    labelNodes.forEach((node) => btn.appendChild(node));
-    btn.addEventListener('click', onClick);
+    if (isDisabled) {
+        btn.disabled = true;
+    } else {
+        btn.addEventListener('click', onClick);
+    }
+
+    // 中身コンテナを作っておくと将来プレビューなども入れやすい
+    const main = document.createElement('div');
+    main.className = 'option-main flex-1 flex items-start gap-2';
+
+    labelNodes.forEach((node) => main.appendChild(node));
+    btn.appendChild(main);
+
     return btn;
 }
 
@@ -183,25 +189,34 @@ function renderOptionLabel(option, dataSets, question) {
 
 function renderAnswerGroup(question, dataSets, answerIndex, onSelect) {
     const answer = question.answers[answerIndex];
+
+    // ★ space-y-2 をやめて、フルサイズでストレッチ
     const group = document.createElement('div');
-    group.className = 'space-y-2 hidden';
+    group.className = 'hidden h-full w-full';
     group.dataset.answerIndex = String(answerIndex);
 
     if (answer.meta && answer.meta.leftText) {
         const title = document.createElement('div');
-        title.className = 'text-sm font-semibold text-slate-700 dark:text-slate-200';
+        // ここは必要なら mb-2 でちょっとだけ余白を付ける
+        title.className = 'text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2';
         title.textContent = answer.meta.leftText;
         group.appendChild(title);
     }
 
     const optionsWrapper = document.createElement('div');
-    optionsWrapper.className = 'grid grid-cols-1 md:grid-cols-2 gap-2';
+    // ★ ここで 2x2 グリッド + フルサイズ
+    optionsWrapper.className =
+        'grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-fr h-full w-full';
 
     answer.options.forEach((opt, idx) => {
         const labelNodes = renderOptionLabel(opt, dataSets, question);
-        const btn = createOptionButton(labelNodes, question.meta.disabled, () => {
-            onSelect(answerIndex, idx);
-        });
+        const btn = createOptionButton(
+            labelNodes,
+            question.meta.disabled,
+            () => {
+                onSelect(answerIndex, idx);
+            }
+        );
         btn.dataset.answerIndex = String(answerIndex);
         btn.dataset.optionIndex = String(idx);
         optionsWrapper.appendChild(btn);
@@ -280,32 +295,31 @@ export function renderQuestion(question, dataSets, onSelect) {
     if (question.format === 'table_matching') {
         const header = document.createElement('div');
         header.className = 'text-sm text-slate-500 dark:text-slate-400 mb-2';
-        header.textContent = 'Match the items on the left with the correct options on the right.';
+        header.textContent =
+            'Match the items on the left with the correct options on the right.';
         dom.questionText.appendChild(header);
     }
 
     appendTokens(dom.questionText, question.tokens, contextRow, true);
 
-    const answersWrapper = document.createElement('div');
-    answersWrapper.className = 'space-y-3';
-    const answerGroups = question.answers.map((_, idx) => renderAnswerGroup(question, dataSets, idx, onSelect));
+    const answerGroups = question.answers.map((_, idx) =>
+        renderAnswerGroup(question, dataSets, idx, onSelect)
+    );
     question._answerGroups = answerGroups;
 
-    const useNavigation = question.format === 'sentence_fill_choice' && answerGroups.length > 1;
+    const useNavigation =
+        question.format === 'sentence_fill_choice' && answerGroups.length > 1;
     question.useNavigation = useNavigation;
 
     if (useNavigation) {
         const nav = createAnswerNavigation(question);
-        dom.optionsContainer.appendChild(nav);
+        dom.questionText.appendChild(nav);
     } else {
-        answerGroups.forEach((group) => group.classList.remove('hidden'));
+        answerGroups.forEach((g) => g.classList.remove('hidden'));
     }
 
-    const groupsContainer = document.createElement('div');
-    groupsContainer.className = 'space-y-4';
-    answerGroups.forEach((group) => groupsContainer.appendChild(group));
-    answersWrapper.appendChild(groupsContainer);
-    dom.optionsContainer.appendChild(answersWrapper);
+    // ★ group をそのまま optionsContainer の子にする
+    answerGroups.forEach((g) => dom.optionsContainer.appendChild(g));
 
     if (useNavigation) {
         updateAnswerNavigation(question, question.currentAnswerIndex || 0);

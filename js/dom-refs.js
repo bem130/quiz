@@ -54,6 +54,7 @@ export const dom = {
     reviewList: document.getElementById('review-list'),
     mistakeCount: document.getElementById('mistake-count'),
     resultListPanel: document.getElementById('result-list-panel'),
+    resultList: document.getElementById('result-list'),
     mistakesPanel: document.getElementById('mistakes-panel'),
 
     // 結果画面
