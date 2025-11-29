@@ -57,6 +57,11 @@ if (is_dir($quizDirFs)) {
         }
 
         $fileName = $fileInfo->getFilename();
+        if (substr($fileName, -10) === '.data.json') { // ".data.json" は 10 文字
+            continue;
+        }
+
+        $fileName = $fileInfo->getFilename();
         $pathFs   = $fileInfo->getPathname();
 
         $raw = @file_get_contents($pathFs);
