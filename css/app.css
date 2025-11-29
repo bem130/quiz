@@ -151,7 +151,8 @@ button:active {
 
     /* better behaviour for Japanese text */
     line-break: strict;
+}
 
-    /* slightly more comfortable line height */
-    line-height: 1.6;
+ruby rt {
+    font-size: 0.8em;
 }

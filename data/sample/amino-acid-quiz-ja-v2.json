@@ -28,17 +28,17 @@
           },
           {
             "type": "hide",
-            "id": "answer_name_ja",
+            "id": "answer_name_en_ja",
             "value": {
               "type": "ruby",
               "base": {
                 "source": "key",
-                "field": "nameJa",
+                "field": "nameEnCap",
                 "styles": ["sans", "bold"]
               },
               "ruby": {
                 "source": "key",
-                "field": "nameEnCap",
+                "field": "nameJa",
                 "styles": ["sans"]
               }
             },
@@ -114,12 +114,12 @@
             "type": "ruby",
             "base": {
               "source": "key",
-              "field": "nameJa",
+              "field": "nameEnCap",
               "styles": ["sans", "bold"]
             },
             "ruby": {
               "source": "key",
-              "field": "nameEnCap",
+              "field": "nameJa",
               "styles": ["sans"]
             }
           },
@@ -158,12 +158,12 @@
                 "type": "ruby",
                 "base": {
                   "source": "key",
-                  "field": "nameJa",
+                  "field": "nameEnCap",
                   "styles": ["sans", "bold"]
                 },
                 "ruby": {
                   "source": "key",
-                  "field": "nameEnCap",
+                  "field": "nameJa",
                   "styles": ["sans"]
                 }
               },
@@ -216,12 +216,12 @@
             "type": "ruby",
             "base": {
               "source": "key",
-              "field": "nameJa",
+              "field": "nameEnCap",
               "styles": ["sans", "bold"]
             },
             "ruby": {
               "source": "key",
-              "field": "nameEnCap",
+              "field": "nameJa",
               "styles": ["sans"]
             }
           },
@@ -264,12 +264,12 @@
                 "type": "ruby",
                 "base": {
                   "source": "key",
-                  "field": "nameJa",
+                  "field": "nameEnCap",
                   "styles": ["sans", "bold"]
                 },
                 "ruby": {
                   "source": "key",
-                  "field": "nameEnCap",
+                  "field": "nameJa",
                   "styles": ["sans"]
                 }
               },
@@ -328,12 +328,12 @@
               "type": "ruby",
               "base": {
                 "source": "key",
-                "field": "nameJa",
+                "field": "nameEnCap",
                 "styles": ["sans", "bold"]
               },
               "ruby": {
                 "source": "key",
-                "field": "nameEnCap",
+                "field": "nameJa",
                 "styles": ["sans"]
               }
             },
@@ -370,12 +370,12 @@
                 "type": "ruby",
                 "base": {
                   "source": "key",
-                  "field": "nameJa",
+                  "field": "nameEnCap",
                   "styles": ["sans", "bold"]
                 },
                 "ruby": {
                   "source": "key",
-                  "field": "nameEnCap",
+                  "field": "nameJa",
                   "styles": ["sans"]
                 }
               },
@@ -408,12 +408,12 @@
             "type": "ruby",
             "base": {
               "source": "key",
-              "field": "nameJa",
+              "field": "nameEnCap",
               "styles": ["sans", "bold"]
             },
             "ruby": {
               "source": "key",
-              "field": "nameEnCap",
+              "field": "nameJa",
               "styles": ["sans"]
             }
           },
