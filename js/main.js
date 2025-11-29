@@ -16,7 +16,11 @@ import {
     updateInlineBlank,
     showOptionFeedbackForAnswer,
     revealNextAnswerGroup,
-    appendPatternPreviewToOptions
+    appendPatternPreviewToOptions,
+    summarizeQuestion,
+    summarizeAnswers,
+    resetResultList,
+    addResultItem
 } from './quiz-renderer.js';
 import { selectAnswer, resetSelections } from './answer-state.js';
 
@@ -29,6 +33,7 @@ let currentIndex = 0;
 let currentScore = 0;
 let currentQuestion = null;
 let hasAnswered = false;
+let questionHistory = [];
 
 // 現在選択中の modeId
 let currentModeId = null;
@@ -59,6 +64,9 @@ function showScreen(name) {
     // メイン
     dom.mainMenu.classList.add('hidden');
     dom.mainQuiz.classList.add('hidden');
+    if (dom.questionView) {
+        dom.questionView.classList.remove('hidden');
+    }
 
     // サイド（下半分だけ切り替える）
     dom.sideMenu.classList.add('hidden');
@@ -69,6 +77,11 @@ function showScreen(name) {
 
     // 結果パネル
     dom.resultScreen.classList.add('hidden');
+
+    if (dom.resultListPanel) {
+        dom.resultListPanel.classList.add('hidden');
+    }
+    dom.nextButton.classList.remove('hidden');
 
     if (name === 'menu') {
         dom.mainMenu.classList.remove('hidden');
@@ -82,6 +95,13 @@ function showScreen(name) {
         dom.sideQuiz.classList.remove('hidden');
         dom.quizHeaderScore.classList.remove('hidden');
         dom.resultScreen.classList.remove('hidden');
+        if (dom.questionView) {
+            dom.questionView.classList.add('hidden');
+        }
+        if (dom.resultListPanel) {
+            dom.resultListPanel.classList.remove('hidden');
+        }
+        dom.nextButton.classList.add('hidden');
     }
 }
 
@@ -232,11 +252,16 @@ function startQuiz() {
     currentScore = 0;
     hasAnswered = false;
     dom.nextButton.disabled = true;
+    questionHistory = [];
 
     engine.setMode(modeId);
     renderProgress(currentIndex, totalQuestions, currentScore);
     resetReviewList();
     resetTips();
+    resetResultList();
+    if (dom.resultListPanel) {
+        dom.resultListPanel.classList.add('hidden');
+    }
 
     showScreen('quiz');
     loadNextQuestion();
@@ -325,6 +350,15 @@ function handleSelectOption(answerIndex, optionIndex) {
         addReviewItem(currentQuestion, quizDef.dataSets, currentIndex + 1);
     }
 
+    const historyItem = {
+        index: currentIndex + 1,
+        patternId: currentQuestion.patternId,
+        questionText: summarizeQuestion(currentQuestion, quizDef.dataSets),
+        userAnswerSummary: summarizeAnswers(currentQuestion, quizDef.dataSets),
+        correct: selectionState.fullyCorrect
+    };
+    questionHistory.push(historyItem);
+
     // 全パーツのボタンに最終的なフィードバックを適用（枠・背景の緑/赤など）
     showOptionFeedback(currentQuestion);
 
@@ -348,10 +382,17 @@ function handleSelectOption(answerIndex, optionIndex) {
  * クイズ結果を表示し、スコアの概要と画面状態を更新する。
  */
 function showResult() {
-    dom.resultScore.textContent = `${currentScore} / ${totalQuestions}`;
+    dom.resultScore.textContent = `Score: ${currentScore} / ${totalQuestions}`;
+    dom.resultTotal.textContent = `${totalQuestions}`;
+    dom.resultCorrect.textContent = `${currentScore}`;
+    const accuracy = totalQuestions > 0 ? Math.round((currentScore / totalQuestions) * 100) : 0;
+    dom.resultAccuracy.textContent = `${accuracy}%`;
 
     // 結果画面では Tips を消す
     resetTips();
+
+    resetResultList();
+    questionHistory.forEach((item) => addResultItem(item));
 
     showScreen('result');
 }
