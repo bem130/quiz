@@ -206,7 +206,7 @@ function renderAnswerGroup(question, dataSets, answerIndex, onSelect) {
     const optionsWrapper = document.createElement('div');
     // ★ ここで 2x2 グリッド + フルサイズ
     optionsWrapper.className =
-        'grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-fr h-full w-full';
+        'grid grid-cols-2 gap-4 auto-rows-fr h-full w-full';
 
     answer.options.forEach((opt, idx) => {
         const labelNodes = renderOptionLabel(opt, dataSets, question);
