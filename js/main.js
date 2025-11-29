@@ -1,9 +1,16 @@
 // js/main.js
 import { initThemeFromStorage, toggleTheme, setSize, initAppHeightObserver } from './theme.js';
 import { dom } from './dom-refs.js';
-import { loadQuizDefinition } from './quiz-model.js';
-import { loadQuizEntries } from './entry-model.js';
-import { renderQuizMenu } from './menu-renderer.js';
+import { loadQuizDefinitionFromQuizEntry } from './quiz-model.js';
+import { loadEntrySourceFromUrl } from './entry-model.js';
+import {
+    createDefaultEntrySources,
+    getEntryUrlFromLocation,
+    getQuizNameFromLocation,
+    loadEntrySourcesFromStorage,
+    saveEntrySourcesToStorage
+} from './config.js';
+import { renderEntryMenu, renderQuizMenu } from './menu-renderer.js';
 import { QuizEngine, NoQuestionsAvailableError } from './quiz-engine.js';
 import {
     renderQuestion,
@@ -24,8 +31,10 @@ import {
 } from './quiz-renderer.js';
 import { selectAnswer, resetSelections } from './answer-state.js';
 
+let entrySources = [];
+let currentEntry = null;
+let currentQuiz = null;
 let quizDef = null;
-let quizEntries = [];
 let engine = null;
 
 let totalQuestions = 10;
@@ -180,6 +189,35 @@ function showScreen(name) {
     }
 }
 
+function setStartButtonEnabled(enabled) {
+    if (!dom.startButton) return;
+    dom.startButton.disabled = !enabled;
+    if (enabled) {
+        dom.startButton.classList.remove('opacity-50', 'cursor-not-allowed');
+    } else {
+        dom.startButton.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+function showModeMessage(message, tone = 'error') {
+    if (!dom.modeMessage) return;
+    dom.modeMessage.textContent = message;
+    dom.modeMessage.classList.remove('hidden');
+    dom.modeMessage.classList.remove('text-emerald-600', 'dark:text-emerald-300');
+    dom.modeMessage.classList.remove('text-rose-600', 'dark:text-rose-300');
+    if (tone === 'success') {
+        dom.modeMessage.classList.add('text-emerald-600', 'dark:text-emerald-300');
+    } else {
+        dom.modeMessage.classList.add('text-rose-600', 'dark:text-rose-300');
+    }
+}
+
+function clearModeMessage() {
+    if (!dom.modeMessage) return;
+    dom.modeMessage.textContent = '';
+    dom.modeMessage.classList.add('hidden');
+}
+
 /**
  * ボタンやキーボード操作から呼ばれる次の問題への遷移処理。
  */
@@ -194,7 +232,7 @@ function goToNextQuestion() {
  */
 function populateModeButtons() {
     dom.modeList.innerHTML = '';
-    if (!quizDef.modes || quizDef.modes.length === 0) {
+    if (!quizDef || !quizDef.modes || quizDef.modes.length === 0) {
         return;
     }
 
@@ -311,6 +349,11 @@ function toggleFullscreen() {
  * 選択中のモードと出題数を基にクイズを初期化し、最初の問題を表示する。
  */
 function startQuiz() {
+    if (!quizDef || !engine) {
+        showModeMessage('クイズ定義を読み込めませんでした。');
+        return;
+    }
+
     const fallbackModeId =
         quizDef.modes && quizDef.modes.length > 0 ? quizDef.modes[0].id : null;
     const modeId = currentModeId || fallbackModeId;
@@ -524,6 +567,318 @@ function setupKeyboardShortcuts() {
     });
 }
 
+function updateLocationParams(entryUrl, quizId) {
+    const params = new URLSearchParams(window.location.search);
+    if (entryUrl) {
+        params.set('entry', encodeURIComponent(entryUrl));
+    } else {
+        params.delete('entry');
+    }
+    if (quizId) {
+        params.set('quiz', quizId);
+    } else {
+        params.delete('quiz');
+    }
+    const newQuery = params.toString();
+    const newUrl = `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}${window.location.hash}`;
+    window.history.replaceState(null, '', newUrl);
+}
+
+async function loadEntrySources() {
+    const stored = loadEntrySourcesFromStorage();
+    if (Array.isArray(stored) && stored.length > 0) {
+        return stored;
+    }
+    return createDefaultEntrySources();
+}
+
+async function refreshEntryAvailability(baseSources) {
+    const results = await Promise.all(
+        baseSources.map(async (source) => {
+            const loaded = await loadEntrySourceFromUrl(source.url);
+            return {
+                ...source,
+                ...loaded,
+                label: loaded.label || source.label || source.url
+            };
+        })
+    );
+    return results;
+}
+
+function selectEntryFromParams(sources) {
+    const requested = getEntryUrlFromLocation();
+    const availableEntries = sources.filter((entry) => entry.available);
+    const requestedEntry = sources.find((entry) => entry.url === requested) || null;
+
+    if (requestedEntry && requestedEntry.available) {
+        return requestedEntry;
+    }
+
+    if (availableEntries.length > 0) {
+        return availableEntries[0];
+    }
+
+    return requestedEntry || sources[0] || null;
+}
+
+function selectQuizFromEntry(entry) {
+    if (!entry || !Array.isArray(entry.quizzes) || entry.quizzes.length === 0) {
+        return null;
+    }
+    const requestedQuiz = getQuizNameFromLocation();
+    const requestedEntry = entry.quizzes.find((quiz) => quiz.id === requestedQuiz);
+    if (requestedEntry) {
+        return requestedEntry;
+    }
+    return entry.quizzes[0];
+}
+
+async function loadCurrentQuizDefinition() {
+    if (!currentQuiz) {
+        quizDef = null;
+        engine = null;
+        setStartButtonEnabled(false);
+        return;
+    }
+    try {
+        dom.appDescription.textContent = 'Loading quiz definition...';
+        clearModeMessage();
+        const def = await loadQuizDefinitionFromQuizEntry(currentQuiz);
+        quizDef = def.definition;
+        engine = new QuizEngine(quizDef);
+        currentModeId = null;
+        populateModeButtons();
+        document.title = quizDef.meta.title || '4-choice Quiz';
+        dom.appTitle.textContent = quizDef.meta.title || '4-choice Quiz';
+        dom.appDescription.textContent = quizDef.meta.description || '';
+        setStartButtonEnabled(true);
+        showScreen('menu');
+    } catch (error) {
+        quizDef = null;
+        engine = null;
+        setStartButtonEnabled(false);
+        dom.appDescription.textContent = 'Failed to load quiz definition.';
+        showModeMessage('クイズ定義の読み込みに失敗しました。');
+        console.error('[quiz] Failed to load quiz definition:', error);
+    }
+}
+
+function renderMenus() {
+    renderEntryMenu(entrySources, currentEntry);
+    renderQuizMenu(currentEntry && currentEntry.available ? currentEntry.quizzes : [], currentQuiz);
+}
+
+async function applyEntrySelection(entry, desiredQuizId) {
+    currentEntry = entry;
+    currentQuiz = null;
+    quizDef = null;
+    engine = null;
+    currentModeId = null;
+    dom.modeList.innerHTML = '';
+    setStartButtonEnabled(false);
+    renderMenus();
+
+    if (!entry) {
+        setStartButtonEnabled(false);
+        showModeMessage('エントリが選択されていません。');
+        dom.appDescription.textContent = 'No entry selected.';
+        updateLocationParams(null, null);
+        return;
+    }
+
+    if (!entry.available) {
+        setStartButtonEnabled(false);
+        showModeMessage('この entry にはアクセスできません。');
+        dom.appDescription.textContent = entry.errorMessage || 'Entry is unavailable.';
+        updateLocationParams(entry.url, null);
+        return;
+    }
+
+    if (!Array.isArray(entry.quizzes) || entry.quizzes.length === 0) {
+        setStartButtonEnabled(false);
+        showModeMessage('この entry に利用可能なクイズがありません。');
+        dom.appDescription.textContent = 'No quizzes available for this entry.';
+        updateLocationParams(entry.url, null);
+        return;
+    }
+
+    const quiz = entry.quizzes.find((q) => q.id === desiredQuizId) || selectQuizFromEntry(entry);
+    currentQuiz = quiz;
+    renderMenus();
+    updateLocationParams(entry.url, quiz ? quiz.id : null);
+    await loadCurrentQuizDefinition();
+}
+
+async function handleEntryClick(url) {
+    const target = entrySources.find((entry) => entry.url === url);
+    if (!target) return;
+    const quizParam = getQuizNameFromLocation();
+    await applyEntrySelection(target, quizParam);
+}
+
+async function handleQuizClick(quizId) {
+    if (!currentEntry || !currentEntry.available) return;
+    const target = currentEntry.quizzes.find((quiz) => quiz.id === quizId);
+    if (!target) return;
+    currentQuiz = target;
+    renderMenus();
+    updateLocationParams(currentEntry.url, target.id);
+    await loadCurrentQuizDefinition();
+}
+
+async function addEntryFromInput() {
+    if (!dom.entryUrlInput) return;
+    const value = dom.entryUrlInput.value.trim();
+    if (!value) return;
+    const existing = entrySources.find((entry) => entry.url === value);
+    if (existing) {
+        await applyEntrySelection(existing, getQuizNameFromLocation());
+        return;
+    }
+
+    const base = { url: value, label: value, builtIn: false };
+    const loaded = await loadEntrySourceFromUrl(value);
+    const merged = {
+        ...base,
+        ...loaded,
+        label: loaded.label || base.label
+    };
+    entrySources = [...entrySources, merged];
+    saveEntrySourcesToStorage(entrySources);
+    renderMenus();
+    dom.entryUrlInput.value = '';
+    await applyEntrySelection(merged, getQuizNameFromLocation());
+}
+
+async function removeEntry(url) {
+    const target = entrySources.find((entry) => entry.url === url);
+    if (!target || target.builtIn) return;
+    entrySources = entrySources.filter((entry) => entry.url !== url);
+    saveEntrySourcesToStorage(entrySources);
+    const nextEntry = selectEntryFromParams(entrySources);
+    await applyEntrySelection(nextEntry, getQuizNameFromLocation());
+}
+
+function attachMenuHandlers() {
+    if (dom.menuThemeToggle) {
+        dom.menuThemeToggle.addEventListener('click', () => {
+            toggleTheme();
+        });
+    }
+
+    if (dom.menuFullscreenToggle) {
+        dom.menuFullscreenToggle.addEventListener('click', () => {
+            toggleFullscreen();
+        });
+
+        document.addEventListener('fullscreenchange', updateFullscreenButton);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+        document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+        document.addEventListener('MSFullscreenChange', updateFullscreenButton);
+
+        updateFullscreenButton();
+    }
+
+    if (dom.menuSizeXXSmall) {
+        dom.menuSizeXXSmall.addEventListener('click', () => setSize('xxs'));
+    }
+    if (dom.menuSizeXSmall) {
+        dom.menuSizeXSmall.addEventListener('click', () => setSize('xs'));
+    }
+    if (dom.menuSizeSmall) {
+        dom.menuSizeSmall.addEventListener('click', () => setSize('s'));
+    }
+    if (dom.menuSizeMedium) {
+        dom.menuSizeMedium.addEventListener('click', () => setSize('m'));
+    }
+    if (dom.menuSizeLarge) {
+        dom.menuSizeLarge.addEventListener('click', () => setSize('l'));
+    }
+    if (dom.menuSizeXLarge) {
+        dom.menuSizeXLarge.addEventListener('click', () => setSize('xl'));
+    }
+    if (dom.menuSizeXXLarge) {
+        dom.menuSizeXXLarge.addEventListener('click', () => setSize('xxl'));
+    }
+
+    dom.startButton.addEventListener('click', startQuiz);
+
+    dom.nextButton.addEventListener('click', () => {
+        goToNextQuestion();
+    });
+
+    if (dom.interruptButton) {
+        dom.interruptButton.addEventListener('click', () => {
+            console.log('[quiz] Interrupt button clicked');
+            if (currentScreen === 'quiz') {
+                showResult();
+            }
+        });
+    }
+
+    if (dom.retryButton) {
+        dom.retryButton.addEventListener('click', () => {
+            console.log('[result] Retry button clicked');
+            startQuiz();
+        });
+    }
+
+    if (dom.backToMenuButton) {
+        dom.backToMenuButton.addEventListener('click', () => {
+            console.log('[result] Back-to-menu button clicked');
+            resetReviewList();
+            resetTips();
+            resetQuizTimer();
+            showScreen('menu');
+        });
+    }
+
+    if (dom.entryList) {
+        dom.entryList.addEventListener('click', async (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const removeButton = target.closest('[data-remove-url]');
+            if (removeButton && removeButton instanceof HTMLElement) {
+                const removeUrl = removeButton.dataset.removeUrl;
+                if (removeUrl) {
+                    await removeEntry(removeUrl);
+                }
+                return;
+            }
+            const entryButton = target.closest('[data-entry-url]');
+            if (entryButton && entryButton instanceof HTMLElement) {
+                const entryUrl = entryButton.dataset.entryUrl;
+                if (entryUrl) {
+                    await handleEntryClick(entryUrl);
+                }
+            }
+        });
+    }
+
+    if (dom.quizList) {
+        dom.quizList.addEventListener('click', async (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const quizId = target.dataset.quizId;
+            if (quizId) {
+                await handleQuizClick(quizId);
+            } else if (target.closest('[data-quiz-id]')) {
+                const button = target.closest('[data-quiz-id]');
+                if (button && button.dataset.quizId) {
+                    await handleQuizClick(button.dataset.quizId);
+                }
+            }
+        });
+    }
+
+    if (dom.entryAddButton) {
+        dom.entryAddButton.addEventListener('click', () => {
+            addEntryFromInput();
+        });
+    }
+}
+
 /**
  * アプリ起動時の初期化処理。データ読込、UI 初期化、イベント登録をまとめる。
  */
@@ -531,117 +886,17 @@ async function bootstrap() {
     initThemeFromStorage();
     initAppHeightObserver();
 
-    console.log('[bootstrap] starting app. location =', window.location.href);
-
     try {
-        // 1. まずメニュー用のエントリ一覧を読み込む
-        const entries = await loadQuizEntries();
-        console.log(
-            '[bootstrap] loadQuizEntries count =',
-            Array.isArray(entries) ? entries.length : 'not array'
-        );
-        quizEntries = entries;
+        entrySources = await loadEntrySources();
+        entrySources = await refreshEntryAvailability(entrySources);
+        saveEntrySourcesToStorage(entrySources);
 
-        // 2. entries と URL (?quiz=...) に基づいてクイズ定義を読み込む
-        const def = await loadQuizDefinition(quizEntries);
-        console.log('[bootstrap] loadQuizDefinition result =', def);
-        quizDef = def.definition;
-
-        // 3. UI 更新
-        document.title = quizDef.meta.title || '4-choice Quiz';
-        dom.appTitle.textContent = quizDef.meta.title || '4-choice Quiz';
-        dom.appDescription.textContent =
-            quizDef.meta.description || '';
-
-        renderQuizMenu(quizEntries);
-
-        engine = new QuizEngine(quizDef);
-        populateModeButtons();
-
-        // 共通 Settings エリアのボタン
-        if (dom.menuThemeToggle) {
-            dom.menuThemeToggle.addEventListener('click', () => {
-                toggleTheme();
-            });
-        }
-
-        if (dom.menuFullscreenToggle) {
-            dom.menuFullscreenToggle.addEventListener('click', () => {
-                toggleFullscreen();
-            });
-
-            // フルスクリーン状態が Esc キーなどで変わったときもラベル更新
-            document.addEventListener('fullscreenchange', updateFullscreenButton);
-            document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
-            document.addEventListener('mozfullscreenchange', updateFullscreenButton);
-            document.addEventListener('MSFullscreenChange', updateFullscreenButton);
-
-            // 初期ラベル
-            updateFullscreenButton();
-        }
-
-        // テキストサイズ変更（7 段階）
-        if (dom.menuSizeXXSmall) {
-            dom.menuSizeXXSmall.addEventListener('click', () => setSize('xxs'));
-        }
-        if (dom.menuSizeXSmall) {
-            dom.menuSizeXSmall.addEventListener('click', () => setSize('xs'));
-        }
-        if (dom.menuSizeSmall) {
-            dom.menuSizeSmall.addEventListener('click', () => setSize('s'));
-        }
-        if (dom.menuSizeMedium) {
-            dom.menuSizeMedium.addEventListener('click', () => setSize('m'));
-        }
-        if (dom.menuSizeLarge) {
-            dom.menuSizeLarge.addEventListener('click', () => setSize('l'));
-        }
-        if (dom.menuSizeXLarge) {
-            dom.menuSizeXLarge.addEventListener('click', () => setSize('xl'));
-        }
-        if (dom.menuSizeXXLarge) {
-            dom.menuSizeXXLarge.addEventListener('click', () => setSize('xxl'));
-        }
-
-        // クイズ開始と進行のボタン
-        dom.startButton.addEventListener('click', startQuiz);
-
-        dom.nextButton.addEventListener('click', () => {
-            goToNextQuestion();
-        });
-
-        // Interrupt button: end quiz early and show result
-        if (dom.interruptButton) {
-            dom.interruptButton.addEventListener('click', () => {
-                console.log('[quiz] Interrupt button clicked');
-                if (currentScreen === 'quiz') {
-                    showResult();
-                }
-            });
-        }
-
-        // 結果画面のリトライ／メニュー戻りボタン
-        if (dom.retryButton) {
-            dom.retryButton.addEventListener('click', () => {
-                console.log('[result] Retry button clicked');
-                // 選択中のモードと出題数でクイズを再開
-                startQuiz();
-            });
-        }
-
-        if (dom.backToMenuButton) {
-            dom.backToMenuButton.addEventListener('click', () => {
-                console.log('[result] Back-to-menu button clicked');
-                // Clear Mistakes and Tips when returning to menu
-                resetReviewList();
-                resetTips();
-                resetQuizTimer();        // ← 追加：00:00 に戻す
-                showScreen('menu');
-            });
-        }
-
+        const initialEntry = selectEntryFromParams(entrySources);
+        renderMenus();
+        attachMenuHandlers();
         setupKeyboardShortcuts();
         showScreen('menu');
+        await applyEntrySelection(initialEntry, getQuizNameFromLocation());
     } catch (e) {
         console.error('[bootstrap] failed to initialize app:', e);
         dom.appDescription.textContent =
