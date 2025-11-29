@@ -161,7 +161,7 @@ function createOptionButton(labelNodes, isDisabled, onClick, { fullHeight = true
         'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100',
         'hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
-        'text-sm leading-relaxed',
+        'text-base leading-relaxed',
         'transition-colors'
     ].join(' ');
 

@@ -16,7 +16,7 @@
 
 /* 画面サイズ + ユーザ設定スケールでフォントサイズを決める */
 html {
-    font-size: calc((1vw + 1vh) * var(--app-scale));
+    font-size: calc((1.5vw + 1vh)* 0.7 * var(--app-scale));
 }
 
 /* 全体設定 */
