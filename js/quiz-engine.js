@@ -41,7 +41,25 @@ function tokenTextFromToken(token, row) {
         return row && token.field ? row[token.field] ?? '' : '';
     }
     if (token.type === 'key') {
-        return row && token.field ? row[token.field] ?? '' : '';
+        if (!row || !token.field) return '';
+
+        const value = row[token.field];
+
+        // 1) 配列 → 各要素を tokenTextFromToken でたどる
+        if (Array.isArray(value)) {
+            return value
+                .map((child) => tokenTextFromToken(child, row))
+                .join('')
+                .trim();
+        }
+
+        // 2) 単一トークンオブジェクト
+        if (value && typeof value === 'object' && value.type) {
+            return tokenTextFromToken(value, row).trim();
+        }
+
+        // 3) 文字列 / number
+        return value != null ? String(value) : '';
     }
     if (token.type === 'ruby' || token.type === 'hideruby') {
         const baseText = resolveSubTokenValue(token.base, row);

@@ -100,7 +100,26 @@ function appendTokens(parent, tokens, row, placeholders = null) {
         if (token.type === 'key') {
             const field = token.field;
             const value = field && row ? row[field] ?? '' : '';
-            parent.appendChild(createStyledSpan(value, token.styles || []));
+
+            // 1) 配列なら tokens とみなして再帰
+            if (Array.isArray(value)) {
+                appendTokens(parent, value, row, placeholders);
+                return;
+            }
+
+            // 2) 単一トークンオブジェクトなら 1 要素配列として再帰
+            if (value && typeof value === 'object' && value.type) {
+                appendTokens(parent, [value], row, placeholders);
+                return;
+            }
+
+            // 3) それ以外（文字列など）は従来通りテキストとして扱う
+            parent.appendChild(
+                createStyledSpan(
+                    value != null ? String(value) : '',
+                    token.styles || []
+                )
+            );
             return;
         }
         if (token.type === 'ruby' || token.type === 'hideruby') {
@@ -1382,6 +1401,18 @@ function tokensToPlainText(tokens, row) {
         }
         if (token.type === 'key') {
             const value = token.field && row ? row[token.field] ?? '' : '';
+
+            if (Array.isArray(value)) {
+                // 配列なら tokens とみなして再帰的にテキスト連結
+                text += tokensToPlainText(value, row);
+                return;
+            }
+            if (value && typeof value === 'object' && value.type) {
+                // 単一トークンオブジェクト
+                text += tokensToPlainText([value], row);
+                return;
+            }
+
             text += String(value ?? '');
             return;
         }
