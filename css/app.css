@@ -139,3 +139,19 @@ button {
 button:active {
     transform: scale(0.98);
 }
+
+/* Long text block used in Mistakes / Result question text */
+.quiz-text-block {
+    /* explicitly allow wrapping & keep manual line breaks */
+    white-space: pre-wrap;
+
+    /* make long words / formulas wrap instead of overflowing */
+    word-break: break-word;
+    overflow-wrap: break-word;
+
+    /* better behaviour for Japanese text */
+    line-break: strict;
+
+    /* slightly more comfortable line height */
+    line-height: 1.6;
+}

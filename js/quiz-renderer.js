@@ -1339,7 +1339,7 @@ export function addReviewItem(question, dataSets, questionNumber) {
 
     // 右側: 問題文（穴埋め付き）
     const qText = document.createElement('div');
-    qText.className = 'flex-1 text-slate-700 dark:text-slate-200';
+    qText.className = 'flex-1 text-slate-700 dark:text-slate-200 quiz-text-block';
 
     const row = resolveQuestionContext(question, dataSets);
 
@@ -1508,7 +1508,7 @@ export function addResultItem(historyItem, dataSets) {
 
     // 問題文：tokens をそのまま描画（ルビ・KaTeX 対応）
     const text = document.createElement('div');
-    text.className = 'text-sm text-slate-800 dark:text-slate-100 mt-1 leading-relaxed';
+    text.className = 'text-sm text-slate-800 dark:text-slate-100 mt-1 leading-relaxed quiz-text-block';
 
     const rowContext = resolveQuestionContext(question, dataSets);
     appendTokens(text, question.tokens || [], rowContext, false);
