@@ -1,15 +1,15 @@
 {
-  "title": "アミノ酸クイズ v2（日本語版・完全版）",
+  "title": "アミノ酸クイズ",
   "description": "20種類のαアミノ酸について、構造・略号・分類・理論（双性イオン、等電点、電離、ペプチド結合など）を日本語で学習するためのクイズ問題ファイル。",
   "version": 2,
   "imports": [
-    "./amino-acids-v2.data.json"
+    "./amino-acid-quiz-ja-v2.data.json"
   ],
   "questionRules": {
     "patterns": [
       {
         "id": "p_rgroup_to_name_ja_tips",
-        "label": "R基 → アミノ酸名（日本語4択＋tips）",
+        "label": "R基 → アミノ酸名（日本語4択＋tips＋語源）",
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
@@ -40,20 +40,24 @@
         "tips": [
           {
             "id": "t_rgroup_name_always",
-            "when": "always",
+            "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【ヒント】このアミノ酸の分類：" },
-              { "type": "key", "field": "classJa" },
+              { "type": "text", "value": "【分類】このアミノ酸は " },
+              { "type": "key",  "field": "classJa" },
+              { "type": "text", "value": " に分類される。" },
               { "type": "br" },
-              { "type": "text", "value": "説明：" },
-              { "type": "key", "field": "descJa" }
+              { "type": "text", "value": "【特徴】" },
+              { "type": "key",  "field": "descJa" },
+              { "type": "br" },
+              { "type": "text", "value": "【語源メモ】" },
+              { "type": "key",  "field": "etymologyJa" }
             ]
           }
         ]
       },
       {
         "id": "p_name_to_rgroup_ja_tips",
-        "label": "アミノ酸名 → R基（日本語4択＋tips）",
+        "label": "アミノ酸名 → R基（日本語4択＋tips＋語源）",
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
@@ -84,25 +88,29 @@
         "tips": [
           {
             "id": "t_name_to_rgroup_always",
-            "when": "always",
+            "when": "after_answer",
             "tokens": [
               { "type": "text", "value": "【解説】" },
-              { "type": "ruby",
+              {
+                "type": "ruby",
                 "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
                 "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
               },
               { "type": "text", "value": " の側鎖は " },
               { "type": "katex", "field": "sideChainFormulaTex" },
               { "type": "text", "value": " であり、分類は " },
-              { "type": "key", "field": "classJa" },
-              { "type": "text", "value": " に属する。" }
+              { "type": "key",  "field": "classJa" },
+              { "type": "text", "value": " に属する。" },
+              { "type": "br" },
+              { "type": "text", "value": "【語源メモ】" },
+              { "type": "key",  "field": "etymologyJa" }
             ]
           }
         ]
       },
       {
         "id": "p_name_to_code3_ja_tips",
-        "label": "アミノ酸名 → 3文字略号（日本語4択＋tips）",
+        "label": "アミノ酸名 → 3文字略号（日本語4択＋tips＋語源）",
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
@@ -133,23 +141,27 @@
         "tips": [
           {
             "id": "t_name_to_code3_always",
-            "when": "always",
+            "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【豆知識】" },
-              { "type": "ruby",
+              { "type": "text", "value": "【確認】" },
+              {
+                "type": "ruby",
                 "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
                 "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
               },
               { "type": "text", "value": " の 3 文字略号は " },
               { "type": "text", "field": "code3" },
-              { "type": "text", "value": " である。" }
+              { "type": "text", "value": " である。" },
+              { "type": "br" },
+              { "type": "text", "value": "【語源メモ】" },
+              { "type": "key",  "field": "etymologyJa" }
             ]
           }
         ]
       },
       {
         "id": "p_code3_to_name_ja_tips",
-        "label": "3文字略号 → アミノ酸名（日本語4択＋tips）",
+        "label": "3文字略号 → アミノ酸名（日本語4択＋tips＋語源）",
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
@@ -180,22 +192,26 @@
         "tips": [
           {
             "id": "t_code3_to_name_always",
-            "when": "always",
+            "when": "after_answer",
             "tokens": [
               { "type": "text", "value": "【確認】略号と名前の対応：" },
               { "type": "text", "field": "code3" },
               { "type": "text", "value": " → " },
-              { "type": "ruby",
+              {
+                "type": "ruby",
                 "base": { "source": "key", "field": "nameJa", "styles": ["sans", "bold"] },
                 "ruby": { "source": "key", "field": "nameEnCap", "styles": ["sans"] }
-              }
+              },
+              { "type": "br" },
+              { "type": "text", "value": "【語源メモ】" },
+              { "type": "key",  "field": "etymologyJa" }
             ]
           }
         ]
       },
       {
         "id": "p_name_to_class_ja_tips",
-        "label": "アミノ酸名 → 側鎖の性質（分類）（日本語4択＋tips）",
+        "label": "アミノ酸名 → 側鎖の性質（分類）（日本語4択＋tips＋語源）",
         "questionFormat": "table_fill_choice",
         "dataSet": "alpha-amino-acids",
         "tokens": [
@@ -220,13 +236,16 @@
         "tips": [
           {
             "id": "t_name_to_class_always",
-            "when": "always",
+            "when": "after_answer",
             "tokens": [
               { "type": "text", "value": "【分類のポイント】" },
-              { "type": "key", "field": "classJa" },
+              { "type": "key",  "field": "classJa" },
               { "type": "text", "value": " に分類されるアミノ酸は、側鎖が " },
-              { "type": "key", "field": "classHintJa" },
-              { "type": "text", "value": " という特徴を持つ。" }
+              { "type": "key",  "field": "classHintJa" },
+              { "type": "text", "value": " という特徴を持つ。" },
+              { "type": "br" },
+              { "type": "text", "value": "【語源メモ】" },
+              { "type": "key",  "field": "etymologyJa" }
             ]
           }
         ]
@@ -252,7 +271,7 @@
         "tips": [
           {
             "id": "t_match_name_class_always",
-            "when": "always",
+            "when": "after_answer",
             "tokens": [
               { "type": "text", "value": "【復習】非極性・極性・酸性・塩基性アミノ酸をグループごとにイメージして覚えよう。" }
             ]
@@ -277,7 +296,7 @@
         "tips": [
           {
             "id": "t_match_name_rgroup_always",
-            "when": "always",
+            "when": "after_answer",
             "tokens": [
               { "type": "text", "value": "【コツ】R基の大まかな形（直鎖・分岐・芳香環・含硫黄など）に注目すると対応付けしやすい。" }
             ]
@@ -286,32 +305,34 @@
       },
       {
         "id": "p_sentence_definitions_ja",
-        "label": "sentence：定義・用語（日本語穴埋め）",
+        "label": "sentence：定義・用語（日本語穴埋め＋解説）",
         "questionFormat": "sentence_fill_choice",
         "dataSet": "amino-sentences-def-ja",
         "tokensFromData": "sentences",
         "tips": [
           {
             "id": "t_sentence_def_always",
-            "when": "always",
+            "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【定義の確認】用語の意味を、自分の言葉でも言い換えられるようにしておこう。" }
+              { "type": "text", "value": "【解説】" },
+              { "type": "key",  "field": "explainJa" }
             ]
           }
         ]
       },
       {
         "id": "p_sentence_theory_ja",
-        "label": "sentence：理論・電離・等電点（日本語穴埋め）",
+        "label": "sentence：理論・電離・等電点（日本語穴埋め＋解説）",
         "questionFormat": "sentence_fill_choice",
         "dataSet": "amino-sentences-theory-ja",
         "tokensFromData": "sentences",
         "tips": [
           {
             "id": "t_sentence_theory_always",
-            "when": "always",
+            "when": "after_answer",
             "tokens": [
-              { "type": "text", "value": "【ポイント】pH と電荷状態の関係（酸性側では正に寄り、塩基性側では負に寄る）を図でイメージすると理解しやすい。" }
+              { "type": "text", "value": "【解説】" },
+              { "type": "key",  "field": "explainJa" }
             ]
           }
         ]

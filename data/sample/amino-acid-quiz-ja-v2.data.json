@@ -18,7 +18,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-H}",
           "descJa": "最も単純なアミノ酸で、側鎖は水素原子 1 個だけであり、柔軟な構造をとりやすい。",
-          "classHintJa": "疎水性の非極性側鎖を持つ。"
+          "classHintJa": "疎水性の非極性側鎖を持つ。",
+          "etymologyJa": "名前はギリシャ語の glykys（甘い）に由来し、甘味を持つことから名付けられた。"
         },
         {
           "id": "ala",
@@ -32,7 +33,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH3}",
           "descJa": "側鎖がメチル基（-CH3）の小さなアミノ酸で、タンパク質中によく見られる。",
-          "classHintJa": "疎水性の非極性側鎖を持つ。"
+          "classHintJa": "疎水性の非極性側鎖を持つ。",
+          "etymologyJa": "アラニン（alanine）はアルデヒド（aldehyde）との関係から命名されたとされる。"
         },
         {
           "id": "val",
@@ -46,7 +48,8 @@
           "isBCAA": true,
           "sideChainFormulaTex": "\\ce{-CH(CH3)2}",
           "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、側鎖にイソプロピル基を持つ必須アミノ酸。",
-          "classHintJa": "疎水性の分岐した非極性側鎖を持つ。"
+          "classHintJa": "疎水性の分岐した非極性側鎖を持つ。",
+          "etymologyJa": "バリン（valine）は吉草酸（valeric acid）に由来し、その valeric はハーブの一種バレリアンに由来する。"
         },
         {
           "id": "leu",
@@ -60,7 +63,8 @@
           "isBCAA": true,
           "sideChainFormulaTex": "\\ce{-CH2-CH(CH3)2}",
           "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、筋タンパク質に多く含まれる必須アミノ酸。",
-          "classHintJa": "疎水性の分岐した非極性側鎖を持つ。"
+          "classHintJa": "疎水性の分岐した非極性側鎖を持つ。",
+          "etymologyJa": "ロイシン（leucine）の語源はギリシャ語 leukos（白い）で、結晶が白色であったことに由来するとされる。"
         },
         {
           "id": "ile",
@@ -74,7 +78,8 @@
           "isBCAA": true,
           "sideChainFormulaTex": "\\ce{-CH(CH3)-CH2-CH3}",
           "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、立体異性体としてロイシンとよく比較される必須アミノ酸。",
-          "classHintJa": "疎水性の分岐した非極性側鎖を持つ。"
+          "classHintJa": "疎水性の分岐した非極性側鎖を持つ。",
+          "etymologyJa": "イソロイシン（isoleucine）はロイシン（leucine）の構造異性体であることから、iso-（同じ）＋ leucine に由来して名付けられた。"
         },
         {
           "id": "met",
@@ -88,7 +93,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-CH2-S-CH3}",
           "descJa": "側鎖に硫黄原子（スルフィド基）を含む必須アミノ酸で、タンパク質合成の開始アミノ酸としても重要。",
-          "classHintJa": "疎水性で、側鎖に硫黄原子を含む。"
+          "classHintJa": "疎水性で、側鎖に硫黄原子を含む。",
+          "etymologyJa": "メチオニン（methionine）は methyl（メチル）と thio（硫黄）に由来し、側鎖に含まれるメチルチオ基を反映している。"
         },
         {
           "id": "pro",
@@ -102,7 +108,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-CH2-CH2-}",
           "descJa": "環状構造をとるイミノ酸で、ポリペプチド鎖に折れ曲がり（ターン）を作りやすい。",
-          "classHintJa": "疎水性の非極性側鎖を持ち、環状構造により剛直な骨格を与える。"
+          "classHintJa": "疎水性の非極性側鎖を持ち、環状構造により剛直な骨格を与える。",
+          "etymologyJa": "プロリン（proline）は五員環を持つ pyrrolidine（ピロリジン）に由来し、環状構造の特徴を反映している。"
         },
         {
           "id": "phe",
@@ -116,7 +123,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-Ph}",
           "descJa": "側鎖にベンゼン環（フェニル基）を持つ芳香族の必須アミノ酸。",
-          "classHintJa": "疎水性の芳香族側鎖を持つ。"
+          "classHintJa": "疎水性の芳香族側鎖を持つ。",
+          "etymologyJa": "フェニルアラニン（phenylalanine）は芳香族基 phenyl とアミノ酸 alanine を組み合わせた名称である。"
         },
         {
           "id": "trp",
@@ -130,7 +138,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-Indole}",
           "descJa": "インドール環を側鎖にもつ芳香族の必須アミノ酸で、紫外吸収を示す。",
-          "classHintJa": "疎水性の芳香族側鎖を持つ。"
+          "classHintJa": "疎水性の芳香族側鎖を持つ。",
+          "etymologyJa": "トリプトファン（tryptophan）は酵素 trypsin（トリプシン）とギリシャ語 phanein（現れる）に由来する名称とされる。"
         },
         {
           "id": "ser",
@@ -144,7 +153,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-OH}",
           "descJa": "側鎖にヒドロキシ基（-OH）を持ち、水素結合に関与しやすい極性アミノ酸。",
-          "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。"
+          "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。",
+          "etymologyJa": "セリン（serine）はラテン語 sericum（絹）に由来し、絹タンパク質から発見されたことにちなんでいる。"
         },
         {
           "id": "thr",
@@ -158,7 +168,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH(OH)-CH3}",
           "descJa": "側鎖に不斉炭素とヒドロキシ基を持つ極性の必須アミノ酸。",
-          "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。"
+          "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。",
+          "etymologyJa": "スレオニン（threonine）は糖の一種 threose（スレオース）に由来し、構造上の関係から命名された。"
         },
         {
           "id": "cys",
@@ -172,7 +183,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-SH}",
           "descJa": "側鎖にチオール基（-SH）を持ち、2 分子が酸化されるとシスチンとしてジスルフィド結合を形成する。",
-          "classHintJa": "電荷を持たないが、側鎖にチオール基を持つ極性アミノ酸。"
+          "classHintJa": "電荷を持たないが、側鎖にチオール基を持つ極性アミノ酸。",
+          "etymologyJa": "システイン（cysteine）はギリシャ語 kystis（膀胱）に由来し、最初に結石などから見つかったことと関連づけられる。"
         },
         {
           "id": "asn",
@@ -186,7 +198,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-CONH2}",
           "descJa": "側鎖にアミド基（-CONH2）を持つ極性アミノ酸で、アスパラギン酸のアミド。",
-          "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。"
+          "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。",
+          "etymologyJa": "アスパラギン（asparagine）はアスパラガス（asparagus）から単離されたことに由来する。"
         },
         {
           "id": "gln",
@@ -200,7 +213,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-CH2-CONH2}",
           "descJa": "側鎖にアミド基を持つ極性アミノ酸で、グルタミン酸のアミド。窒素代謝にも関与する。",
-          "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。"
+          "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。",
+          "etymologyJa": "グルタミン（glutamine）はグルテン（gluten）由来のグルタミン酸（glutamic acid）に関連して名付けられたアミド型アミノ酸である。"
         },
         {
           "id": "tyr",
@@ -214,7 +228,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-Ph-OH}",
           "descJa": "フェノール性ヒドロキシ基をもつ芳香族アミノ酸で、ホルモンや色素の前駆体となる。",
-          "classHintJa": "芳香環とヒドロキシ基を持つ電荷を持たない極性側鎖を持つ。"
+          "classHintJa": "芳香環とヒドロキシ基を持つ電荷を持たない極性側鎖を持つ。",
+          "etymologyJa": "チロシン（tyrosine）はギリシャ語 tyros（チーズ）に由来し、チーズ中から発見されたことにちなんでいる。"
         },
         {
           "id": "asp",
@@ -228,7 +243,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-COOH}",
           "descJa": "側鎖にカルボキシル基を 1 つ持つ酸性アミノ酸で、負電荷を帯びやすい。",
-          "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。"
+          "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。",
+          "etymologyJa": "アスパラギン酸（aspartic acid）はアスパラガスから見つかったアスパラギン（asparagine）に関連して命名された。"
         },
         {
           "id": "glu",
@@ -242,7 +258,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-CH2-COOH}",
           "descJa": "側鎖にカルボキシル基を持つ酸性アミノ酸で、うま味成分としても知られる。",
-          "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。"
+          "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。",
+          "etymologyJa": "グルタミン酸（glutamic acid）は小麦グルテン（gluten）から単離されたことに由来する。"
         },
         {
           "id": "lys",
@@ -256,7 +273,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-CH2-CH2-CH2-NH2}",
           "descJa": "側鎖末端にアミノ基を持つ塩基性の必須アミノ酸で、正電荷を帯びやすい。",
-          "classHintJa": "側鎖にアミノ基を持つ塩基性アミノ酸。"
+          "classHintJa": "側鎖にアミノ基を持つ塩基性アミノ酸。",
+          "etymologyJa": "リシン（lysine）の語源はギリシャ語 lysis（溶解）で、分解・分離の概念と関連付けられているとされる。"
         },
         {
           "id": "arg",
@@ -270,7 +288,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-CH2-CH2-NH-C(=NH)-NH2}",
           "descJa": "側鎖にグアニジノ基を持つ強塩基性アミノ酸で、多くの pH 条件で正電荷を帯びる。",
-          "classHintJa": "側鎖にグアニジノ基を持つ塩基性アミノ酸。"
+          "classHintJa": "側鎖にグアニジノ基を持つ塩基性アミノ酸。",
+          "etymologyJa": "アルギニン（arginine）はラテン語 argentum（銀）に由来するとされ、銀塩との関係で名付けられたとされる。"
         },
         {
           "id": "his",
@@ -284,7 +303,8 @@
           "isBCAA": false,
           "sideChainFormulaTex": "\\ce{-CH2-Imidazole}",
           "descJa": "イミダゾール環を持つ塩基性アミノ酸で、pH 付近でプロトンの受け渡しに関与しやすい。",
-          "classHintJa": "イミダゾール環を持つ塩基性アミノ酸。"
+          "classHintJa": "イミダゾール環を持つ塩基性アミノ酸。",
+          "etymologyJa": "ヒスチジン（histidine）はギリシャ語 histos（組織）に由来し、生体組織から発見されたことと関連して名付けられた。"
         }
       ],
       "groups": {
@@ -312,7 +332,8 @@
             { "type": "text", "value": " を持つ " },
             { "type": "hide", "id": "def_aa_kind", "value": [{ "type": "text", "value": "有機化合物" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " である。" }
-          ]
+          ],
+          "explainJa": "アミノ酸の定義では「アミノ基」と「カルボキシル基」を同じ分子内に持つことが最重要ポイント。"
         },
         {
           "id": "def_alpha_amino_acid_1",
@@ -324,7 +345,8 @@
             { "type": "text", "value": " を持つ " },
             { "type": "hide", "id": "def_alpha_kind", "value": [{ "type": "text", "value": "アミノ酸" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " である。" }
-          ]
+          ],
+          "explainJa": "α-アミノ酸では、アミノ基とカルボキシル基が同じ炭素（α炭素）につながっている点が特徴。"
         },
         {
           "id": "def_peptide_bond_1",
@@ -336,7 +358,8 @@
             { "type": "text", "value": " が脱水縮合してできる " },
             { "type": "hide", "id": "def_pep_bondtype", "value": [{ "type": "text", "value": "アミド結合" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " である。" }
-          ]
+          ],
+          "explainJa": "ペプチド結合はカルボキシル基とアミノ基の間にできるアミド結合であり、脱水縮合によって形成される。"
         },
         {
           "id": "def_peptide_1",
@@ -346,7 +369,8 @@
             { "type": "text", "value": " によって連結した " },
             { "type": "hide", "id": "def_peptide_kind", "value": [{ "type": "text", "value": "化合物" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " である。" }
-          ]
+          ],
+          "explainJa": "ペプチドは「複数のアミノ酸がペプチド結合でつながったもの」として理解すると、タンパク質との関係が整理しやすい。"
         },
         {
           "id": "def_zwitterion_1",
@@ -358,7 +382,8 @@
             { "type": "text", "value": " を同時に持ち、全体として " },
             { "type": "hide", "id": "def_zwit_charge0", "value": [{ "type": "text", "value": "電荷が 0" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " である粒子である。" }
-          ]
+          ],
+          "explainJa": "双性イオンは分子内に＋と−の電荷を同時に持つが、全体としては電荷 0 になる状態を表す。"
         },
         {
           "id": "def_isoelectric_point_1",
@@ -370,7 +395,8 @@
             { "type": "text", "value": " がつり合い、全体の " },
             { "type": "hide", "id": "def_pi_net", "value": [{ "type": "text", "value": "正味電荷" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " が 0 になる pH である。" }
-          ]
+          ],
+          "explainJa": "等電点では、正電荷と負電荷がつり合い、分子全体の正味電荷が 0 になる pH である。"
         }
       ]
     },
@@ -384,7 +410,8 @@
             { "type": "text", "value": "アミノ酸のカルボキシル基（−COOH）は、十分に高い pH（強い塩基性条件）では主に " },
             { "type": "hide", "id": "theory_cooh_highpH", "value": [{ "type": "text", "value": "−COO−（カルボキシラートイオン）" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " の形で存在する。" }
-          ]
+          ],
+          "explainJa": "高い pH では酸性基であるカルボキシル基はプロトンを失い、−COO−（カルボキシラートイオン）の形が優勢になる。"
         },
         {
           "id": "theory_amino_low_pH_1",
@@ -392,7 +419,8 @@
             { "type": "text", "value": "アミノ酸のアミノ基（−NH2）は、十分に低い pH（強い酸性条件）では主に " },
             { "type": "hide", "id": "theory_nh2_lowpH", "value": [{ "type": "text", "value": "−NH3+（アンモニウムイオン）" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " の形で存在する。" }
-          ]
+          ],
+          "explainJa": "低い pH では塩基性のアミノ基がプロトンを受け取り、−NH3+（アンモニウムイオン）の形が優勢になる。"
         },
         {
           "id": "theory_isoelectric_zwitterion_1",
@@ -400,7 +428,8 @@
             { "type": "text", "value": "アミノ酸の等電点（pI）では、そのアミノ酸は主に " },
             { "type": "hide", "id": "theory_pi_mainform", "value": [{ "type": "text", "value": "双性イオン" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " として存在する。" }
-          ]
+          ],
+          "explainJa": "等電点では、アミノ酸は主に双性イオンの形をとり、＋と−の電荷が打ち消し合って全体が電荷 0 になる。"
         },
         {
           "id": "theory_peptide_bond_formation_1",
@@ -410,7 +439,8 @@
             { "type": "text", "value": " との間で、 " },
             { "type": "hide", "id": "theory_pep_dehydration", "value": [{ "type": "text", "value": "脱水縮合" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " によって形成される。" }
-          ]
+          ],
+          "explainJa": "ペプチド結合はカルボキシル基とアミノ基の間の脱水縮合で生じるアミド結合であり、アミノ酸同士をつなぐ役割を持つ。"
         },
         {
           "id": "theory_ninhydrin_1",
@@ -420,7 +450,8 @@
             { "type": "text", "value": " と反応して " },
             { "type": "hide", "id": "theory_ninh_color", "value": [{ "type": "text", "value": "青紫〜紫色" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " の呈色を示す反応である。" }
-          ]
+          ],
+          "explainJa": "ニンヒドリン反応はアミノ酸の検出に用いられ、α-アミノ基との反応で特徴的な青紫〜紫色の呈色を示す。"
         },
         {
           "id": "theory_sequence_direction_1",
@@ -430,7 +461,8 @@
             { "type": "text", "value": " から " },
             { "type": "hide", "id": "theory_seq_to", "value": [{ "type": "text", "value": "C末端" }], "answer": { "mode": "input" } },
             { "type": "text", "value": " に向かって並べて書く。" }
-          ]
+          ],
+          "explainJa": "アミノ酸配列は慣習的に N末端から C末端に向かって書き、合成や翻訳の方向と対応させている。"
         }
       ]
     }
