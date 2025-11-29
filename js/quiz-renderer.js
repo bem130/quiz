@@ -324,6 +324,9 @@ export function renderQuestion(question, dataSets, onSelect) {
     if (useNavigation) {
         updateAnswerNavigation(question, question.currentAnswerIndex || 0);
     }
+
+    // この問題の「最大高さ」を最初から確保しておく
+    reserveQuestionTextHeight(question, dataSets);
 }
 
 function resolveQuestionContext(question, dataSets) {
@@ -337,6 +340,75 @@ function resolveQuestionContext(question, dataSets) {
         return ds.sentences.find((s) => s.id === question.meta.sentenceId) || null;
     }
     return null;
+}
+
+// 1問ごとに「最悪ケースの高さ」を min-height として予約する
+function reserveQuestionTextHeight(question, dataSets) {
+    // 「穴埋めトークン (hide / hideruby) を含むか」で判定する
+    const hasInlineBlank =
+        Array.isArray(question.tokens) &&
+        question.tokens.some(
+            (t) => t && (t.type === 'hide' || t.type === 'hideruby')
+        );
+
+    // 穴埋めが無い問題は今まで通り可変でOK
+    if (!hasInlineBlank) {
+        dom.questionText.style.minHeight = '';
+        return;
+    }
+
+    // 以前の min-height をリセット
+    dom.questionText.style.minHeight = '';
+
+    // 以下 rAF 〜 クローン作成 …（今のコードをそのまま続ける）
+    requestAnimationFrame(() => {
+        const baseWidth = dom.questionText.offsetWidth;
+        if (!baseWidth) return;
+
+        const clone = dom.questionText.cloneNode(true);
+        clone.style.position = 'absolute';
+        clone.style.visibility = 'hidden';
+        clone.style.pointerEvents = 'none';
+        clone.style.left = '-9999px';
+        clone.style.top = '0';
+        clone.style.width = baseWidth + 'px';
+
+        dom.questionText.parentElement.appendChild(clone);
+
+        const backupSelected = (question.answers || []).map(
+            (ans) => ans && ans.userSelectedIndex
+        );
+
+        (question.answers || []).forEach((answer, answerIndex) => {
+            if (!answer) return;
+
+            const opts = answer.options || [];
+
+            let wrongIndex = null;
+            if (typeof answer.correctIndex === 'number' && opts.length > 0) {
+                const idx = opts.findIndex((_, i) => i !== answer.correctIndex);
+                wrongIndex = idx >= 0 ? idx : answer.correctIndex;
+            }
+
+            answer.userSelectedIndex = wrongIndex;
+
+            // クローン内 rootElement=clone に対して穴埋め更新
+            updateInlineBlank(question, dataSets, answerIndex, clone);
+        });
+
+        const worstHeight = clone.offsetHeight;
+
+        (question.answers || []).forEach((answer, i) => {
+            if (!answer) return;
+            answer.userSelectedIndex = backupSelected[i];
+        });
+
+        clone.remove();
+
+        if (worstHeight > 0) {
+            dom.questionText.style.minHeight = `${worstHeight}px`;
+        }
+    });
 }
 
 export function updateInlineBlank(
