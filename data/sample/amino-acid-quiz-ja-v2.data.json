@@ -622,7 +622,10 @@
               "value": " である粒子である。"
             }
           ],
-          "explainJa": "双性イオンは分子内に＋と−の電荷を同時に持つが、全体としては電荷 0 になる状態を表す。"
+          "explainJa": "双性イオンは分子内に＋と−の電荷を同時に持つが、全体としては電荷 0 になる状態を表す。",
+          "unorderedAnswerGroups": [
+            ["def_zwit_pos", "def_zwit_neg"]
+          ]
         },
         {
           "id": "def_isoelectric_point_1",
@@ -686,7 +689,10 @@
               "value": " が 0 になる pH である。"
             }
           ],
-          "explainJa": "等電点では、正電荷と負電荷がつり合い、分子全体の正味電荷が 0 になる pH である。"
+          "explainJa": "等電点では、正電荷と負電荷がつり合い、分子全体の正味電荷が 0 になる pH である。",
+          "unorderedAnswerGroups": [
+            ["def_pi_pos", "def_pi_neg"]
+          ]
         }
       ],
       "groups": {

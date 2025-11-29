@@ -925,25 +925,132 @@ export function showOptionFeedback(question) {
     // ───────────────────────────────────────
     // 従来フォーマット（4択など）
     // ───────────────────────────────────────
+
+    // Pre-calculate satisfied unordered groups
+    const satisfiedGroups = new Set();
+    const unorderedIndices = new Set();
+
+    if (question.format === 'sentence_fill_choice' && question.meta && Array.isArray(question.meta.unorderedAnswerGroups)) {
+        question.meta.unorderedAnswerGroups.forEach(group => {
+            if (!Array.isArray(group)) return;
+            group.forEach(idx => unorderedIndices.add(idx));
+
+            // Check if this group is satisfied
+            // (Logic duplicated from answer-state.js roughly, or we assume if fullyCorrect is true then all are true? 
+            // No, partial correctness isn't supported but we want to show which groups are right/wrong if the user got some wrong)
+
+            const expectedLabels = [];
+            const selectedLabels = [];
+
+            let groupComplete = true;
+            for (const idx of group) {
+                const ans = question.answers[idx];
+                if (!ans || ans.userSelectedIndex == null) {
+                    groupComplete = false;
+                    break;
+                }
+                const correctOpt = ans.options[ans.correctIndex];
+                const selectedOpt = ans.options[ans.userSelectedIndex];
+                if (correctOpt) expectedLabels.push(correctOpt.label);
+                if (selectedOpt) selectedLabels.push(selectedOpt.label);
+            }
+
+            if (groupComplete) {
+                expectedLabels.sort();
+                selectedLabels.sort();
+                let match = true;
+                if (expectedLabels.length !== selectedLabels.length) match = false;
+                else {
+                    for (let i = 0; i < expectedLabels.length; i++) {
+                        if (expectedLabels[i] !== selectedLabels[i]) {
+                            match = false;
+                            break;
+                        }
+                    }
+                }
+                if (match) {
+                    satisfiedGroups.add(group);
+                }
+            }
+        });
+    }
+
     question.answers.forEach((answer, answerIndex) => {
+        // Determine if this answer is part of a satisfied unordered group
+        let isInSatisfiedGroup = false;
+        let isUnordered = unorderedIndices.has(answerIndex);
+
+        if (isUnordered) {
+            // Find which group it belongs to and check if satisfied
+            if (question.meta && question.meta.unorderedAnswerGroups) {
+                for (const group of question.meta.unorderedAnswerGroups) {
+                    if (group.includes(answerIndex) && satisfiedGroups.has(group)) {
+                        isInSatisfiedGroup = true;
+                        break;
+                    }
+                }
+            }
+        }
+
         answer.options.forEach((opt, optIndex) => {
             const btn = dom.optionsContainer.querySelector(
                 `button[data-answer-index="${answerIndex}"][data-option-index="${optIndex}"]`
             );
             if (!btn) return;
-            btn.classList.remove('border-slate-300', 'dark:border-slate-700');
-            if (optIndex === answer.correctIndex) {
-                btn.classList.add(
-                    'border-emerald-400',
-                    'bg-emerald-50',
-                    'dark:bg-emerald-900/30'
-                );
-            } else if (answer.userSelectedIndex === optIndex) {
-                btn.classList.add(
-                    'border-rose-400',
-                    'bg-rose-50',
-                    'dark:bg-rose-900/30'
-                );
+
+            btn.classList.remove(
+                'border-slate-300',
+                'dark:border-slate-700',
+                'border-sky-400',
+                'bg-sky-50',
+                'dark:bg-sky-900/30'
+            );
+
+            if (isUnordered) {
+                if (isInSatisfiedGroup) {
+                    // Group is correct -> Selected answers are Green
+                    if (answer.userSelectedIndex === optIndex) {
+                        btn.classList.add(
+                            'border-emerald-400',
+                            'bg-emerald-50',
+                            'dark:bg-emerald-900/30'
+                        );
+                    }
+                } else {
+                    // Group is incorrect
+                    if (answer.userSelectedIndex === optIndex) {
+                        // User selection is Wrong (Red)
+                        btn.classList.add(
+                            'border-rose-400',
+                            'bg-rose-50',
+                            'dark:bg-rose-900/30'
+                        );
+                    } else if (optIndex === answer.correctIndex) {
+                        // Show default correct answer as Green (Hint)
+                        // Note: In unordered case, "correctIndex" might not be the *only* correct choice for this slot,
+                        // but it's the canonical one. Showing it is a safe fallback hint.
+                        btn.classList.add(
+                            'border-emerald-400',
+                            'bg-emerald-50',
+                            'dark:bg-emerald-900/30'
+                        );
+                    }
+                }
+            } else {
+                // Standard Ordered Logic
+                if (optIndex === answer.correctIndex) {
+                    btn.classList.add(
+                        'border-emerald-400',
+                        'bg-emerald-50',
+                        'dark:bg-emerald-900/30'
+                    );
+                } else if (answer.userSelectedIndex === optIndex) {
+                    btn.classList.add(
+                        'border-rose-400',
+                        'bg-rose-50',
+                        'dark:bg-rose-900/30'
+                    );
+                }
             }
         });
     });
@@ -961,38 +1068,80 @@ export function showOptionFeedbackForAnswer(question, answerIndex) {
     const answer = question.answers[answerIndex];
     if (!answer || !Array.isArray(answer.options)) return;
 
+    // Check if this answer is part of an unordered group
+    let isUnordered = false;
+    if (question.meta && Array.isArray(question.meta.unorderedAnswerGroups)) {
+        for (const group of question.meta.unorderedAnswerGroups) {
+            if (group.includes(answerIndex)) {
+                isUnordered = true;
+                break;
+            }
+        }
+    }
+
     answer.options.forEach((opt, optIndex) => {
         const btn = dom.optionsContainer.querySelector(
             `button[data-answer-index="${answerIndex}"][data-option-index="${optIndex}"]`
         );
         if (!btn) return;
 
-        // まずこの穴のボタンの色だけリセット
+        // Reset styles
         btn.classList.remove(
             'border-emerald-400',
             'bg-emerald-50',
             'dark:bg-emerald-900/30',
             'border-rose-400',
             'bg-rose-50',
-            'dark:bg-rose-900/30'
+            'dark:bg-rose-900/30',
+            'border-sky-400',
+            'bg-sky-50',
+            'dark:bg-sky-900/30'
         );
-        // デフォルト枠に戻す
         btn.classList.add('border-slate-300', 'dark:border-slate-700');
 
-        // 正解 or ユーザが選んだ誤答だけ色を付ける
-        if (optIndex === answer.correctIndex) {
+        // Apply feedback
+        if (answer.userSelectedIndex === optIndex) {
+            btn.classList.remove('border-slate-300', 'dark:border-slate-700');
+
+            if (isUnordered) {
+                // For unordered groups, show neutral "selected" state until full submission
+                btn.classList.add(
+                    'border-sky-400',
+                    'bg-sky-50',
+                    'dark:bg-sky-900/30'
+                );
+            } else {
+                // For ordered/standard answers, show immediate Red/Green
+                if (optIndex === answer.correctIndex) {
+                    btn.classList.add(
+                        'border-emerald-400',
+                        'bg-emerald-50',
+                        'dark:bg-emerald-900/30'
+                    );
+                } else {
+                    btn.classList.add(
+                        'border-rose-400',
+                        'bg-rose-50',
+                        'dark:bg-rose-900/30'
+                    );
+                }
+            }
+        } else if (!isUnordered && optIndex === answer.correctIndex && answer.userSelectedIndex != null) {
+            // Optional: Show correct answer if user picked wrong one (immediate correction)
+            // The previous code didn't explicitly do this for unselected correct answers in local feedback,
+            // but usually we might want to? The previous code ONLY colored the selected one (Red/Green) 
+            // and the correct one (Green) if we want to show the right answer immediately.
+            // The previous implementation:
+            // if (optIndex === answer.correctIndex) { add Green }
+            // else if (answer.userSelectedIndex === optIndex) { add Red }
+            // This implies that if I picked Wrong, the Right one ALSO turns Green immediately.
+            // So I should preserve that behavior for ordered questions.
+
             btn.classList.remove('border-slate-300', 'dark:border-slate-700');
             btn.classList.add(
                 'border-emerald-400',
                 'bg-emerald-50',
                 'dark:bg-emerald-900/30'
-            );
-        } else if (answer.userSelectedIndex === optIndex) {
-            btn.classList.remove('border-slate-300', 'dark:border-slate-700');
-            btn.classList.add(
-                'border-rose-400',
-                'bg-rose-50',
-                'dark:bg-rose-900/30'
             );
         }
     });

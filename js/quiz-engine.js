@@ -468,6 +468,10 @@ function generateSentenceFillChoiceQuestion(pattern, dataSets) {
     const questionTokens = (pattern.tokens && pattern.tokens.length)
         ? (pattern.tokens || []).concat(sentenceTokens)
         : sentenceTokens;
+
+    // Map token ID to answer index for group processing
+    const tokenIdToAnswerIndex = new Map();
+
     sentenceTokens.forEach((token) => {
         if (!token || !token.answer) return;
         const part = buildAnswerPart(
@@ -479,10 +483,29 @@ function generateSentenceFillChoiceQuestion(pattern, dataSets) {
             groupUsage
         );
         if (part) {
+            const idx = answers.length;
             answers.push(part);
+            if (token.id) {
+                tokenIdToAnswerIndex.set(token.id, idx);
+            }
         }
     });
     if (!answers.length) return null;
+
+    // Process unordered answer groups
+    let unorderedAnswerGroups = [];
+    if (Array.isArray(sentence.unorderedAnswerGroups)) {
+        unorderedAnswerGroups = sentence.unorderedAnswerGroups
+            .map((groupIds) => {
+                if (!Array.isArray(groupIds)) return null;
+                const indices = groupIds
+                    .map((id) => tokenIdToAnswerIndex.get(id))
+                    .filter((idx) => typeof idx === 'number');
+                return indices.length >= 2 ? indices : null;
+            })
+            .filter((g) => g !== null);
+    }
+
     return {
         id: `q_${pattern.id}_${sentence.id}`,
         patternId: pattern.id,
@@ -492,7 +515,8 @@ function generateSentenceFillChoiceQuestion(pattern, dataSets) {
         answers,
         meta: {
             dataSetId: pattern.dataSet,
-            sentenceId: sentence.id
+            sentenceId: sentence.id,
+            unorderedAnswerGroups: unorderedAnswerGroups.length > 0 ? unorderedAnswerGroups : undefined
         }
     };
 }
