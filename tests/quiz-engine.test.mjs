@@ -50,3 +50,66 @@ test('QuizEngine generates sentence_fill_choice from factSentences', () => {
     assert.ok(Array.isArray(question.tokens));
     assert.ok(question.tokens.some((token) => token.type === 'hide'));
 });
+
+test('QuizEngine supports KaTeX tokens in group choices', () => {
+    const definition = {
+        meta: { id: 'test', title: 'test' },
+        dataSets: {
+            facts: {
+                type: 'factSentences',
+                sentences: [
+                    {
+                        id: 's1',
+                        tokens: [
+                            {
+                                type: 'hide',
+                                value: { type: 'katex', value: 'F_\\text{net}' },
+                                answer: { mode: 'choice_from_group', group: 'symbolGroup' }
+                            }
+                        ]
+                    }
+                ],
+                groups: {
+                    symbolGroup: {
+                        choices: [
+                            { type: 'katex', value: 'F_\\text{net}' },
+                            { type: 'katex', value: 'p' },
+                            { type: 'katex', value: 'v' },
+                            { type: 'katex', value: 'J' }
+                        ]
+                    }
+                }
+            }
+        },
+        patterns: [
+            {
+                id: 'p1',
+                dataSet: 'facts',
+                questionFormat: 'sentence_fill_choice',
+                tokensFromData: 'sentences'
+            }
+        ],
+        modes: [
+            { id: 'm1', label: 'Mode', patternWeights: [{ patternId: 'p1', weight: 1 }] }
+        ]
+    };
+
+    const engine = new QuizEngine(definition);
+    engine.setMode('m1');
+    const question = engine.generateQuestion();
+
+    assert.equal(question.answers.length, 1);
+    const answer = question.answers[0];
+
+    // 4 options as usual
+    assert.equal(answer.options.length, 4);
+
+    // At least one option must have labelTokens with a katex token
+    assert.ok(
+        answer.options.some(
+            (opt) =>
+                Array.isArray(opt.labelTokens) &&
+                opt.labelTokens.some((t) => t.type === 'katex')
+        )
+    );
+});

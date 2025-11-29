@@ -119,6 +119,32 @@ function optionLabelTokens(token) {
     return null;
 }
 
+function normalizeGroupChoice(rawChoice, row) {
+    if (rawChoice == null) return null;
+
+    // 1) Already an array of tokens
+    if (Array.isArray(rawChoice)) {
+        return {
+            label: tokensToPlainText(rawChoice, row),
+            labelTokens: rawChoice
+        };
+    }
+
+    // 2) Single token object (text, katex, key, etc.)
+    if (typeof rawChoice === 'object' && rawChoice.type) {
+        return {
+            label: tokenTextFromToken(rawChoice, row),
+            labelTokens: [rawChoice]
+        };
+    }
+
+    // 3) Primitive → use as plain text (legacy behavior)
+    return {
+        label: String(rawChoice),
+        labelTokens: null
+    };
+}
+
 function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
     const choiceCfg = (token.answer && token.answer.choice) || {};
     const ds = choiceCfg.distractorSource || {};
@@ -232,38 +258,78 @@ function buildChoiceFromGroup(token, correctRow, dataSets, dataSetId, groupUsage
     const groupRef = token.answer.group || token.answer.groupId || token.group;
     const resolved = findGroupDefinition(dataSets, groupRef, dataSetId);
     if (!resolved || !resolved.group) return null;
+
     const groupId =
         (groupRef && typeof groupRef === 'object' && groupRef.groupId) ||
         (typeof groupRef === 'string' ? groupRef : '');
     const groupKey = `${resolved.dataSetId || dataSetId || 'groups'}::${groupId}`;
+
+    // 正答の「テキストキー」を、従来通り tokenTextFromToken から取る
     const correctText = tokenTextFromToken(token, correctRow);
-    const baseChoices = Array.isArray(resolved.group.choices) ? resolved.group.choices : [];
-    const choices = baseChoices.includes(correctText)
-        ? baseChoices.slice()
-        : baseChoices.concat(correctText);
-    let correctIndex = choices.findIndex((text) => text === correctText);
+
+    // ① group.choices をすべて正規化（string / token どちらもOK）
+    const rawBaseChoices = Array.isArray(resolved.group.choices)
+        ? resolved.group.choices
+        : [];
+
+    const baseChoices = rawBaseChoices
+        .map((c) => normalizeGroupChoice(c, correctRow))
+        .filter((c) => c && typeof c.label === 'string');
+
+    // ② group にすでに正答が含まれているかどうかを判定
+    let correctIndex = baseChoices.findIndex((c) => c.label === correctText);
+    let choices = baseChoices;
+
     if (correctIndex < 0) {
+        // group 側に正答が無い場合は、従来通り末尾に追加
+        let labelTokens = null;
+
+        // hide トークン側に value があれば、それをそのまま labelTokens に使う
+        if (token.value) {
+            labelTokens = Array.isArray(token.value) ? token.value : [token.value];
+        }
+
+        choices = baseChoices.concat({
+            label: correctText,
+            labelTokens
+        });
         correctIndex = choices.length - 1;
     }
+
+    // ③ drawWithoutReplacement が指定されている場合は、
+    //    「どの choice を正答にするか」の index だけを調整する
     if (resolved.group.drawWithoutReplacement) {
         const used = groupUsage.get(groupKey) || new Set();
-        const available = choices.map((_, idx) => idx).filter((idx) => !used.has(idx));
+        const available = choices
+            .map((_, idx) => idx)
+            .filter((idx) => !used.has(idx));
+
         if (!available.includes(correctIndex) && available.length > 0) {
+            // まだ使われていない index からランダムに正答を選び直す
             correctIndex = available[Math.floor(Math.random() * available.length)];
         }
+
         if (!available.length) {
-            console.warn(`[quiz] Group ${groupKey} choices exhausted for drawWithoutReplacement.`);
+            console.warn(
+                `[quiz] Group ${groupKey} choices exhausted for drawWithoutReplacement.`
+            );
         }
+
         used.add(correctIndex);
         groupUsage.set(groupKey, used);
     }
+
+    // ④ options を生成
     const options = shuffled(
-        choices.map((text, idx) => ({
+        choices.map((choice, idx) => ({
             isCorrect: idx === correctIndex,
-            label: text
+            label: choice.label,
+            labelTokens: choice.labelTokens || null
         }))
     );
+
     const shuffledCorrect = options.findIndex((o) => o.isCorrect);
+
     return {
         id: token.id || `ans_${correctRow.id}`,
         mode: 'choice_from_group',
