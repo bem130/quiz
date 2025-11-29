@@ -332,10 +332,30 @@ function generateTableMatchingQuestion(pattern, dataSets) {
         return null;
     }
 
-    const spec = pattern.matchingSpec || {};
-    const count = spec.count || 4;
-    const leftField = spec.leftField || 'left';
-    const rightField = spec.rightField || 'right';
+    const rawSpec = pattern.matchingSpec || {};
+
+    // count: spec.count / spec.pairCount のどちらでも指定できるようにする
+    const count =
+        (typeof rawSpec.count === 'number' && rawSpec.count > 0
+            ? rawSpec.count
+            : typeof rawSpec.pairCount === 'number' && rawSpec.pairCount > 0
+                ? rawSpec.pairCount
+                : 4);
+
+    const leftField = rawSpec.leftField || 'left';
+    const rightField = rawSpec.rightField || 'right';
+
+    // シャッフル設定は複数の書き方に対応
+    const shuffleLeft =
+        (rawSpec.shuffle && rawSpec.shuffle.left) ||
+        rawSpec.shuffleLeft ||
+        false;
+
+    const shuffleRight =
+        (rawSpec.shuffle && rawSpec.shuffle.right) ||
+        rawSpec.shuffleRight ||
+        false;
+
     const rows = getFilteredRows(table, pattern.entityFilter);
     if (rows.length < count) return null;
 
@@ -357,7 +377,7 @@ function generateTableMatchingQuestion(pattern, dataSets) {
         if (selected.length === count) break;
     }
 
-    // 4 つ揃わなければ、このパターンではマッチングを作らない
+    // 指定数揃わなければ、このパターンではマッチングを作らない
     if (selected.length < count) {
         console.warn(
             '[quiz][table_matching] 1:1 対応を作れなかったのでスキップします:',
@@ -372,13 +392,11 @@ function generateTableMatchingQuestion(pattern, dataSets) {
     }
 
     // 左側だけシャッフルするかどうか
-    const leftList =
-        spec.shuffle && spec.shuffle.left ? shuffled(selected) : selected.slice();
+    const leftList = shuffleLeft ? shuffled(selected) : selected.slice();
 
     // 右側は「選ばれた行の rightField」だけを使う（1:1）
     const rightValues = selected.map((row) => row[rightField]);
-    const shuffledRight =
-        spec.shuffle && spec.shuffle.right ? shuffled(rightValues) : rightValues;
+    const shuffledRight = shuffleRight ? shuffled(rightValues) : rightValues;
 
     // 右側フィールドが "Tex" で終わるなら KaTeX 用とみなす
     const isTexField =
@@ -386,24 +404,18 @@ function generateTableMatchingQuestion(pattern, dataSets) {
 
     const answers = leftList.map((row) => {
         const correctText = row[rightField];
-
-        const options = shuffledRight.map((text) => {
+        const options = shuffledRight.map((value) => {
+            const isCorrect = value === correctText;
             const base = {
-                // 採点用フラグは従来どおり
-                isCorrect: text === correctText
+                id: `${pattern.id}_${row.id}_${String(value)}`,
+                label: String(value),
+                isCorrect
             };
 
             if (isTexField) {
-                // KaTeX で描画させる
-                base.labelTokens = [
-                    {
-                        type: 'katex',
-                        value: text // 例: "\\ce{-CH3}"
-                    }
-                ];
-            } else {
-                // 通常テキストのときは従来どおり
-                base.label = text;
+                // KaTeX 用フィールドのときは labelTex として扱う
+                base.labelTex = String(value);
+                delete base.label;
             }
 
             return base;

@@ -292,24 +292,89 @@ function renderTableMatchingQuestion(question, dataSets, onSelect) {
         pairsByRight: new Array(optionCount).fill(null),
         updateStyles: null
     };
+
+    // すでに userSelectedIndex が入っている場合はそこからペアを復元
+    answers.forEach((answer, leftIndex) => {
+        const selected =
+            typeof answer.userSelectedIndex === 'number'
+                ? answer.userSelectedIndex
+                : null;
+        if (
+            selected == null ||
+            selected < 0 ||
+            selected >= optionCount
+        ) {
+            return;
+        }
+
+        // 同じ右側にすでに別の左が割り当てられていた場合は、後勝ちにしておく
+        const oldLeft = matchingState.pairsByRight[selected];
+        if (oldLeft != null) {
+            matchingState.pairsByLeft[oldLeft] = null;
+        }
+        matchingState.pairsByLeft[leftIndex] = selected;
+        matchingState.pairsByRight[selected] = leftIndex;
+    });
+
     question._matchingState = matchingState;
 
     function updateStyles() {
         const first = matchingState.firstSelection;
 
-        matchingState.leftButtons.forEach((btn, idx) => {
-            btn.classList.remove('ring-2', 'ring-emerald-500');
-            if (first && first.side === 'left' && first.index === idx) {
-                btn.classList.add('ring-2', 'ring-emerald-500');
-            }
+        // いったん全ての強調クラスを外す
+        matchingState.leftButtons.forEach((btn) => {
+            if (!btn) return;
+            btn.classList.remove(
+                'ring-2',
+                'ring-emerald-500',
+                'border-emerald-300',
+                'bg-slate-100',
+                'dark:bg-slate-800'
+            );
         });
 
-        matchingState.rightButtons.forEach((btn, idx) => {
-            btn.classList.remove('ring-2', 'ring-emerald-500');
-            if (first && first.side === 'right' && first.index === idx) {
+        matchingState.rightButtons.forEach((btn) => {
+            if (!btn) return;
+            btn.classList.remove(
+                'ring-2',
+                'ring-emerald-500',
+                'border-emerald-300',
+                'bg-slate-100',
+                'dark:bg-slate-800'
+            );
+        });
+
+        // まず「確定しているペア」を両側ハイライト
+        matchingState.pairsByLeft.forEach((rightIndex, leftIndex) => {
+            if (rightIndex == null) return;
+
+            const leftBtn = matchingState.leftButtons[leftIndex];
+            const rightBtn = matchingState.rightButtons[rightIndex];
+            if (!leftBtn || !rightBtn) return;
+
+            leftBtn.classList.add(
+                'border-emerald-300',
+                'bg-slate-100',
+                'dark:bg-slate-800'
+            );
+            rightBtn.classList.add(
+                'border-emerald-300',
+                'bg-slate-100',
+                'dark:bg-slate-800'
+            );
+        });
+
+        // その上で「今 1 個目として選択中」のボタンにリングを付ける
+        if (first) {
+            const list =
+                first.side === 'left'
+                    ? matchingState.leftButtons
+                    : matchingState.rightButtons;
+            const btn = list[first.index];
+            if (btn) {
                 btn.classList.add('ring-2', 'ring-emerald-500');
             }
-        });
+        }
     }
     matchingState.updateStyles = updateStyles;
 
@@ -377,9 +442,10 @@ function renderTableMatchingQuestion(question, dataSets, onSelect) {
             'transition-colors'
         ].join(' ');
 
-        btn.textContent = answer.meta && answer.meta.leftText
-            ? answer.meta.leftText
-            : '';
+        btn.textContent =
+            answer.meta && answer.meta.leftText
+                ? answer.meta.leftText
+                : '';
 
         btn.addEventListener('click', () => handleClick('left', i));
 
@@ -405,6 +471,7 @@ function renderTableMatchingQuestion(question, dataSets, onSelect) {
         rightCol.appendChild(btn);
     });
 
+    // 初期状態（既存の userSelectedIndex も含めて）を反映
     updateStyles();
     return group;
 }
@@ -784,27 +851,17 @@ export function showOptionFeedback(question) {
     ) {
         const state = question._matchingState;
 
+        // 左側ボタンの正誤表示
         (question.answers || []).forEach((answer, answerIndex) => {
             const btn = state.leftButtons[answerIndex];
             if (!btn) return;
 
-            // ベースの枠線を一度クリア
-            btn.classList.remove(
-                'border-slate-300',
-                'dark:border-slate-700',
-                'border-emerald-400',
-                'border-rose-400',
-                'bg-emerald-50',
-                'bg-rose-50',
-                'dark:bg-emerald-900/30',
-                'dark:bg-rose-900/30'
-            );
-            btn.classList.add('border-slate-300', 'dark:border-slate-700');
+            btn.classList.remove('border-slate-300', 'dark:border-slate-700');
 
             const selected = answer.userSelectedIndex;
             const correct = answer.correctIndex;
 
-            if (selected == null) {
+            if (selected == null || selected < 0) {
                 // 未回答はそのまま
                 return;
             }
@@ -823,6 +880,44 @@ export function showOptionFeedback(question) {
                 );
             }
         });
+
+        // 右側ボタンも、実際に選ばれたペアに応じて色分け
+        if (
+            Array.isArray(state.rightButtons) &&
+            Array.isArray(state.pairsByRight)
+        ) {
+            state.rightButtons.forEach((btn, rightIndex) => {
+                if (!btn) return;
+
+                const leftIndex = state.pairsByRight[rightIndex];
+                if (leftIndex == null) return;
+
+                const answer =
+                    question.answers && question.answers[leftIndex];
+                if (!answer) return;
+
+                const isCorrect = answer.correctIndex === rightIndex;
+
+                btn.classList.remove(
+                    'border-slate-300',
+                    'dark:border-slate-700'
+                );
+
+                if (isCorrect) {
+                    btn.classList.add(
+                        'border-emerald-400',
+                        'bg-emerald-50',
+                        'dark:bg-emerald-900/30'
+                    );
+                } else {
+                    btn.classList.add(
+                        'border-rose-400',
+                        'bg-rose-50',
+                        'dark:bg-rose-900/30'
+                    );
+                }
+            });
+        }
 
         return;
     }
