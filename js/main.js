@@ -4,7 +4,7 @@ import { dom } from './dom-refs.js';
 import { loadQuizDefinition } from './quiz-model.js';
 import { loadQuizEntries } from './entry-model.js';
 import { renderQuizMenu } from './menu-renderer.js';
-import { QuizEngine } from './quiz-engine.js';
+import { QuizEngine, NoQuestionsAvailableError } from './quiz-engine.js';
 import {
     renderQuestion,
     renderProgress,
@@ -257,7 +257,22 @@ function loadNextQuestion() {
     // 前の問題の Tips をクリア
     resetTips();
 
-    currentQuestion = engine.generateQuestion();
+    try {
+        currentQuestion = engine.generateQuestion();
+    } catch (e) {
+        if (e instanceof NoQuestionsAvailableError) {
+            console.warn('[quiz] No questions available for current mode/filters');
+            dom.questionText.textContent = 'No questions available. Please change the mode or filters.';
+            dom.optionsContainer.innerHTML = '';
+            dom.nextButton.disabled = true;
+            return;
+        }
+        console.error('[quiz] Failed to generate question:', e);
+        dom.questionText.textContent = 'Failed to generate question.';
+        dom.optionsContainer.innerHTML = '';
+        dom.nextButton.disabled = true;
+        return;
+    }
     resetSelections(currentQuestion);
 
     renderQuestion(currentQuestion, quizDef.dataSets, handleSelectOption);

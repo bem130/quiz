@@ -7,6 +7,68 @@ const ALLOWED_FORMATS = new Set([
     'table_matching',
     'sentence_fill_choice'
 ]);
+const ALLOWED_TOKEN_TYPES = new Set([
+    'text',
+    'key',
+    'ruby',
+    'hide',
+    'katex',
+    'smiles',
+    'br'
+]);
+
+function normalizeTokenArray(value) {
+    if (!value) {
+        return [];
+    }
+    if (Array.isArray(value)) {
+        return value;
+    }
+    return [value];
+}
+
+function assertNoHideInRubyPart(part, label) {
+    if (!part) return;
+    const candidates = normalizeTokenArray(part.value);
+    if (candidates.some((child) => child && (child.type === 'hide' || child.type === 'hideruby'))) {
+        throw new Error(`Ruby token ${label} must not include hide tokens.`);
+    }
+}
+
+function validateToken(token, label) {
+    if (!token || typeof token !== 'object') {
+        throw new Error(`Token at ${label} must be an object.`);
+    }
+    if (!token.type) {
+        throw new Error(`Token at ${label} is missing type.`);
+    }
+    if (!ALLOWED_TOKEN_TYPES.has(token.type)) {
+        throw new Error(`Token at ${label} has unsupported type: ${token.type}`);
+    }
+
+    if (token.type === 'ruby') {
+        assertNoHideInRubyPart(token.base, `${label}.base`);
+        assertNoHideInRubyPart(token.ruby, `${label}.ruby`);
+    }
+
+    if (token.type === 'hide') {
+        const values = normalizeTokenArray(token.value);
+        if (!values.length) {
+            throw new Error(`Hide token at ${label} must have a non-empty value array.`);
+        }
+        values.forEach((child, idx) => validateToken(child, `${label}.value[${idx}]`));
+    }
+
+    if ((token.type === 'katex' || token.type === 'smiles') && token.value == null && !token.field) {
+        throw new Error(`Token at ${label} of type ${token.type} requires value or field.`);
+    }
+}
+
+function validateTokens(tokens, label) {
+    (tokens || []).forEach((token, idx) => {
+        validateToken(token, `${label}[${idx}]`);
+    });
+}
 
 function cloneData(value) {
     if (value == null) {
@@ -76,6 +138,9 @@ function convertTokenToV2(token, options = {}) {
     }
 
     converted.value = convertTokenValue(converted.value, options);
+    if (converted.type === 'hide' && converted.value && !Array.isArray(converted.value)) {
+        converted.value = [converted.value];
+    }
     return converted;
 }
 
@@ -238,6 +303,7 @@ function validateDataSets(dataSets, options = {}) {
                 if (!Array.isArray(sentence.tokens)) {
                     throw new Error(`Sentence ${sentence.id} in DataSet ${id} must have tokens array.`);
                 }
+                validateTokens(sentence.tokens, `dataSets.${id}.sentences[${idx}].tokens`);
             });
             if (ds.groups && typeof ds.groups === 'object') {
                 Object.entries(ds.groups).forEach(([groupId, group]) => {
@@ -275,6 +341,7 @@ function validateDefinition(definition, options = {}) {
         if (!ALLOWED_FORMATS.has(pattern.questionFormat)) {
             throw new Error(`Unsupported questionFormat: ${pattern.questionFormat}`);
         }
+        validateTokens(pattern.tokens, `patterns.${pattern.id}.tokens`);
         const ds = definition.dataSets[pattern.dataSet];
         if (!ds) {
             throw new Error(`Pattern ${pattern.id} references missing dataSet ${pattern.dataSet}.`);
