@@ -159,6 +159,7 @@ if __name__ == '__main__':
     merge_directory_files('./js',    f'./tmp/{timestamp}_js.txt')
     merge_directory_files('./css',   f'./tmp/{timestamp}_css.txt')
     merge_directory_files('./data',  f'./tmp/{timestamp}_data.txt')
+    merge_directory_files('./doc',  f'./tmp/{timestamp}_doc.txt')
     merge_directory_files('./tests', f'./tmp/{timestamp}_tests.txt')
 
     # 4. Merge specific top-level files (e.g., README etc.)
