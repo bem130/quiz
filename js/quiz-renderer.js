@@ -134,8 +134,9 @@ function createOptionButton(labelNodes, isDisabled, onClick) {
 
     // 高さも幅もセルいっぱいに広げる
     btn.className = [
-        'w-full h-full', // ★ ここが重要：セル全体を占有
-        'flex flex-col items-start justify-between', // 縦方向ストレッチ
+        'w-full h-full',
+        // items-start → items-stretch にして中身をフル幅に
+        'flex flex-col items-stretch justify-between',
         'px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700',
         'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100',
         'hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800',
@@ -150,12 +151,33 @@ function createOptionButton(labelNodes, isDisabled, onClick) {
         btn.addEventListener('click', onClick);
     }
 
-    // 中身コンテナを作っておくと将来プレビューなども入れやすい
+    // ─────────────────────────────────
+    // 上部: option-main（選択肢テキスト用）
+    // ─────────────────────────────────
     const main = document.createElement('div');
-    main.className = 'option-main flex-1 flex items-start gap-2';
+    // option-main 自体は「上側の余白全部」を担当しつつセンター寄せ
+    main.className = 'option-main flex-1 flex items-center justify-center';
 
-    labelNodes.forEach((node) => main.appendChild(node));
+    const labelWrapper = document.createElement('div');
+    // ← w-full をやめ、inline-flex + max-w-full で
+    //    中身の長さだけの箱にして、テキストだけ左揃え
+    labelWrapper.className =
+        'inline-flex max-w-full text-left flex-col justify-center';
+
+    labelNodes.forEach((node) => labelWrapper.appendChild(node));
+    main.appendChild(labelWrapper);
     btn.appendChild(main);
+
+    // ─────────────────────────────────
+    // 下部: option-preview（問題文用の予約領域）
+    // ─────────────────────────────────
+    const previewSlot = document.createElement('div');
+    previewSlot.className =
+        'option-preview mt-1 text-left text-[0.7rem] text-slate-500 dark:text-slate-400 leading-relaxed';
+
+    // ここで高さ予約
+    previewSlot.style.minHeight = '72px'; // 必要に応じて調整
+    btn.appendChild(previewSlot);
 
     return btn;
 }
@@ -572,18 +594,52 @@ export function revealNextAnswerGroup() {
 export function appendPatternPreviewToOptions(question, dataSets) {
     if (!question || !Array.isArray(question.answers)) return;
 
-    const rowContext = resolveQuestionContext(question, dataSets);
-
     question.answers.forEach((answer, answerIndex) => {
         (answer.options || []).forEach((opt, optIndex) => {
             const btn = dom.optionsContainer.querySelector(
                 `button[data-answer-index="${answerIndex}"][data-option-index="${optIndex}"]`
             );
-            if (!btn || btn.querySelector('.option-preview')) return;
+            if (!btn) return;
 
-            const preview = document.createElement('div');
-            preview.className =
-                'option-preview text-[0.7rem] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed';
+            // createOptionButton で用意したスロットを取得
+            const preview = btn.querySelector('.option-preview');
+            if (!preview) return;
+
+            // すでに描画済みならスキップ
+            if (preview.dataset.filled === '1') return;
+
+            // --------------------------------------------------
+            // 1) この option 用の row を解決する
+            // --------------------------------------------------
+            let rowContext = null;
+
+            // option ごとの dataSetId / entityId があればそちらを優先
+            const sourceDataSetId =
+                opt.dataSetId || (question.meta && question.meta.dataSetId);
+            const ds = sourceDataSetId ? dataSets[sourceDataSetId] : null;
+
+            if (opt.entityId && ds) {
+                if (ds.type === 'table' && Array.isArray(ds.data)) {
+                    rowContext = ds.data.find((r) => r.id === opt.entityId) || null;
+                } else if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
+                    rowContext =
+                        ds.sentences.find((s) => s.id === opt.entityId) || null;
+                }
+            }
+
+            // row が取れなかった場合は、従来どおり設問コンテキストを使用
+            if (!rowContext) {
+                rowContext = resolveQuestionContext(question, dataSets);
+            }
+
+            if (!rowContext || !Array.isArray(question.tokens)) {
+                return;
+            }
+
+            // --------------------------------------------------
+            // 2) ボタン下部の「問題文領域」に文章を描画
+            // --------------------------------------------------
+            preview.innerHTML = '';
 
             appendTokens(
                 preview,
@@ -592,7 +648,8 @@ export function appendPatternPreviewToOptions(question, dataSets) {
                 false // hide トークンは値を出す
             );
 
-            btn.appendChild(preview);
+            // 描画済みフラグ
+            preview.dataset.filled = '1';
         });
     });
 }
