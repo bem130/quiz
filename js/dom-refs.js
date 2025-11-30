@@ -30,6 +30,8 @@ export const dom = {
     menuFullscreenToggle: document.getElementById('fullscreen-toggle-menu'),
 
     // メニュー側: 問題数
+    questionCountSlider: document.getElementById('question-count-slider'),
+    questionCountLabel: document.getElementById('question-count-label'),
     questionCountInput: document.getElementById('question-count'),
 
     // クイズ画面: 進捗
@@ -85,5 +87,7 @@ export const dom = {
     resultCorrect: document.getElementById('result-correct'),
     resultAccuracy: document.getElementById('result-accuracy'),
     retryButton: document.getElementById('retry-button'),
+    retryMistakesButton: document.getElementById('retry-mistakes-button'),
+    copyResultButton: document.getElementById('copy-result-button'),
     backToMenuButton: document.getElementById('back-to-menu-button')
 };
