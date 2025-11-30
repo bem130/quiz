@@ -1,22 +1,33 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Build base URL of this index.php without query string.
+ * Example: https://example.com/index.php
+ */
 function buildBaseUrl(): string
 {
-    $https = $_SERVER['HTTPS'] ?? '';
-    $isHttps = ($https && strtolower((string) $https) !== 'off')
-        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
-    $scheme = $isHttps ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-    $directory = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+    $https   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $scheme  = $https ? 'https' : 'http';
+    $host    = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $script  = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
 
-    return rtrim($scheme . '://' . $host . ($directory === '/' ? '' : $directory), '/') . '/';
+    return $scheme . '://' . $host . $script;
 }
 
 /**
- * quiz パラメータにもとづいてローカル JSON からタイトル等を取得する。
- * entry パラメータはここでは一切使わない（外部 URL に触れないため）。
+ * HTML escape helper.
+ */
+function h(string $value): string
+{
+    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+}
+
+/**
+ * Load quiz metadata from local quiz JSON file.
+ *
+ * data/quizzes/{quizId}.json を読み込んで、
+ * title / description / URL を返す。
  */
 function loadQuizMetadata(?string $quizParam, string $baseUrl): ?array
 {
@@ -30,7 +41,7 @@ function loadQuizMetadata(?string $quizParam, string $baseUrl): ?array
         return null;
     }
 
-    $json = file_get_contents($quizPath);
+    $json = @file_get_contents($quizPath);
     if ($json === false) {
         error_log('Quiz file could not be read: ' . $quizPath);
         return null;
@@ -38,61 +49,205 @@ function loadQuizMetadata(?string $quizParam, string $baseUrl): ?array
 
     $decoded = json_decode($json, true);
     if (!is_array($decoded)) {
-        error_log('Quiz file contains invalid JSON: ' . $quizPath);
+        error_log('Quiz JSON is invalid: ' . $quizPath);
         return null;
     }
 
+    $title       = isset($decoded['title']) ? (string) $decoded['title'] : $quizParam;
+    $description = isset($decoded['description']) ? (string) $decoded['description'] : '';
+
+    // URL like: index.php?quiz=amino-acid-quiz-ja-v2
+    $url = $baseUrl . '?quiz=' . rawurlencode($quizParam);
+
     return [
-        'title'       => $decoded['title']       ?? $quizParam,
-        'description' => $decoded['description'] ?? '',
-        'url'         => $baseUrl . '?quiz=' . rawurlencode($quizParam),
+        'title'       => $title,
+        'description' => $description,
+        'url'         => $url,
     ];
 }
 
-function h(string $value): string
+/**
+ * Normalize and validate entry URL for server-side access.
+ *
+ * - Accepts relative paths (e.g. "entry.php", "./data/entry.json") and
+ *   converts them to absolute URLs on the same host.
+ * - Accepts absolute http/https URLs only when the host is the same as
+ *   the current host.
+ * - Rejects all other schemes or suspicious inputs.
+ */
+function normalizeEntryUrl(?string $rawEntry, string $baseUrl): ?string
 {
-    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    if ($rawEntry === null) {
+        return null;
+    }
+
+    $rawEntry = trim((string) $rawEntry);
+    if ($rawEntry === '' || strlen($rawEntry) > 2048) {
+        return null;
+    }
+
+    // If the value is a full URL, validate scheme and host.
+    $parsed = @parse_url($rawEntry);
+
+    if ($parsed !== false && isset($parsed['scheme'])) {
+        $scheme = strtolower($parsed['scheme'] ?? '');
+        $host   = strtolower($parsed['host'] ?? '');
+
+        // Only allow http/https
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
+        // Only allow same host to avoid SSRF
+        $currentHost = strtolower($_SERVER['HTTP_HOST'] ?? '');
+        if ($currentHost && $host && $host !== $currentHost) {
+            return null;
+        }
+
+        return $rawEntry;
+    }
+
+    // Otherwise treat it as a relative path on this site.
+    // Normalize "./" and leading "/" etc.
+    $path = ltrim($rawEntry, '/');
+    if ($path === '') {
+        return null;
+    }
+
+    // Very simple path traversal prevention (no ".." segments).
+    if (strpos($path, '..') !== false) {
+        return null;
+    }
+
+    // baseUrl already points to index.php, so strip script name before appending.
+    // Example: https://example.com/index.php -> https://example.com/
+    $baseWithoutScript = preg_replace('~/[^/]*$~', '/', $baseUrl);
+
+    return $baseWithoutScript . $path;
 }
 
-// -----------------------------
-// ここから OGP 用のパラメータ決定
-// -----------------------------
+/**
+ * Load quiz metadata from an entry JSON (entry.php or entry.json).
+ *
+ * This function is used only after normalizeEntryUrl() so that
+ * $entryUrl is already validated and absolute (same host, http/https).
+ *
+ * Expected JSON format:
+ * {
+ *   "version": 2,
+ *   "quizzes": [
+ *     { "id": "amino-acid-quiz-ja-v2", "title": "...", "description": "..." },
+ *     ...
+ *   ]
+ * }
+ */
+function loadQuizMetadataFromEntry(
+    string $entryUrl,
+    ?string $quizId,
+    string $baseUrl
+): ?array {
+    if ($quizId === null || !preg_match('/^[A-Za-z0-9_-]+$/', $quizId)) {
+        return null;
+    }
+
+    $json = @file_get_contents($entryUrl);
+    if ($json === false) {
+        error_log('Entry URL could not be read: ' . $entryUrl);
+        return null;
+    }
+
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        error_log('Entry JSON is invalid: ' . $entryUrl);
+        return null;
+    }
+
+    if (!isset($decoded['quizzes']) || !is_array($decoded['quizzes'])) {
+        return null;
+    }
+
+    $target = null;
+    foreach ($decoded['quizzes'] as $quiz) {
+        if (!is_array($quiz)) {
+            continue;
+        }
+        if (($quiz['id'] ?? null) === $quizId) {
+            $target = $quiz;
+            break;
+        }
+    }
+
+    if ($target === null) {
+        // quiz not found in this entry
+        return null;
+    }
+
+    $title       = isset($target['title']) ? (string) $target['title'] : $quizId;
+    $description = isset($target['description']) ? (string) $target['description'] : '';
+
+    // Canonical URL: index.php?entry=...&quiz=...
+    // Use original entry URL in query string (encoded).
+    $query = http_build_query([
+        'entry' => $entryUrl,
+        'quiz'  => $quizId,
+    ], '', '&', PHP_QUERY_RFC3986);
+
+    return [
+        'title'       => $title,
+        'description' => $description,
+        'url'         => $baseUrl . '?' . $query,
+    ];
+}
+
+// ------------------------------------------------------------
+// OGP parameter resolution
+// ------------------------------------------------------------
 
 $defaultTitle       = '4-choice Quiz';
 $defaultDescription = 'Browse and play 4-choice quizzes.';
 $baseUrl            = buildBaseUrl();
 
-// entry が付いているかどうかだけを見る（値の中身は使わない）
+// Raw query params
 $entryParamRaw = $_GET['entry'] ?? null;
-$hasEntryParam = ($entryParamRaw !== null && $entryParamRaw !== '');
+$quizParam     = $_GET['quiz']  ?? null;
+$modeParamRaw  = $_GET['mode']  ?? null;
 
-// quiz と mode は通常どおり取得
-$quizParam = $_GET['quiz'] ?? null;
-
-// mode は英数字 + _ - のみ許可（それ以外は無視）
-$modeParamRaw = $_GET['mode'] ?? null;
+// Normalize mode (only allow [A-Za-z0-9_-])
 $modeParam = null;
 if ($modeParamRaw !== null && preg_match('/^[A-Za-z0-9_-]+$/', (string) $modeParamRaw)) {
     $modeParam = (string) $modeParamRaw;
 }
 
-// entry が「指定されていない」場合だけ、クイズごとの OGP を読む
-// （＝ ./entry.php を使っている URL だとみなす）
+// Normalize & validate entry URL for server-side usage (same host + http/https)
+$entryUrlForServer = normalizeEntryUrl($entryParamRaw, $baseUrl);
+
+// Determine quiz metadata (entry first, then local quiz JSON as fallback)
 $quizMetadata = null;
-if (!$hasEntryParam) {
+
+if ($entryUrlForServer !== null) {
+    $quizMetadata = loadQuizMetadataFromEntry($entryUrlForServer, $quizParam, $baseUrl);
+}
+
+if ($quizMetadata === null) {
     $quizMetadata = loadQuizMetadata($quizParam, $baseUrl);
 }
 
-// タイトル・説明
-$pageTitle       = $quizMetadata['title']       ?? $defaultTitle;
+// Base title / description
+$baseTitle       = $quizMetadata['title']       ?? $defaultTitle;
 $pageDescription = $quizMetadata['description'] ?? $defaultDescription;
 
-// og:url / canonical 用の URL
-// - entry あり → サイト共通の baseUrl
-// - entry なし & quizMetadata あり → ?quiz=... 付きの URL
+// Mode suffix for title
+$modeLabel = $modeParam; // For now, just use raw mode id like "default" or "rgroup_focus"
+if ($modeLabel !== null) {
+    $pageTitle = sprintf('%s [mode: %s]', $baseTitle, $modeLabel);
+} else {
+    $pageTitle = $baseTitle;
+}
+
+// og:url / canonical
 $ogUrl = $quizMetadata['url'] ?? $baseUrl;
 
-// mode があれば ogUrl にだけ付ける（entry とは無関係なので安全）
+// Append mode to URL if present (entry/local both OK)
 if ($modeParam !== null) {
     $ogUrl .= (strpos($ogUrl, '?') === false ? '?' : '&')
         . 'mode=' . rawurlencode($modeParam);
@@ -104,14 +259,20 @@ if ($modeParam !== null) {
     <meta charset="UTF-8" />
     <title><?php echo h($pageTitle); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- General OGP tags -->
+
+    <!-- General description -->
     <meta name="description" content="<?php echo h($pageDescription); ?>" />
+
+    <!-- Open Graph Protocol -->
     <meta property="og:title" content="<?php echo h($pageTitle); ?>" />
     <meta property="og:description" content="<?php echo h($pageDescription); ?>" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="<?php echo h($ogUrl); ?>" />
     <meta property="og:site_name" content="<?php echo h($defaultTitle); ?>" />
+
+    <!-- Canonical URL -->
     <link rel="canonical" href="<?php echo h($ogUrl); ?>" />
+
     <!-- Twitter Card (X) basic settings -->
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="<?php echo h($pageTitle); ?>" />
