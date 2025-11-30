@@ -1,8 +1,8 @@
 {
     "name": "4-choice Quiz",
-    "short_name": "Quiz",
+    "short_name": "4-choice Quiz",
     "description": "Customizable quiz player",
-    "start_url": "/quiz/?source=pwa",
+    "start_url": "/quiz/",
     "scope": "/quiz/",
     "display": "standalone",
     "orientation": "portrait",

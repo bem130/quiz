@@ -1,18 +1,15 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/config.php';
+
 /**
- * Build base URL of this index.php without query string.
- * Example: https://example.com/index.php
+ * Build base URL of index.php using the configured base path.
+ * Example: https://example.com/quiz/index.php
  */
 function buildBaseUrl(): string
 {
-    $https   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
-    $scheme  = $https ? 'https' : 'http';
-    $host    = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $script  = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
-
-    return $scheme . '://' . $host . $script;
+    return QUIZ_BASE_URL . 'index.php';
 }
 
 /**
@@ -259,9 +256,18 @@ if ($modeParam !== null) {
     <meta charset="UTF-8" />
     <title><?php echo h($pageTitle); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="manifest" href="/quiz/manifest.webmanifest" />
+    <link rel="manifest" href="<?php echo h(quiz_asset_url('manifest.php')); ?>" />
     <meta name="theme-color" content="#020617" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/quiz/icons/icon-192.png" />
+    <link
+        rel="icon"
+        type="image/svg+xml"
+        href="<?php echo h(quiz_asset_url('icons/icon-192.svg')); ?>"
+    />
+    <link
+        rel="apple-touch-icon"
+        sizes="180x180"
+        href="<?php echo h(quiz_asset_url('icons/icon-192.svg')); ?>"
+    />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="4-choice Quiz" />
