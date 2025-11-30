@@ -264,6 +264,16 @@ function populateModeButtons() {
             btn.appendChild(desc);
         }
 
+        if (engine) {
+            const capacity = engine.estimateModeCapacity(mode.id);
+            const info = document.createElement('div');
+            info.className = 'mt-0.5 text-[0.7rem] text-slate-400 dark:text-slate-500';
+            info.textContent = capacity > 0
+                ? `Available variations: ~${capacity}`
+                : 'No questions available for this mode.';
+            btn.appendChild(info);
+        }
+
         btn.addEventListener('click', () => {
             currentModeId = mode.id;
             populateModeButtons();
@@ -635,10 +645,32 @@ function updateLocationParams(entryUrl, quizId, modeId) {
 
 async function loadEntrySources() {
     const stored = loadEntrySourcesFromStorage();
+    let sources;
     if (Array.isArray(stored) && stored.length > 0) {
-        return stored;
+        sources = stored;
+    } else {
+        sources = createDefaultEntrySources();
     }
-    return createDefaultEntrySources();
+
+    const requestedUrl = getEntryUrlFromLocation();
+    if (requestedUrl && !sources.some((src) => src.url === requestedUrl)) {
+        sources = [
+            ...sources,
+            {
+                url: requestedUrl,
+                label: requestedUrl,
+                builtIn: false,
+                temporary: true
+            }
+        ];
+    }
+
+    return sources;
+}
+
+function persistEntrySources() {
+    const permanent = entrySources.filter((entry) => !entry.temporary);
+    saveEntrySourcesToStorage(permanent);
 }
 
 async function refreshEntryAvailability(baseSources) {
@@ -815,35 +847,68 @@ async function handleQuizClick(quizId) {
     await loadCurrentQuizDefinition();
 }
 
+async function addEntryFromUrl(url) {
+    const existingPermanent = entrySources.find(
+        (entry) => entry.url === url && !entry.temporary
+    );
+    if (existingPermanent) {
+        await applyEntrySelection(existingPermanent, getQuizNameFromLocation(), {
+            preserveModeFromUrl: true
+        });
+        return;
+    }
+
+    const temporary = entrySources.find(
+        (entry) => entry.url === url && entry.temporary
+    );
+
+    if (temporary && temporary.available && Array.isArray(temporary.quizzes)) {
+        const permanent = {
+            ...temporary,
+            temporary: false,
+            builtIn: false
+        };
+        entrySources = entrySources.filter((entry) => entry.url !== url);
+        entrySources = [...entrySources, permanent];
+        persistEntrySources();
+        renderMenus();
+        await applyEntrySelection(permanent, getQuizNameFromLocation(), {
+            preserveModeFromUrl: true
+        });
+        return;
+    }
+
+    const base = { url, label: url, builtIn: false };
+    const loaded = await loadEntrySourceFromUrl(url);
+    const merged = {
+        ...base,
+        ...loaded,
+        label: loaded.label || base.label,
+        temporary: false
+    };
+    entrySources = entrySources.filter((entry) => entry.url !== url);
+    entrySources = [...entrySources, merged];
+    persistEntrySources();
+    renderMenus();
+
+    await applyEntrySelection(merged, getQuizNameFromLocation(), {
+        preserveModeFromUrl: true
+    });
+}
+
 async function addEntryFromInput() {
     if (!dom.entryUrlInput) return;
     const value = dom.entryUrlInput.value.trim();
     if (!value) return;
-    const existing = entrySources.find((entry) => entry.url === value);
-    if (existing) {
-        await applyEntrySelection(existing, getQuizNameFromLocation());
-        return;
-    }
-
-    const base = { url: value, label: value, builtIn: false };
-    const loaded = await loadEntrySourceFromUrl(value);
-    const merged = {
-        ...base,
-        ...loaded,
-        label: loaded.label || base.label
-    };
-    entrySources = [...entrySources, merged];
-    saveEntrySourcesToStorage(entrySources);
-    renderMenus();
     dom.entryUrlInput.value = '';
-    await applyEntrySelection(merged, getQuizNameFromLocation());
+    await addEntryFromUrl(value);
 }
 
 async function removeEntry(url) {
     const target = entrySources.find((entry) => entry.url === url);
     if (!target || target.builtIn) return;
     entrySources = entrySources.filter((entry) => entry.url !== url);
-    saveEntrySourcesToStorage(entrySources);
+    persistEntrySources();
     const nextEntry = selectEntryFromParams(entrySources);
     await applyEntrySelection(nextEntry, getQuizNameFromLocation());
 }
@@ -926,6 +991,14 @@ function attachMenuHandlers() {
         dom.entryList.addEventListener('click', async (event) => {
             const target = event.target;
             if (!(target instanceof HTMLElement)) return;
+            const addButton = target.closest('[data-add-url]');
+            if (addButton && addButton instanceof HTMLElement) {
+                const addUrl = addButton.dataset.addUrl;
+                if (addUrl) {
+                    await addEntryFromUrl(addUrl);
+                }
+                return;
+            }
             const removeButton = target.closest('[data-remove-url]');
             if (removeButton && removeButton instanceof HTMLElement) {
                 const removeUrl = removeButton.dataset.removeUrl;
@@ -977,7 +1050,7 @@ async function bootstrap() {
     try {
         entrySources = await loadEntrySources();
         entrySources = await refreshEntryAvailability(entrySources);
-        saveEntrySourcesToStorage(entrySources);
+        persistEntrySources();
 
         const initialEntry = selectEntryFromParams(entrySources);
         renderMenus();
