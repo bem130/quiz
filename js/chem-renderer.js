@@ -49,8 +49,12 @@ export function ensureChemReady() {
  * Fallbacks to plain text when rendering fails.
  * @param {HTMLElement} container - Target element to host the viewer.
  * @param {string} smiles - SMILES string.
+ * @param {object} [options] - Render control options.
+ * @param {number} [options.maxHeightEm=4] - Max inline height in em.
+ * @param {number} [options.maxHeightPx] - Explicit max height in px if provided.
+ * @param {number} [options.zoomPadding=0.9] - Additional shrink factor to keep margin.
  */
-export async function renderSmilesInline(container, smiles) {
+export async function renderSmilesInline(container, smiles, options = {}) {
     if (!container) {
         return;
     }
@@ -84,6 +88,7 @@ export async function renderSmilesInline(container, smiles) {
             viewer.setInheritedRenderColor(true);
             viewer.setAutofit(true);
             viewer.setChemObj(kekuleMol);
+            scheduleZoomAdjust(container, viewer, options);
         } finally {
             mol.delete();
         }
@@ -92,4 +97,35 @@ export async function renderSmilesInline(container, smiles) {
         container.textContent = `[SMILES: ${text}]`;
         container.classList.add('font-mono');
     }
+}
+
+function scheduleZoomAdjust(container, viewer, options) {
+    const maxHeightEm = options.maxHeightEm ?? 4;
+    const maxHeightPx = options.maxHeightPx;
+    const zoomPadding = options.zoomPadding ?? 0.9;
+
+    requestAnimationFrame(() => {
+        const limitPx = maxHeightPx ?? maxHeightEm * getComputedFontSize(container);
+        const rect = container.getBoundingClientRect();
+        const actualHeight = rect.height || container.offsetHeight;
+        if (!actualHeight || actualHeight <= 0) {
+            return;
+        }
+
+        if (actualHeight > limitPx && viewer.getZoom && viewer.setZoom) {
+            const scale = (limitPx / actualHeight) * zoomPadding;
+            if (scale < 1) {
+                viewer.setZoom(viewer.getZoom() * scale);
+            }
+        }
+    });
+}
+
+function getComputedFontSize(element) {
+    const fontSize = window.getComputedStyle(element).fontSize;
+    const parsed = parseFloat(fontSize);
+    if (!Number.isFinite(parsed)) {
+        return 16;
+    }
+    return parsed;
 }

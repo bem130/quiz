@@ -20,7 +20,9 @@
           "descJa": "最も単純なアミノ酸で、側鎖は水素原子 1 個だけであり、柔軟な構造をとりやすい。",
           "classHintJa": "疎水性の非極性側鎖を持つ。",
           "etymologyJa": "名前はギリシャ語の glykys（甘い）に由来し、甘味を持つことから名付けられた。",
-          "smiles": "NCC(=O)O"
+          "smiles": "NCC(=O)O",
+          "smilesFull": "NCC(=O)O",
+          "smilesSide": "[*]"
         },
         {
           "id": "ala",
@@ -36,7 +38,9 @@
           "descJa": "側鎖がメチル基（-CH3）の小さなアミノ酸で、タンパク質中によく見られる。",
           "classHintJa": "疎水性の非極性側鎖を持つ。",
           "etymologyJa": "アラニン（alanine）はアルデヒド（aldehyde）との関係から命名されたとされる。",
-          "smiles": "C[C@H](N)C(=O)O"
+          "smiles": "C[C@H](N)C(=O)O",
+          "smilesFull": "C[C@H](N)C(=O)O",
+          "smilesSide": "[*]C"
         },
         {
           "id": "val",
@@ -52,7 +56,9 @@
           "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、側鎖にイソプロピル基を持つ必須アミノ酸。",
           "classHintJa": "疎水性の分岐した非極性側鎖を持つ。",
           "etymologyJa": "バリン（valine）は吉草酸（valeric acid）に由来し、その valeric はハーブの一種バレリアンに由来する。",
-          "smiles": "CC(C)[C@H](N)C(=O)O"
+          "smiles": "CC(C)[C@H](N)C(=O)O",
+          "smilesFull": "CC(C)[C@H](N)C(=O)O",
+          "smilesSide": "[*]C(C)C"
         },
         {
           "id": "leu",
@@ -68,7 +74,9 @@
           "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、筋タンパク質に多く含まれる必須アミノ酸。",
           "classHintJa": "疎水性の分岐した非極性側鎖を持つ。",
           "etymologyJa": "ロイシン（leucine）の語源はギリシャ語 leukos（白い）で、結晶が白色であったことに由来するとされる。",
-          "smiles": "CC(C)C[C@H](N)C(=O)O"
+          "smiles": "CC(C)C[C@H](N)C(=O)O",
+          "smilesFull": "CC(C)C[C@H](N)C(=O)O",
+          "smilesSide": "[*]CC(C)C"
         },
         {
           "id": "ile",
@@ -84,7 +92,9 @@
           "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、立体異性体としてロイシンとよく比較される必須アミノ酸。",
           "classHintJa": "疎水性の分岐した非極性側鎖を持つ。",
           "etymologyJa": "イソロイシン（isoleucine）はロイシン（leucine）の構造異性体であることから、iso-（同じ）＋ leucine に由来して名付けられた。",
-          "smiles": "CC[C@H](C)[C@H](N)C(=O)O"
+          "smiles": "CC[C@H](C)[C@H](N)C(=O)O",
+          "smilesFull": "CC[C@H](C)[C@H](N)C(=O)O",
+          "smilesSide": "[*][C@H](C)CC"
         },
         {
           "id": "met",
@@ -100,7 +110,9 @@
           "descJa": "側鎖に硫黄原子（スルフィド基）を含む必須アミノ酸で、タンパク質合成の開始アミノ酸としても重要。",
           "classHintJa": "疎水性で、側鎖に硫黄原子を含む。",
           "etymologyJa": "メチオニン（methionine）は methyl（メチル）と thio（硫黄）に由来し、側鎖に含まれるメチルチオ基を反映している。",
-          "smiles": "CSCC[C@H](N)C(=O)O"
+          "smiles": "CSCC[C@H](N)C(=O)O",
+          "smilesFull": "CSCC[C@H](N)C(=O)O",
+          "smilesSide": "[*]CCSC"
         },
         {
           "id": "pro",
@@ -116,7 +128,9 @@
           "descJa": "環状構造をとるイミノ酸で、ポリペプチド鎖に折れ曲がり（ターン）を作りやすい。",
           "classHintJa": "疎水性の非極性側鎖を持ち、環状構造により剛直な骨格を与える。",
           "etymologyJa": "プロリン（proline）は五員環を持つ pyrrolidine（ピロリジン）に由来し、環状構造の特徴を反映している。",
-          "smiles": "N1CCCC[C@H]1C(=O)O"
+          "smiles": "N1CCCC[C@H]1C(=O)O",
+          "smilesFull": "N1CCCC[C@H]1C(=O)O",
+          "smilesSide": "[*]1CCC[NH]1"
         },
         {
           "id": "phe",
@@ -132,7 +146,9 @@
           "descJa": "側鎖にベンゼン環（フェニル基）を持つ芳香族の必須アミノ酸。",
           "classHintJa": "疎水性の芳香族側鎖を持つ。",
           "etymologyJa": "フェニルアラニン（phenylalanine）は芳香族基 phenyl とアミノ酸 alanine を組み合わせた名称である。",
-          "smiles": "N[C@H](CC1=CC=CC=C1)C(=O)O"
+          "smiles": "N[C@H](CC1=CC=CC=C1)C(=O)O",
+          "smilesFull": "N[C@H](CC1=CC=CC=C1)C(=O)O",
+          "smilesSide": "[*]Cc1ccccc1"
         },
         {
           "id": "trp",
@@ -148,7 +164,9 @@
           "descJa": "インドール環を側鎖にもつ芳香族の必須アミノ酸で、紫外吸収を示す。",
           "classHintJa": "疎水性の芳香族側鎖を持つ。",
           "etymologyJa": "トリプトファン（tryptophan）は酵素 trypsin（トリプシン）とギリシャ語 phanein（現れる）に由来する名称とされる。",
-          "smiles": "N[C@H](CC1=CNC2=CC=CC=C12)C(=O)O"
+          "smiles": "N[C@H](CC1=CNC2=CC=CC=C12)C(=O)O",
+          "smilesFull": "N[C@H](CC1=CNC2=CC=CC=C12)C(=O)O",
+          "smilesSide": "[*]Cc1c[nH]c2ccccc12"
         },
         {
           "id": "ser",
@@ -164,7 +182,9 @@
           "descJa": "側鎖にヒドロキシ基（-OH）を持ち、水素結合に関与しやすい極性アミノ酸。",
           "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。",
           "etymologyJa": "セリン（serine）はラテン語 sericum（絹）に由来し、絹タンパク質から発見されたことにちなんでいる。",
-          "smiles": "N[C@H](CO)C(=O)O"
+          "smiles": "N[C@H](CO)C(=O)O",
+          "smilesFull": "N[C@H](CO)C(=O)O",
+          "smilesSide": "[*]CO"
         },
         {
           "id": "thr",
@@ -180,7 +200,9 @@
           "descJa": "側鎖に不斉炭素とヒドロキシ基を持つ極性の必須アミノ酸。",
           "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。",
           "etymologyJa": "スレオニン（threonine）は糖の一種 threose（スレオース）に由来し、構造上の関係から命名された。",
-          "smiles": "C[C@H](O)[C@H](N)C(=O)O"
+          "smiles": "C[C@H](O)[C@H](N)C(=O)O",
+          "smilesFull": "C[C@H](O)[C@H](N)C(=O)O",
+          "smilesSide": "[*][C@H](O)C"
         },
         {
           "id": "cys",
@@ -196,7 +218,9 @@
           "descJa": "側鎖にチオール基（-SH）を持ち、2 分子が酸化されるとシスチンとしてジスルフィド結合を形成する。",
           "classHintJa": "電荷を持たないが、側鎖にチオール基を持つ極性アミノ酸。",
           "etymologyJa": "システイン（cysteine）はギリシャ語 kystis（膀胱）に由来し、最初に結石などから見つかったことと関連づけられる。",
-          "smiles": "N[C@H](CS)C(=O)O"
+          "smiles": "N[C@H](CS)C(=O)O",
+          "smilesFull": "N[C@H](CS)C(=O)O",
+          "smilesSide": "[*]CS"
         },
         {
           "id": "asn",
@@ -212,7 +236,9 @@
           "descJa": "側鎖にアミド基（-CONH2）を持つ極性アミノ酸で、アスパラギン酸のアミド。",
           "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。",
           "etymologyJa": "アスパラギン（asparagine）はアスパラガス（asparagus）から単離されたことに由来する。",
-          "smiles": "N[C@H](CC(=O)N)C(=O)O"
+          "smiles": "N[C@H](CC(=O)N)C(=O)O",
+          "smilesFull": "N[C@H](CC(=O)N)C(=O)O",
+          "smilesSide": "[*]CC(=O)N"
         },
         {
           "id": "gln",
@@ -228,7 +254,9 @@
           "descJa": "側鎖にアミド基を持つ極性アミノ酸で、グルタミン酸のアミド。窒素代謝にも関与する。",
           "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。",
           "etymologyJa": "グルタミン（glutamine）はグルテン（gluten）由来のグルタミン酸（glutamic acid）に関連して名付けられたアミド型アミノ酸である。",
-          "smiles": "N[C@H](CCC(=O)N)C(=O)O"
+          "smiles": "N[C@H](CCC(=O)N)C(=O)O",
+          "smilesFull": "N[C@H](CCC(=O)N)C(=O)O",
+          "smilesSide": "[*]CCC(=O)N"
         },
         {
           "id": "tyr",
@@ -244,7 +272,9 @@
           "descJa": "フェノール性ヒドロキシ基をもつ芳香族アミノ酸で、ホルモンや色素の前駆体となる。",
           "classHintJa": "芳香環とヒドロキシ基を持つ電荷を持たない極性側鎖を持つ。",
           "etymologyJa": "チロシン（tyrosine）はギリシャ語 tyros（チーズ）に由来し、チーズ中から発見されたことにちなんでいる。",
-          "smiles": "N[C@H](CC1=CC=C(O)C=C1)C(=O)O"
+          "smiles": "N[C@H](CC1=CC=C(O)C=C1)C(=O)O",
+          "smilesFull": "N[C@H](CC1=CC=C(O)C=C1)C(=O)O",
+          "smilesSide": "[*]Cc1ccc(O)cc1"
         },
         {
           "id": "asp",
@@ -260,7 +290,9 @@
           "descJa": "側鎖にカルボキシル基を 1 つ持つ酸性アミノ酸で、負電荷を帯びやすい。",
           "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。",
           "etymologyJa": "アスパラギン酸（aspartic acid）はアスパラガスから見つかったアスパラギン（asparagine）に関連して命名された。",
-          "smiles": "N[C@H](CC(=O)O)C(=O)O"
+          "smiles": "N[C@H](CC(=O)O)C(=O)O",
+          "smilesFull": "N[C@H](CC(=O)O)C(=O)O",
+          "smilesSide": "[*]CC(=O)O"
         },
         {
           "id": "glu",
@@ -276,7 +308,9 @@
           "descJa": "側鎖にカルボキシル基を持つ酸性アミノ酸で、うま味成分としても知られる。",
           "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。",
           "etymologyJa": "グルタミン酸（glutamic acid）は小麦グルテン（gluten）から単離されたことに由来する。",
-          "smiles": "N[C@H](CCC(=O)O)C(=O)O"
+          "smiles": "N[C@H](CCC(=O)O)C(=O)O",
+          "smilesFull": "N[C@H](CCC(=O)O)C(=O)O",
+          "smilesSide": "[*]CCC(=O)O"
         },
         {
           "id": "lys",
@@ -292,7 +326,9 @@
           "descJa": "側鎖末端にアミノ基を持つ塩基性の必須アミノ酸で、正電荷を帯びやすい。",
           "classHintJa": "側鎖にアミノ基を持つ塩基性アミノ酸。",
           "etymologyJa": "リシン（lysine）の語源はギリシャ語 lysis（溶解）で、分解・分離の概念と関連付けられているとされる。",
-          "smiles": "N[C@H](CCCCN)C(=O)O"
+          "smiles": "N[C@H](CCCCN)C(=O)O",
+          "smilesFull": "N[C@H](CCCCN)C(=O)O",
+          "smilesSide": "[*]CCCCN"
         },
         {
           "id": "arg",
@@ -308,7 +344,9 @@
           "descJa": "側鎖にグアニジノ基を持つ強塩基性アミノ酸で、多くの pH 条件で正電荷を帯びる。",
           "classHintJa": "側鎖にグアニジノ基を持つ塩基性アミノ酸。",
           "etymologyJa": "アルギニン（arginine）はラテン語 argentum（銀）に由来するとされ、銀塩との関係で名付けられたとされる。",
-          "smiles": "N[C@H](CCCNC(=N)N)C(=O)O"
+          "smiles": "N[C@H](CCCNC(=N)N)C(=O)O",
+          "smilesFull": "N[C@H](CCCNC(=N)N)C(=O)O",
+          "smilesSide": "[*]CCCNC(=N)N"
         },
         {
           "id": "his",
@@ -324,7 +362,9 @@
           "descJa": "イミダゾール環を持つ塩基性アミノ酸で、pH 付近でプロトンの受け渡しに関与しやすい。",
           "classHintJa": "イミダゾール環を持つ塩基性アミノ酸。",
           "etymologyJa": "ヒスチジン（histidine）はギリシャ語 histos（組織）に由来し、生体組織から発見されたことと関連して名付けられた。",
-          "smiles": "N[C@H](CC1=CN=CN1)C(=O)O"
+          "smiles": "N[C@H](CC1=CN=CN1)C(=O)O",
+          "smilesFull": "N[C@H](CC1=CN=CN1)C(=O)O",
+          "smilesSide": "[*]Cc1ncnc[nH]1"
         }
       ],
       "groups": {
