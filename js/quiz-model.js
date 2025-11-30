@@ -218,26 +218,60 @@ function normalizePatterns(rawPatterns, dataSetId, convertOptions = {}) {
 
 function normalizeModes(rawModes, patterns) {
     const patternIds = new Set((patterns || []).map((p) => p.id));
-    const baseModes = (rawModes || []).map((m, idx) => ({
-        id: m.id || `mode_${idx}`,
-        label: m.label || m.id || `Mode ${idx + 1}`,
-        description: m.description,
-        patternWeights: (m.patternWeights || []).filter((pw) => patternIds.has(pw.patternId))
-    }));
+    const flatModes = [];
 
-    if (baseModes.length === 0) {
-        const weights = patterns.map((p) => ({ patternId: p.id, weight: 1 }));
-        return [
-            {
-                id: 'default',
-                label: 'Standard',
-                description: 'Default mode',
-                patternWeights: weights
+    function normalizeNodeList(nodes) {
+        const result = [];
+        (nodes || []).forEach((node, idx) => {
+            if (!node) {
+                return;
             }
-        ];
+
+            if (node.type === 'modes') {
+                const group = {
+                    type: 'modes',
+                    label: node.label || `Group ${idx + 1}`,
+                    description: node.description,
+                    children: normalizeNodeList(node.value || node.children || [])
+                };
+                result.push(group);
+                return;
+            }
+
+            const modeId = node.id || `mode_${flatModes.length}`;
+            const mode = {
+                id: modeId,
+                label: node.label || node.id || `Mode ${flatModes.length + 1}`,
+                description: node.description,
+                patternWeights: (node.patternWeights || []).filter((pw) =>
+                    patternIds.has(pw.patternId)
+                )
+            };
+            flatModes.push(mode);
+            result.push({ type: 'mode', modeId });
+        });
+        return result;
     }
 
-    return baseModes;
+    const tree = normalizeNodeList(rawModes || []);
+
+    if (flatModes.length === 0) {
+        const weights = patterns.map((p) => ({ patternId: p.id, weight: 1 }));
+        const defaultMode = {
+            id: 'default',
+            label: 'Standard',
+            description: 'Default mode',
+            patternWeights: weights
+        };
+        return {
+            modes: [defaultMode],
+            modeTree: [{ type: 'mode', modeId: defaultMode.id }]
+        };
+    }
+
+    const modeTree = tree.length > 0 ? tree : flatModes.map((mode) => ({ type: 'mode', modeId: mode.id }));
+
+    return { modes: flatModes, modeTree };
 }
 
 function hasHideLikeToken(tokens) {
@@ -410,7 +444,7 @@ function convertToV2(json, options = {}) {
         : convertEntitySetToDataSet(json.entitySet || {});
     const dataSetId = Object.keys(dataSets)[0];
     const patterns = normalizePatterns(patternsSource, dataSetId, convertOptions);
-    const modes = normalizeModes(modesSource, patterns);
+    const { modes, modeTree } = normalizeModes(modesSource, patterns);
 
     warnUnknownKeys(
         json,
@@ -434,7 +468,8 @@ function convertToV2(json, options = {}) {
         meta,
         dataSets,
         patterns,
-        modes
+        modes,
+        modeTree
     };
 
     if (options.skipValidation) {

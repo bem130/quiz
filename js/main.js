@@ -237,11 +237,54 @@ function populateModeButtons() {
         return;
     }
 
+    const modeById = new Map((quizDef.modes || []).map((mode) => [mode.id, mode]));
+
     if (!currentModeId) {
         currentModeId = quizDef.modes[0].id;
     }
 
-    quizDef.modes.forEach((mode) => {
+    const modeTree =
+        (Array.isArray(quizDef.modeTree) && quizDef.modeTree.length > 0)
+            ? quizDef.modeTree
+            : (quizDef.modes || []).map((mode) => ({ type: 'mode', modeId: mode.id }));
+
+    renderModeNodes(modeTree, dom.modeList, modeById);
+}
+
+function renderModeNodes(nodes, parentElement, modeById) {
+    (nodes || []).forEach((node) => {
+        if (!node) {
+            return;
+        }
+
+        if (node.type === 'modes') {
+            const groupContainer = document.createElement('div');
+            groupContainer.className = 'mb-2';
+
+            const header = document.createElement('div');
+            header.className =
+                'px-2 py-1 text-[0.75rem] font-semibold text-slate-500 dark:text-slate-400';
+            header.textContent = node.label || 'Group';
+            groupContainer.appendChild(header);
+
+            const childrenBox = document.createElement('div');
+            childrenBox.className = 'pl-3 space-y-1';
+            renderModeNodes(node.children || node.value || [], childrenBox, modeById);
+
+            groupContainer.appendChild(childrenBox);
+            parentElement.appendChild(groupContainer);
+            return;
+        }
+
+        if (node.type !== 'mode') {
+            return;
+        }
+
+        const mode = modeById.get(node.modeId);
+        if (!mode) {
+            return;
+        }
+
         const isActive = mode.id === currentModeId;
 
         const btn = document.createElement('button');
@@ -284,7 +327,7 @@ function populateModeButtons() {
             updateLocationParams(entryUrl, quizId, currentModeId);
         });
 
-        dom.modeList.appendChild(btn);
+        parentElement.appendChild(btn);
     });
 }
 
