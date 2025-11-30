@@ -19,7 +19,8 @@
           "sideChainFormulaTex": "\\ce{-H}",
           "descJa": "最も単純なアミノ酸で、側鎖は水素原子 1 個だけであり、柔軟な構造をとりやすい。",
           "classHintJa": "疎水性の非極性側鎖を持つ。",
-          "etymologyJa": "名前はギリシャ語の glykys（甘い）に由来し、甘味を持つことから名付けられた。"
+          "etymologyJa": "名前はギリシャ語の glykys（甘い）に由来し、甘味を持つことから名付けられた。",
+          "smiles": "NCC(=O)O"
         },
         {
           "id": "ala",
@@ -34,7 +35,8 @@
           "sideChainFormulaTex": "\\ce{-CH3}",
           "descJa": "側鎖がメチル基（-CH3）の小さなアミノ酸で、タンパク質中によく見られる。",
           "classHintJa": "疎水性の非極性側鎖を持つ。",
-          "etymologyJa": "アラニン（alanine）はアルデヒド（aldehyde）との関係から命名されたとされる。"
+          "etymologyJa": "アラニン（alanine）はアルデヒド（aldehyde）との関係から命名されたとされる。",
+          "smiles": "C[C@H](N)C(=O)O"
         },
         {
           "id": "val",
@@ -49,7 +51,8 @@
           "sideChainFormulaTex": "\\ce{-CH(CH3)2}",
           "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、側鎖にイソプロピル基を持つ必須アミノ酸。",
           "classHintJa": "疎水性の分岐した非極性側鎖を持つ。",
-          "etymologyJa": "バリン（valine）は吉草酸（valeric acid）に由来し、その valeric はハーブの一種バレリアンに由来する。"
+          "etymologyJa": "バリン（valine）は吉草酸（valeric acid）に由来し、その valeric はハーブの一種バレリアンに由来する。",
+          "smiles": "CC(C)[C@H](N)C(=O)O"
         },
         {
           "id": "leu",
@@ -64,7 +67,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-CH(CH3)2}",
           "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、筋タンパク質に多く含まれる必須アミノ酸。",
           "classHintJa": "疎水性の分岐した非極性側鎖を持つ。",
-          "etymologyJa": "ロイシン（leucine）の語源はギリシャ語 leukos（白い）で、結晶が白色であったことに由来するとされる。"
+          "etymologyJa": "ロイシン（leucine）の語源はギリシャ語 leukos（白い）で、結晶が白色であったことに由来するとされる。",
+          "smiles": "CC(C)C[C@H](N)C(=O)O"
         },
         {
           "id": "ile",
@@ -79,7 +83,8 @@
           "sideChainFormulaTex": "\\ce{-CH(CH3)-CH2-CH3}",
           "descJa": "分岐鎖アミノ酸（BCAA）の 1 つで、立体異性体としてロイシンとよく比較される必須アミノ酸。",
           "classHintJa": "疎水性の分岐した非極性側鎖を持つ。",
-          "etymologyJa": "イソロイシン（isoleucine）はロイシン（leucine）の構造異性体であることから、iso-（同じ）＋ leucine に由来して名付けられた。"
+          "etymologyJa": "イソロイシン（isoleucine）はロイシン（leucine）の構造異性体であることから、iso-（同じ）＋ leucine に由来して名付けられた。",
+          "smiles": "CC[C@H](C)[C@H](N)C(=O)O"
         },
         {
           "id": "met",
@@ -94,7 +99,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-CH2-S-CH3}",
           "descJa": "側鎖に硫黄原子（スルフィド基）を含む必須アミノ酸で、タンパク質合成の開始アミノ酸としても重要。",
           "classHintJa": "疎水性で、側鎖に硫黄原子を含む。",
-          "etymologyJa": "メチオニン（methionine）は methyl（メチル）と thio（硫黄）に由来し、側鎖に含まれるメチルチオ基を反映している。"
+          "etymologyJa": "メチオニン（methionine）は methyl（メチル）と thio（硫黄）に由来し、側鎖に含まれるメチルチオ基を反映している。",
+          "smiles": "CSCC[C@H](N)C(=O)O"
         },
         {
           "id": "pro",
@@ -109,7 +115,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-CH2-CH2\\bond{-}}",
           "descJa": "環状構造をとるイミノ酸で、ポリペプチド鎖に折れ曲がり（ターン）を作りやすい。",
           "classHintJa": "疎水性の非極性側鎖を持ち、環状構造により剛直な骨格を与える。",
-          "etymologyJa": "プロリン（proline）は五員環を持つ pyrrolidine（ピロリジン）に由来し、環状構造の特徴を反映している。"
+          "etymologyJa": "プロリン（proline）は五員環を持つ pyrrolidine（ピロリジン）に由来し、環状構造の特徴を反映している。",
+          "smiles": "N1CCCC[C@H]1C(=O)O"
         },
         {
           "id": "phe",
@@ -124,7 +131,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-Ph}",
           "descJa": "側鎖にベンゼン環（フェニル基）を持つ芳香族の必須アミノ酸。",
           "classHintJa": "疎水性の芳香族側鎖を持つ。",
-          "etymologyJa": "フェニルアラニン（phenylalanine）は芳香族基 phenyl とアミノ酸 alanine を組み合わせた名称である。"
+          "etymologyJa": "フェニルアラニン（phenylalanine）は芳香族基 phenyl とアミノ酸 alanine を組み合わせた名称である。",
+          "smiles": "N[C@H](CC1=CC=CC=C1)C(=O)O"
         },
         {
           "id": "trp",
@@ -139,7 +147,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-C8H6N} (\\text{indole})",
           "descJa": "インドール環を側鎖にもつ芳香族の必須アミノ酸で、紫外吸収を示す。",
           "classHintJa": "疎水性の芳香族側鎖を持つ。",
-          "etymologyJa": "トリプトファン（tryptophan）は酵素 trypsin（トリプシン）とギリシャ語 phanein（現れる）に由来する名称とされる。"
+          "etymologyJa": "トリプトファン（tryptophan）は酵素 trypsin（トリプシン）とギリシャ語 phanein（現れる）に由来する名称とされる。",
+          "smiles": "N[C@H](CC1=CNC2=CC=CC=C12)C(=O)O"
         },
         {
           "id": "ser",
@@ -154,7 +163,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-OH}",
           "descJa": "側鎖にヒドロキシ基（-OH）を持ち、水素結合に関与しやすい極性アミノ酸。",
           "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。",
-          "etymologyJa": "セリン（serine）はラテン語 sericum（絹）に由来し、絹タンパク質から発見されたことにちなんでいる。"
+          "etymologyJa": "セリン（serine）はラテン語 sericum（絹）に由来し、絹タンパク質から発見されたことにちなんでいる。",
+          "smiles": "N[C@H](CO)C(=O)O"
         },
         {
           "id": "thr",
@@ -169,7 +179,8 @@
           "sideChainFormulaTex": "\\ce{-CH(OH)-CH3}",
           "descJa": "側鎖に不斉炭素とヒドロキシ基を持つ極性の必須アミノ酸。",
           "classHintJa": "電荷を持たない極性側鎖（ヒドロキシ基）を持つ。",
-          "etymologyJa": "スレオニン（threonine）は糖の一種 threose（スレオース）に由来し、構造上の関係から命名された。"
+          "etymologyJa": "スレオニン（threonine）は糖の一種 threose（スレオース）に由来し、構造上の関係から命名された。",
+          "smiles": "C[C@H](O)[C@H](N)C(=O)O"
         },
         {
           "id": "cys",
@@ -184,7 +195,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-SH}",
           "descJa": "側鎖にチオール基（-SH）を持ち、2 分子が酸化されるとシスチンとしてジスルフィド結合を形成する。",
           "classHintJa": "電荷を持たないが、側鎖にチオール基を持つ極性アミノ酸。",
-          "etymologyJa": "システイン（cysteine）はギリシャ語 kystis（膀胱）に由来し、最初に結石などから見つかったことと関連づけられる。"
+          "etymologyJa": "システイン（cysteine）はギリシャ語 kystis（膀胱）に由来し、最初に結石などから見つかったことと関連づけられる。",
+          "smiles": "N[C@H](CS)C(=O)O"
         },
         {
           "id": "asn",
@@ -199,7 +211,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-CONH2}",
           "descJa": "側鎖にアミド基（-CONH2）を持つ極性アミノ酸で、アスパラギン酸のアミド。",
           "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。",
-          "etymologyJa": "アスパラギン（asparagine）はアスパラガス（asparagus）から単離されたことに由来する。"
+          "etymologyJa": "アスパラギン（asparagine）はアスパラガス（asparagus）から単離されたことに由来する。",
+          "smiles": "N[C@H](CC(=O)N)C(=O)O"
         },
         {
           "id": "gln",
@@ -214,7 +227,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-CH2-CONH2}",
           "descJa": "側鎖にアミド基を持つ極性アミノ酸で、グルタミン酸のアミド。窒素代謝にも関与する。",
           "classHintJa": "電荷を持たない極性側鎖（アミド基）を持つ。",
-          "etymologyJa": "グルタミン（glutamine）はグルテン（gluten）由来のグルタミン酸（glutamic acid）に関連して名付けられたアミド型アミノ酸である。"
+          "etymologyJa": "グルタミン（glutamine）はグルテン（gluten）由来のグルタミン酸（glutamic acid）に関連して名付けられたアミド型アミノ酸である。",
+          "smiles": "N[C@H](CCC(=O)N)C(=O)O"
         },
         {
           "id": "tyr",
@@ -229,7 +243,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-Ph-OH}",
           "descJa": "フェノール性ヒドロキシ基をもつ芳香族アミノ酸で、ホルモンや色素の前駆体となる。",
           "classHintJa": "芳香環とヒドロキシ基を持つ電荷を持たない極性側鎖を持つ。",
-          "etymologyJa": "チロシン（tyrosine）はギリシャ語 tyros（チーズ）に由来し、チーズ中から発見されたことにちなんでいる。"
+          "etymologyJa": "チロシン（tyrosine）はギリシャ語 tyros（チーズ）に由来し、チーズ中から発見されたことにちなんでいる。",
+          "smiles": "N[C@H](CC1=CC=C(O)C=C1)C(=O)O"
         },
         {
           "id": "asp",
@@ -244,7 +259,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-COOH}",
           "descJa": "側鎖にカルボキシル基を 1 つ持つ酸性アミノ酸で、負電荷を帯びやすい。",
           "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。",
-          "etymologyJa": "アスパラギン酸（aspartic acid）はアスパラガスから見つかったアスパラギン（asparagine）に関連して命名された。"
+          "etymologyJa": "アスパラギン酸（aspartic acid）はアスパラガスから見つかったアスパラギン（asparagine）に関連して命名された。",
+          "smiles": "N[C@H](CC(=O)O)C(=O)O"
         },
         {
           "id": "glu",
@@ -259,7 +275,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-CH2-COOH}",
           "descJa": "側鎖にカルボキシル基を持つ酸性アミノ酸で、うま味成分としても知られる。",
           "classHintJa": "側鎖にカルボキシル基を持つ酸性アミノ酸。",
-          "etymologyJa": "グルタミン酸（glutamic acid）は小麦グルテン（gluten）から単離されたことに由来する。"
+          "etymologyJa": "グルタミン酸（glutamic acid）は小麦グルテン（gluten）から単離されたことに由来する。",
+          "smiles": "N[C@H](CCC(=O)O)C(=O)O"
         },
         {
           "id": "lys",
@@ -274,7 +291,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-CH2-CH2-CH2-NH2}",
           "descJa": "側鎖末端にアミノ基を持つ塩基性の必須アミノ酸で、正電荷を帯びやすい。",
           "classHintJa": "側鎖にアミノ基を持つ塩基性アミノ酸。",
-          "etymologyJa": "リシン（lysine）の語源はギリシャ語 lysis（溶解）で、分解・分離の概念と関連付けられているとされる。"
+          "etymologyJa": "リシン（lysine）の語源はギリシャ語 lysis（溶解）で、分解・分離の概念と関連付けられているとされる。",
+          "smiles": "N[C@H](CCCCN)C(=O)O"
         },
         {
           "id": "arg",
@@ -289,7 +307,8 @@
           "sideChainFormulaTex": "\\ce{-CH2-CH2-CH2-NH-C(=NH)-NH2}",
           "descJa": "側鎖にグアニジノ基を持つ強塩基性アミノ酸で、多くの pH 条件で正電荷を帯びる。",
           "classHintJa": "側鎖にグアニジノ基を持つ塩基性アミノ酸。",
-          "etymologyJa": "アルギニン（arginine）はラテン語 argentum（銀）に由来するとされ、銀塩との関係で名付けられたとされる。"
+          "etymologyJa": "アルギニン（arginine）はラテン語 argentum（銀）に由来するとされ、銀塩との関係で名付けられたとされる。",
+          "smiles": "N[C@H](CCCNC(=N)N)C(=O)O"
         },
         {
           "id": "his",
@@ -304,16 +323,26 @@
           "sideChainFormulaTex": "\\ce{-CH2-Imidazole}",
           "descJa": "イミダゾール環を持つ塩基性アミノ酸で、pH 付近でプロトンの受け渡しに関与しやすい。",
           "classHintJa": "イミダゾール環を持つ塩基性アミノ酸。",
-          "etymologyJa": "ヒスチジン（histidine）はギリシャ語 histos（組織）に由来し、生体組織から発見されたことと関連して名付けられた。"
+          "etymologyJa": "ヒスチジン（histidine）はギリシャ語 histos（組織）に由来し、生体組織から発見されたことと関連して名付けられた。",
+          "smiles": "N[C@H](CC1=CN=CN1)C(=O)O"
         }
       ],
       "groups": {
         "classJaGroup": {
-          "choices": ["酸性", "塩基性", "極性（中性）", "非極性"],
+          "choices": [
+            "酸性",
+            "塩基性",
+            "極性（中性）",
+            "非極性"
+          ],
           "mode": "choice"
         },
         "essentialGroup": {
-          "choices": ["必須アミノ酸", "非必須アミノ酸", "条件付き必須アミノ酸"],
+          "choices": [
+            "必須アミノ酸",
+            "非必須アミノ酸",
+            "条件付き必須アミノ酸"
+          ],
           "mode": "choice"
         }
       }
@@ -624,7 +653,10 @@
           ],
           "explainJa": "双性イオンは分子内に＋と−の電荷を同時に持つが、全体としては電荷 0 になる状態を表す。",
           "unorderedAnswerGroups": [
-            ["def_zwit_pos", "def_zwit_neg"]
+            [
+              "def_zwit_pos",
+              "def_zwit_neg"
+            ]
           ]
         },
         {
@@ -691,7 +723,10 @@
           ],
           "explainJa": "等電点では、正電荷と負電荷がつり合い、分子全体の正味電荷が 0 になる pH である。",
           "unorderedAnswerGroups": [
-            ["def_pi_pos", "def_pi_neg"]
+            [
+              "def_pi_pos",
+              "def_pi_neg"
+            ]
           ]
         }
       ],
@@ -706,23 +741,47 @@
           "mode": "choice"
         },
         "kindGroup": {
-          "choices": ["アミノ酸", "有機化合物", "化合物", "分子"],
+          "choices": [
+            "アミノ酸",
+            "有機化合物",
+            "化合物",
+            "分子"
+          ],
           "mode": "choice"
         },
         "peptideBondWordGroup": {
-          "choices": ["ペプチド結合", "アミド結合", "エステル結合", "水素結合"],
+          "choices": [
+            "ペプチド結合",
+            "アミド結合",
+            "エステル結合",
+            "水素結合"
+          ],
           "mode": "choice"
         },
         "chargeSignGroup": {
-          "choices": ["正電荷", "負電荷", "中性"],
+          "choices": [
+            "正電荷",
+            "負電荷",
+            "中性"
+          ],
           "mode": "choice"
         },
         "chargeZeroGroup": {
-          "choices": ["電荷が 0", "電荷が正", "電荷が負", "電荷が 0 でない"],
+          "choices": [
+            "電荷が 0",
+            "電荷が正",
+            "電荷が負",
+            "電荷が 0 でない"
+          ],
           "mode": "choice"
         },
         "netChargeWordGroup": {
-          "choices": ["正味電荷", "全体電荷", "局所電荷", "平均電荷"],
+          "choices": [
+            "正味電荷",
+            "全体電荷",
+            "局所電荷",
+            "平均電荷"
+          ],
           "mode": "choice"
         }
       }
@@ -965,23 +1024,48 @@
           "mode": "choice"
         },
         "zwitterionFormGroup": {
-          "choices": ["双性イオン", "カチオン", "アニオン", "中性分子"],
+          "choices": [
+            "双性イオン",
+            "カチオン",
+            "アニオン",
+            "中性分子"
+          ],
           "mode": "choice"
         },
         "reactionTypeGroup": {
-          "choices": ["脱水縮合", "加水分解", "酸化還元反応", "中和反応"],
+          "choices": [
+            "脱水縮合",
+            "加水分解",
+            "酸化還元反応",
+            "中和反応"
+          ],
           "mode": "choice"
         },
         "aminoGroupTypeGroup": {
-          "choices": ["アミノ基", "α-アミノ基", "カルボキシル基", "側鎖"],
+          "choices": [
+            "アミノ基",
+            "α-アミノ基",
+            "カルボキシル基",
+            "側鎖"
+          ],
           "mode": "choice"
         },
         "ninhColorGroup": {
-          "choices": ["青紫〜紫色", "赤色", "黄色", "無色"],
+          "choices": [
+            "青紫〜紫色",
+            "赤色",
+            "黄色",
+            "無色"
+          ],
           "mode": "choice"
         },
         "sequenceEndGroup": {
-          "choices": ["N末端", "C末端", "中央部", "任意の位置"],
+          "choices": [
+            "N末端",
+            "C末端",
+            "中央部",
+            "任意の位置"
+          ],
           "mode": "choice"
         }
       }

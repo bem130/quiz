@@ -200,6 +200,93 @@
         ]
       },
       {
+        "id": "p_smiles_to_name_ja",
+        "label": "SMILES → アミノ酸名（構造式表示）",
+        "questionFormat": "table_fill_choice",
+        "dataSet": "alpha-amino-acids",
+        "tokens": [
+          {
+            "type": "text",
+            "value": "次のSMILESで表されるアミノ酸を選べ："
+          },
+          {
+            "type": "br"
+          },
+          {
+            "type": "smiles",
+            "field": "smiles"
+          },
+          {
+            "type": "br"
+          },
+          {
+            "type": "hide",
+            "id": "answer_name_smiles",
+            "value": {
+              "type": "ruby",
+              "base": {
+                "source": "key",
+                "field": "nameEnCap",
+                "styles": ["sans", "bold"]
+              },
+              "ruby": {
+                "source": "key",
+                "field": "nameJa",
+                "styles": ["sans"]
+              }
+            },
+            "answer": {
+              "mode": "choice_ruby_pair",
+              "choice": {
+                "distractorSource": {
+                  "count": 3,
+                  "avoidSameId": true,
+                  "avoidSameText": true
+                }
+              }
+            }
+          }
+        ],
+        "tips": [
+          {
+            "id": "t_smiles_to_name_always",
+            "when": "after_answer",
+            "tokens": [
+              {
+                "type": "text",
+                "value": "【SMILES】"
+              },
+              {
+                "type": "smiles",
+                "field": "smiles"
+              },
+              {
+                "type": "br"
+              },
+              {
+                "type": "text",
+                "value": "【分類】"
+              },
+              {
+                "type": "key",
+                "field": "classJa"
+              },
+              {
+                "type": "br"
+              },
+              {
+                "type": "text",
+                "value": "【特徴】"
+              },
+              {
+                "type": "key",
+                "field": "descJa"
+              }
+            ]
+          }
+        ]
+      },
+      {
         "id": "p_name_to_code3_ja_tips",
         "label": "アミノ酸名 → 3文字略号（日本語4択＋tips＋語源）",
         "questionFormat": "table_fill_choice",
@@ -606,6 +693,17 @@
         ]
       },
       {
+        "id": "ja_smiles_structure_all",
+        "label": "日本語：SMILES構造識別",
+        "description": "SMILES で示された構造式からアミノ酸名を特定する練習モード。",
+        "patternWeights": [
+          {
+            "patternId": "p_smiles_to_name_ja",
+            "weight": 10
+          }
+        ]
+      },
+      {
         "id": "ja_basic_code_all",
         "label": "日本語：3文字略号 ↔ 名前（全アミノ酸）",
         "description": "20種類すべてのアミノ酸について、3文字略号と名前の対応を確認するモード。",
@@ -664,6 +762,10 @@
             "weight": 3
           },
           {
+            "patternId": "p_smiles_to_name_ja",
+            "weight": 2
+          },
+          {
             "patternId": "p_name_to_code3_ja_tips",
             "weight": 2
           },
@@ -705,6 +807,10 @@
           {
             "patternId": "p_name_to_rgroup_ja_tips",
             "weight": 2
+          },
+          {
+            "patternId": "p_smiles_to_name_ja",
+            "weight": 1
           },
           {
             "patternId": "p_name_to_code3_ja_tips",
