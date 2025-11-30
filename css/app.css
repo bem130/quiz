@@ -37,6 +37,24 @@ body {
     /* 標準 */
 }
 
+body.app-loading {
+    background-color: #020617;
+    color: #e5e7eb;
+}
+
+body.app-loading .layout-container {
+    opacity: 0;
+    transform: translateY(0.25rem);
+}
+
+body.app-ready .layout-container {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+        opacity 0.2s ease-out,
+        transform 0.2s ease-out;
+}
+
 /* レイアウトコンテナ: 画面いっぱいのフレックス */
 .layout-container {
     display: flex;
