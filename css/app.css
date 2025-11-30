@@ -145,20 +145,36 @@ body.app-ready .layout-container {
     color: #e2e8f0;
 }
 
-.theme-black .layout-container {
+/* Make the whole frame fully black */
+.theme-black .layout-container,
+.theme-black .main-panel,
+.theme-black .side-panel,
+.theme-black #side-settings,
+.theme-black #side-menu,
+.theme-black #side-quiz,
+.theme-black #mistakes-screen,
+.theme-black #result-screen {
     background-color: #000000;
 }
 
-.theme-black .main-panel,
-.theme-black .side-panel {
-    background-color: #0b1221;
+/* Keep cards slightly raised on black background */
+.theme-black .bg-white {
+    /* Slightly raised dark surface on pure black */
+    background-color: #020617;
 }
 
-.theme-black #side-settings,
-.theme-black #result-screen {
-    background-color: #0f172a;
+.theme-black .bg-white\/90 {
+    /* Same idea for bg-white/90 containers */
+    background-color: rgba(2, 6, 23, 0.9);
 }
 
+/* Borders should be darker to match black theme */
+.theme-black .border-slate-200,
+.theme-black .border-slate-300 {
+    border-color: #1f2937;
+}
+
+/* Scrollbar color tuning for black */
 .theme-black ::-webkit-scrollbar-thumb {
     background: #64748b;
 }
