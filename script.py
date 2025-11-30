@@ -164,8 +164,14 @@ if __name__ == '__main__':
 
     # 4. Merge specific top-level files (e.g., README etc.)
     extra_files = [
+        './config.php',
         './entry.php',
         './index.html',
         './index.php',
+        './manifest.php',
+        './manifest.webmanifest',
+        './ogp-card.php',
+        './sw.js',
+        './sw.php',
     ]
     merge_files(extra_files, f'./tmp/{timestamp}_root_files.txt')

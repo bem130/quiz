@@ -28,6 +28,8 @@ export const dom = {
     menuSizeXXLarge: document.getElementById('size-xxl-menu'),
     menuThemeToggle: document.getElementById('theme-toggle-menu'),
     menuFullscreenToggle: document.getElementById('fullscreen-toggle-menu'),
+    cacheClearButton: document.getElementById('cache-clear-button'),
+    cacheClearStatus: document.getElementById('cache-clear-status'),
 
     // メニュー側: 問題数
     questionCountSlider: document.getElementById('question-count-slider'),

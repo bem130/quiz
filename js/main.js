@@ -69,14 +69,58 @@ let quizFinishTime = null;
 let deferredInstallPrompt = null;
 let hasPwaInstallPromptSupport = false;
 
+const CACHE_PREFIX = 'quiz-app-shell-';
+const CACHE_RECOVERY_FLAG_KEY = 'quiz-app-cache-recovery-attempted';
+
+/**
+ * Clear app-specific caches and unregister service workers, then reload.
+ * This function is safe to call multiple times, but callers should avoid
+ * creating reload loops (use sessionStorage guard for auto-recovery).
+ */
+async function clearAppCachesAndReload(reason = 'unknown') {
+    console.info('[cache-clear] start:', { reason });
+
+    try {
+        // 1. Delete Cache Storage entries for this app
+        if ('caches' in window) {
+            const keys = await caches.keys();
+            const appKeys = keys.filter((key) =>
+                key.startsWith(CACHE_PREFIX)
+            );
+
+            await Promise.all(appKeys.map((key) => caches.delete(key)));
+            console.info('[cache-clear] deleted caches:', appKeys);
+        }
+
+        // 2. Unregister service workers for this origin (quiz scope)
+        if ('serviceWorker' in navigator &&
+            navigator.serviceWorker.getRegistrations) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const registration of registrations) {
+                const url = registration.active?.scriptURL || '';
+                if (url.endsWith('/quiz/sw.php') || url.endsWith('/quiz/sw.js')) {
+                    await registration.unregister();
+                }
+            }
+            console.info('[cache-clear] unregistered service workers');
+        }
+    } catch (error) {
+        console.error('[cache-clear] failed:', error);
+    } finally {
+        // 3. Reload the page
+        window.location.reload();
+    }
+}
+
 /**
  * Compare expected app version with module versions to surface cache mismatches early.
  */
 function assertVersionCompatibility() {
     const expectedVersion = window.APP_VERSION;
 
+    // If server does not provide version, treat as "no versioning"
     if (!expectedVersion) {
-        return;
+        return true;
     }
 
     const mismatches = [];
@@ -91,12 +135,49 @@ function assertVersionCompatibility() {
         }
     }
 
-    if (mismatches.length > 0) {
-        console.error('[version-mismatch]', {
-            expected: expectedVersion,
-            mismatches
-        });
+    if (mismatches.length === 0) {
+        return true;
     }
+
+    console.error('[version-mismatch]', {
+        expected: expectedVersion,
+        mismatches
+    });
+
+    // Show message to the user
+    if (dom.appDescription) {
+        dom.appDescription.textContent =
+            `アプリのコードとサーバのバージョンが一致していません。` +
+            ` (expected: ${expectedVersion}) ` +
+            `キャッシュ削除と再読み込みを試行します…`;
+    }
+
+    // Disable main actions
+    if (dom.startButton) {
+        dom.startButton.disabled = true;
+    }
+    if (dom.entryAddButton) {
+        dom.entryAddButton.disabled = true;
+    }
+
+    // Auto recovery (guarded by sessionStorage to avoid loops)
+    try {
+        const alreadyTried =
+            sessionStorage.getItem(CACHE_RECOVERY_FLAG_KEY) === '1';
+
+        if (!alreadyTried) {
+            sessionStorage.setItem(CACHE_RECOVERY_FLAG_KEY, '1');
+            clearAppCachesAndReload('version-mismatch');
+        } else {
+            console.warn(
+                '[version-mismatch] cache recovery already attempted in this session'
+            );
+        }
+    } catch (error) {
+        console.error('[version-mismatch] failed to access sessionStorage:', error);
+    }
+
+    return false;
 }
 
 /**
@@ -1306,6 +1387,19 @@ function attachMenuHandlers() {
         dom.menuSizeXXLarge.addEventListener('click', () => setSize('xxl'));
     }
 
+    if (dom.cacheClearButton) {
+        dom.cacheClearButton.addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to clear the cache and reload?')) {
+                return;
+            }
+            if (dom.cacheClearStatus) {
+                dom.cacheClearStatus.textContent = 'Clearing...';
+            }
+            dom.cacheClearButton.disabled = true;
+            await clearAppCachesAndReload('manual-trigger');
+        });
+    }
+
     dom.startButton.addEventListener('click', startQuiz);
 
     dom.nextButton.addEventListener('click', () => {
@@ -1486,7 +1580,13 @@ function markAppReady() {
  * アプリ起動時の初期化処理。データ読込、UI 初期化、イベント登録をまとめる。
  */
 async function bootstrap() {
-    assertVersionCompatibility();
+    const isVersionOk = assertVersionCompatibility();
+    if (!isVersionOk) {
+        // Show app frame so that error text is visible
+        markAppReady();
+        return;
+    }
+
     initThemeFromStorage();
     initAppHeightObserver();
     syncQuestionCountInputs(dom.questionCountInput ? dom.questionCountInput.value : 10);

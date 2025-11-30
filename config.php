@@ -18,8 +18,13 @@ function quiz_base_url(): string
 
 /**
  * Application version string.
+ * Uses Git commit hash if available, otherwise defaults to 'dev'.
  */
-define('APP_VERSION', '2024.07.01-1');
+$gitHash = @trim(shell_exec('git rev-parse --short HEAD'));
+if ($gitHash === '' || $gitHash === null) {
+    $gitHash = 'dev';
+}
+define('APP_VERSION', $gitHash);
 
 /**
  * Constant base URL for the quiz application.
