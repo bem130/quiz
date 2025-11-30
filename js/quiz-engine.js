@@ -12,8 +12,13 @@ import {
 const DEFAULT_MAX_CONSECUTIVE_SKIPS = 20;
 /**
  * Build version of quiz-engine module for runtime compatibility checks.
+ * Use window.APP_VERSION when running in a browser so that the module
+ * version automatically matches the server-side app version.
  */
-export const QUIZ_ENGINE_VERSION = '2024.07.01-1';
+export const QUIZ_ENGINE_VERSION =
+    typeof window !== 'undefined' && window.APP_VERSION
+        ? window.APP_VERSION
+        : 'dev';
 
 export class NoQuestionsAvailableError extends Error {
     constructor(message = 'No questions available for the selected mode or filters.') {

@@ -3,8 +3,13 @@ import { QuizEngine } from './quiz-engine.js';
 
 /**
  * Build version of capacity-manager module for runtime compatibility checks.
+ * Use window.APP_VERSION when running in a browser so that the module
+ * version automatically matches the server-side app version.
  */
-export const CAPACITY_MANAGER_VERSION = '2024.07.01-1';
+export const CAPACITY_MANAGER_VERSION =
+    typeof window !== 'undefined' && window.APP_VERSION
+        ? window.APP_VERSION
+        : 'dev';
 const quizCapacityCache = new Map();
 const entryCapacityCache = new Map();
 const pendingQuizTasks = new Set();
