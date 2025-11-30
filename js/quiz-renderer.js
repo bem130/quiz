@@ -4,6 +4,77 @@ import { renderSmilesInline } from './chem-renderer.js';
 
 let renderedQuestion = null;
 
+const CHOICE_STATE_CLASSES = [
+    'choice-default',
+    'choice-selected',
+    'choice-correct',
+    'choice-incorrect',
+    'choice-disabled'
+];
+
+const CHOICE_FEEDBACK_CLASSES = [
+    'border-emerald-400',
+    'bg-emerald-50',
+    'dark:bg-emerald-900/30',
+    'border-rose-400',
+    'bg-rose-50',
+    'dark:bg-rose-900/30',
+    'border-sky-400',
+    'bg-sky-50',
+    'dark:bg-sky-900/30'
+];
+
+const CHOICE_BASE_BORDER_CLASSES = ['border-slate-300', 'dark:border-slate-700'];
+
+const CHOICE_STATE_MAP = {
+    correct: [
+        'choice-correct',
+        'border-emerald-400',
+        'bg-emerald-50',
+        'dark:bg-emerald-900/30'
+    ],
+    incorrect: [
+        'choice-incorrect',
+        'border-rose-400',
+        'bg-rose-50',
+        'dark:bg-rose-900/30'
+    ],
+    selected: [
+        'choice-selected',
+        'border-sky-400',
+        'bg-sky-50',
+        'dark:bg-sky-900/30'
+    ],
+    disabled: ['choice-disabled']
+};
+
+function resetChoiceButtonState(btn) {
+    if (!btn) return;
+    btn.classList.remove(
+        ...CHOICE_STATE_CLASSES,
+        ...CHOICE_FEEDBACK_CLASSES,
+        ...CHOICE_BASE_BORDER_CLASSES
+    );
+    btn.classList.add('choice-default', ...CHOICE_BASE_BORDER_CLASSES);
+
+    if (btn.disabled) {
+        addChoiceStateClasses(btn, 'disabled');
+    }
+}
+
+function addChoiceStateClasses(btn, state) {
+    if (!btn) return;
+    const extraClasses = CHOICE_STATE_MAP[state];
+    if (extraClasses && extraClasses.length) {
+        btn.classList.add(...extraClasses);
+    }
+}
+
+function setChoiceState(btn, state) {
+    resetChoiceButtonState(btn);
+    addChoiceStateClasses(btn, state);
+}
+
 function createStyledSpan(text, styles = []) {
     const span = document.createElement('span');
     if (styles.includes('katex') && window.katex) {
@@ -162,6 +233,7 @@ function createOptionButton(labelNodes, isDisabled, onClick, { fullHeight = true
 
     // 高さも幅もセルいっぱいに広げる
     btn.className = [
+        'choice-button choice-default',
         'w-full',
         fullHeight ? 'h-full' : '',   // ★ ここで制御
         // items-start → items-stretch にして中身をフル幅に
@@ -176,6 +248,7 @@ function createOptionButton(labelNodes, isDisabled, onClick, { fullHeight = true
 
     if (isDisabled) {
         btn.disabled = true;
+        addChoiceStateClasses(btn, 'disabled');
     } else {
         btn.addEventListener('click', onClick);
     }
@@ -462,6 +535,7 @@ function renderTableMatchingQuestion(question, dataSets, onSelect) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = [
+            'choice-button choice-default',
             'w-full',
             'px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700',
             'bg-white dark:bg-slate-900',
@@ -892,7 +966,7 @@ export function showOptionFeedback(question) {
             const btn = state.leftButtons[answerIndex];
             if (!btn) return;
 
-            btn.classList.remove('border-slate-300', 'dark:border-slate-700');
+            resetChoiceButtonState(btn);
 
             const selected = answer.userSelectedIndex;
             const correct = answer.correctIndex;
@@ -902,19 +976,10 @@ export function showOptionFeedback(question) {
                 return;
             }
 
-            if (selected === correct) {
-                btn.classList.add(
-                    'border-emerald-400',
-                    'bg-emerald-50',
-                    'dark:bg-emerald-900/30'
-                );
-            } else {
-                btn.classList.add(
-                    'border-rose-400',
-                    'bg-rose-50',
-                    'dark:bg-rose-900/30'
-                );
-            }
+            addChoiceStateClasses(
+                btn,
+                selected === correct ? 'correct' : 'incorrect'
+            );
         });
 
         // 右側ボタンも、実際に選ばれたペアに応じて色分け
@@ -925,6 +990,8 @@ export function showOptionFeedback(question) {
             state.rightButtons.forEach((btn, rightIndex) => {
                 if (!btn) return;
 
+                resetChoiceButtonState(btn);
+
                 const leftIndex = state.pairsByRight[rightIndex];
                 if (leftIndex == null) return;
 
@@ -934,24 +1001,10 @@ export function showOptionFeedback(question) {
 
                 const isCorrect = answer.correctIndex === rightIndex;
 
-                btn.classList.remove(
-                    'border-slate-300',
-                    'dark:border-slate-700'
+                addChoiceStateClasses(
+                    btn,
+                    isCorrect ? 'correct' : 'incorrect'
                 );
-
-                if (isCorrect) {
-                    btn.classList.add(
-                        'border-emerald-400',
-                        'bg-emerald-50',
-                        'dark:bg-emerald-900/30'
-                    );
-                } else {
-                    btn.classList.add(
-                        'border-rose-400',
-                        'bg-rose-50',
-                        'dark:bg-rose-900/30'
-                    );
-                }
             });
         }
 
@@ -966,14 +1019,14 @@ export function showOptionFeedback(question) {
     const satisfiedGroups = new Set();
     const unorderedIndices = new Set();
 
-    if (question.format === 'sentence_fill_choice' && question.meta && Array.isArray(question.meta.unorderedAnswerGroups)) {
-        question.meta.unorderedAnswerGroups.forEach(group => {
+    if (
+        question.format === 'sentence_fill_choice' &&
+        question.meta &&
+        Array.isArray(question.meta.unorderedAnswerGroups)
+    ) {
+        question.meta.unorderedAnswerGroups.forEach((group) => {
             if (!Array.isArray(group)) return;
-            group.forEach(idx => unorderedIndices.add(idx));
-
-            // Check if this group is satisfied
-            // (Logic duplicated from answer-state.js roughly, or we assume if fullyCorrect is true then all are true? 
-            // No, partial correctness isn't supported but we want to show which groups are right/wrong if the user got some wrong)
+            group.forEach((idx) => unorderedIndices.add(idx));
 
             const expectedLabels = [];
             const selectedLabels = [];
@@ -995,8 +1048,9 @@ export function showOptionFeedback(question) {
                 expectedLabels.sort();
                 selectedLabels.sort();
                 let match = true;
-                if (expectedLabels.length !== selectedLabels.length) match = false;
-                else {
+                if (expectedLabels.length !== selectedLabels.length) {
+                    match = false;
+                } else {
                     for (let i = 0; i < expectedLabels.length; i++) {
                         if (expectedLabels[i] !== selectedLabels[i]) {
                             match = false;
@@ -1010,8 +1064,9 @@ export function showOptionFeedback(question) {
             }
         });
     }
-
     question.answers.forEach((answer, answerIndex) => {
+        if (!answer || !Array.isArray(answer.options)) return;
+
         // Determine if this answer is part of a satisfied unordered group
         let isInSatisfiedGroup = false;
         let isUnordered = unorderedIndices.has(answerIndex);
@@ -1034,63 +1089,43 @@ export function showOptionFeedback(question) {
             );
             if (!btn) return;
 
-            btn.classList.remove(
-                'border-slate-300',
-                'dark:border-slate-700',
-                'border-sky-400',
-                'bg-sky-50',
-                'dark:bg-sky-900/30'
-            );
+            const isSelected = answer.userSelectedIndex === optIndex;
+            const isCorrectChoice = optIndex === answer.correctIndex;
+            const hasAnswered = answer.userSelectedIndex != null;
 
             if (isUnordered) {
                 if (isInSatisfiedGroup) {
-                    // Group is correct -> Selected answers are Green
-                    if (answer.userSelectedIndex === optIndex) {
-                        btn.classList.add(
-                            'border-emerald-400',
-                            'bg-emerald-50',
-                            'dark:bg-emerald-900/30'
-                        );
+                    if (isSelected) {
+                        setChoiceState(btn, 'correct');
+                    } else {
+                        resetChoiceButtonState(btn);
                     }
+                    return;
+                }
+
+                if (isSelected) {
+                    setChoiceState(btn, 'incorrect');
+                } else if (isCorrectChoice) {
+                    setChoiceState(btn, 'correct');
+                } else if (hasAnswered) {
+                    resetChoiceButtonState(btn);
                 } else {
-                    // Group is incorrect
-                    if (answer.userSelectedIndex === optIndex) {
-                        // User selection is Wrong (Red)
-                        btn.classList.add(
-                            'border-rose-400',
-                            'bg-rose-50',
-                            'dark:bg-rose-900/30'
-                        );
-                    } else if (optIndex === answer.correctIndex) {
-                        // Show default correct answer as Green (Hint)
-                        // Note: In unordered case, "correctIndex" might not be the *only* correct choice for this slot,
-                        // but it's the canonical one. Showing it is a safe fallback hint.
-                        btn.classList.add(
-                            'border-emerald-400',
-                            'bg-emerald-50',
-                            'dark:bg-emerald-900/30'
-                        );
-                    }
+                    resetChoiceButtonState(btn);
                 }
+                return;
+            }
+
+            if (isSelected && isCorrectChoice) {
+                setChoiceState(btn, 'correct');
+            } else if (isSelected) {
+                setChoiceState(btn, 'incorrect');
+            } else if (isCorrectChoice && hasAnswered) {
+                setChoiceState(btn, 'correct');
             } else {
-                // Standard Ordered Logic
-                if (optIndex === answer.correctIndex) {
-                    btn.classList.add(
-                        'border-emerald-400',
-                        'bg-emerald-50',
-                        'dark:bg-emerald-900/30'
-                    );
-                } else if (answer.userSelectedIndex === optIndex) {
-                    btn.classList.add(
-                        'border-rose-400',
-                        'bg-rose-50',
-                        'dark:bg-rose-900/30'
-                    );
-                }
+                resetChoiceButtonState(btn);
             }
         });
     });
-}
 
 export function showOptionFeedbackForAnswer(question, answerIndex) {
     if (!question || !Array.isArray(question.answers)) return;
@@ -1121,64 +1156,27 @@ export function showOptionFeedbackForAnswer(question, answerIndex) {
         );
         if (!btn) return;
 
-        // Reset styles
-        btn.classList.remove(
-            'border-emerald-400',
-            'bg-emerald-50',
-            'dark:bg-emerald-900/30',
-            'border-rose-400',
-            'bg-rose-50',
-            'dark:bg-rose-900/30',
-            'border-sky-400',
-            'bg-sky-50',
-            'dark:bg-sky-900/30'
-        );
-        btn.classList.add('border-slate-300', 'dark:border-slate-700');
+        const isSelected = answer.userSelectedIndex === optIndex;
+        const isCorrectChoice = optIndex === answer.correctIndex;
+        const hasAnswered = answer.userSelectedIndex != null;
 
-        // Apply feedback
-        if (answer.userSelectedIndex === optIndex) {
-            btn.classList.remove('border-slate-300', 'dark:border-slate-700');
-
-            if (isUnordered) {
-                // For unordered groups, show neutral "selected" state until full submission
-                btn.classList.add(
-                    'border-sky-400',
-                    'bg-sky-50',
-                    'dark:bg-sky-900/30'
-                );
+        if (isUnordered) {
+            if (isSelected) {
+                setChoiceState(btn, 'selected');
             } else {
-                // For ordered/standard answers, show immediate Red/Green
-                if (optIndex === answer.correctIndex) {
-                    btn.classList.add(
-                        'border-emerald-400',
-                        'bg-emerald-50',
-                        'dark:bg-emerald-900/30'
-                    );
-                } else {
-                    btn.classList.add(
-                        'border-rose-400',
-                        'bg-rose-50',
-                        'dark:bg-rose-900/30'
-                    );
-                }
+                resetChoiceButtonState(btn);
             }
-        } else if (!isUnordered && optIndex === answer.correctIndex && answer.userSelectedIndex != null) {
-            // Optional: Show correct answer if user picked wrong one (immediate correction)
-            // The previous code didn't explicitly do this for unselected correct answers in local feedback,
-            // but usually we might want to? The previous code ONLY colored the selected one (Red/Green) 
-            // and the correct one (Green) if we want to show the right answer immediately.
-            // The previous implementation:
-            // if (optIndex === answer.correctIndex) { add Green }
-            // else if (answer.userSelectedIndex === optIndex) { add Red }
-            // This implies that if I picked Wrong, the Right one ALSO turns Green immediately.
-            // So I should preserve that behavior for ordered questions.
+            return;
+        }
 
-            btn.classList.remove('border-slate-300', 'dark:border-slate-700');
-            btn.classList.add(
-                'border-emerald-400',
-                'bg-emerald-50',
-                'dark:bg-emerald-900/30'
-            );
+        if (isSelected && isCorrectChoice) {
+            setChoiceState(btn, 'correct');
+        } else if (isSelected) {
+            setChoiceState(btn, 'incorrect');
+        } else if (isCorrectChoice && hasAnswered) {
+            setChoiceState(btn, 'correct');
+        } else {
+            resetChoiceButtonState(btn);
         }
     });
 }

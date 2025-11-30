@@ -104,7 +104,7 @@
                     </p>
                     <button
                         id="start-button"
-                        class="px-5 py-2 text-sm font-semibold rounded-xl
+                        class="interactive-button px-5 py-2 text-sm font-semibold rounded-xl
                                bg-emerald-500 text-slate-950 hover:bg-emerald-400
                                dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400
                                transition-colors"
@@ -160,25 +160,25 @@
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <button
                                 id="retry-button"
-                                class="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                class="interactive-button px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                             >
                                 Retry
                             </button>
                             <button
                                 id="retry-mistakes-button"
-                                class="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                class="interactive-button px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                             >
                                 Retry Mistakes
                             </button>
                             <button
                                 id="copy-result-button"
-                                class="px-4 py-2 rounded-xl text-sm font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
+                                class="interactive-button px-4 py-2 rounded-xl text-sm font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
                             >
                                 Copy Result
                             </button>
                             <button
                                 id="back-to-menu-button"
-                                class="px-4 py-2 rounded-xl text-sm
+                                class="interactive-button px-4 py-2 rounded-xl text-sm
                                     border border-slate-300 dark:border-slate-600
                                     bg-white text-slate-800 hover:bg-slate-100
                                     dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700
@@ -201,7 +201,7 @@
                                 <button
                                     id="result-pwa-install-button"
                                     type="button"
-                                    class="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-500/80 text-[11px] font-semibold bg-slate-800/80 hover:bg-slate-700/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    class="interactive-button inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-500/80 text-[11px] font-semibold bg-slate-800/80 hover:bg-slate-700/80 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Install this app
                                 </button>
@@ -216,7 +216,7 @@
                     <button
                         id="interrupt-button"
                         type="button"
-                        class="px-3 py-2 rounded-xl
+                        class="interactive-button px-3 py-2 rounded-xl
                             border border-slate-300 dark:border-slate-700
                             text-slate-700 dark:text-slate-200
                             bg-white dark:bg-slate-900
@@ -269,7 +269,7 @@
                     <!-- Next button -->
                     <button
                         id="next-button"
-                        class="px-4 py-2 text-xs rounded-xl
+                        class="interactive-button px-4 py-2 text-xs rounded-xl
                             border border-slate-300 dark:border-slate-700
                             text-slate-700 dark:text-slate-200
                             bg-white dark:bg-slate-900
@@ -370,7 +370,7 @@
                         <button
                             id="theme-toggle-menu"
                             type="button"
-                            class="px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[0.8rem] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            class="interactive-button px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[0.8rem] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                         >
                             Dark / Light
                         </button>
@@ -379,7 +379,7 @@
                     <button
                         id="fullscreen-toggle-menu"
                         type="button"
-                        class="px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600
+                        class="interactive-button px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600
                             bg-white dark:bg-slate-800 text-[0.8rem]
                             text-slate-700 dark:text-slate-200
                             hover:bg-slate-100 dark:hover:bg-slate-700
@@ -408,13 +408,13 @@
                                     placeholder="https://example.com/quiz/entry.php"
                                     class="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100"
                                 />
-                                <button
-                                    id="entry-add-button"
-                                    type="button"
-                                    class="px-3 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
-                                >
-                                    Add
-                                </button>
+                            <button
+                                id="entry-add-button"
+                                type="button"
+                                class="interactive-button px-3 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                Add
+                            </button>
                             </div>
                             <p class="text-[11px] text-slate-500 dark:text-slate-400">Entries are saved in this browser.</p>
                         </div>
