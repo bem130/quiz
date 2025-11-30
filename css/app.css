@@ -168,10 +168,33 @@ body.app-ready .layout-container {
     background-color: rgba(2, 6, 23, 0.9);
 }
 
+.theme-black .dark\:bg-slate-850,
+.theme-black .dark\:bg-slate-800,
+.theme-black .dark\:bg-slate-900 {
+    background-color: #0b1224;
+}
+
+.theme-black .dark\:bg-slate-850\/90 {
+    background-color: rgba(11, 18, 36, 0.9);
+}
+
+.theme-black .dark\:bg-slate-900\/40 {
+    background-color: rgba(2, 6, 23, 0.5);
+}
+
+.theme-black .dark\:bg-slate-900\/60 {
+    background-color: rgba(2, 6, 23, 0.7);
+}
+
 /* Borders should be darker to match black theme */
 .theme-black .border-slate-200,
 .theme-black .border-slate-300 {
     border-color: #1f2937;
+}
+
+.theme-black .dark\:border-slate-600,
+.theme-black .dark\:border-slate-700 {
+    border-color: #111827;
 }
 
 /* Scrollbar color tuning for black */
