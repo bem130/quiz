@@ -67,7 +67,7 @@ function renderHideValueIntoSpan(span, token, row) {
     span.appendChild(createStyledSpan(value || '____', token.styles || []));
 }
 
-function appendTokens(parent, tokens, row, placeholders = null) {
+function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
     let answerIndexCounter = 0;
     (tokens || []).forEach((token) => {
         if (!token || !token.type) return;
@@ -102,7 +102,8 @@ function appendTokens(parent, tokens, row, placeholders = null) {
                 maxHeightPx: token.maxHeightPx,
                 zoomPadding: token.zoomPadding
             };
-            renderSmilesInline(span, String(smiles || ''), renderOptions);
+            // Collect the promise
+            promises.push(renderSmilesInline(span, String(smiles || ''), renderOptions));
             return;
         }
         if (token.type === 'key') {
@@ -111,13 +112,13 @@ function appendTokens(parent, tokens, row, placeholders = null) {
 
             // 1) 配列なら tokens とみなして再帰
             if (Array.isArray(value)) {
-                appendTokens(parent, value, row, placeholders);
+                appendTokens(parent, value, row, placeholders, promises);
                 return;
             }
 
             // 2) 単一トークンオブジェクトなら 1 要素配列として再帰
             if (value && typeof value === 'object' && value.type) {
-                appendTokens(parent, [value], row, placeholders);
+                appendTokens(parent, [value], row, placeholders, promises);
                 return;
             }
 
@@ -579,7 +580,8 @@ export function renderQuestion(question, dataSets, onSelect) {
         dom.questionText.appendChild(header);
     }
 
-    appendTokens(dom.questionText, question.tokens, contextRow, true);
+    const promises = [];
+    appendTokens(dom.questionText, question.tokens, contextRow, true, promises);
 
     // ───────────────────────────────────────
     // ① マッチング形式は専用 UI で 4+4 ボタンを描画
@@ -592,8 +594,10 @@ export function renderQuestion(question, dataSets, onSelect) {
         group.classList.remove('hidden');
         dom.optionsContainer.appendChild(group);
 
-        // 高さ予約は従来どおり
-        reserveQuestionTextHeight(question, dataSets);
+        // 高さ予約は従来どおり (Wait for SMILES)
+        Promise.all(promises).then(() => {
+            reserveQuestionTextHeight(question, dataSets);
+        });
         return;
     }
 
@@ -622,7 +626,9 @@ export function renderQuestion(question, dataSets, onSelect) {
         updateAnswerNavigation(question, question.currentAnswerIndex || 0);
     }
 
-    reserveQuestionTextHeight(question, dataSets);
+    Promise.all(promises).then(() => {
+        reserveQuestionTextHeight(question, dataSets);
+    });
 }
 
 function resolveQuestionContext(question, dataSets) {

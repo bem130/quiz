@@ -99,7 +99,7 @@ export async function renderSmilesInline(container, smiles, options = {}) {
             viewer.setChemObj(kekuleMol);
 
             // ★ Scale only the inner element, while wrapper controls line layout.
-            scheduleScaleAdjust(wrapper, inner, options);
+            await scheduleScaleAdjust(wrapper, inner, options);
         } finally {
             mol.delete();
         }
@@ -117,57 +117,64 @@ function scheduleScaleAdjust(wrapper, target, options = {}) {
         zoomPadding = 0.9,     // Keep a small margin inside the limit
     } = options;
 
-    const maxTries = 5;
-    let tries = 0;
+    return new Promise((resolve) => {
+        const maxTries = 5;
+        let tries = 0;
 
-    const adjust = () => {
-        tries += 1;
+        const adjust = () => {
+            tries += 1;
 
-        // 1) Get line height around this inline element.
-        const lineHeight = getComputedLineHeight(wrapper);
-        const limitPx = maxHeightPx ?? (maxHeightEm * lineHeight);
+            // 1) Get line height around this inline element.
+            const lineHeight = getComputedLineHeight(wrapper);
+            const limitPx = maxHeightPx ?? (maxHeightEm * lineHeight);
 
-        // 2) Measure actual height of the chemical drawing.
-        const rect = target.getBoundingClientRect();
-        const actualHeight = rect.height || target.offsetHeight;
-        const actualWidth = rect.width || target.offsetWidth;
+            // 2) Measure actual height of the chemical drawing.
+            const rect = target.getBoundingClientRect();
+            const actualHeight = rect.height || target.offsetHeight;
+            const actualWidth = rect.width || target.offsetWidth;
 
-        // If height is not ready yet, try again on the next frame.
-        if (!actualHeight || !Number.isFinite(actualHeight)) {
-            if (tries < maxTries) {
-                requestAnimationFrame(adjust);
+            // If height is not ready yet, try again on the next frame.
+            if (!actualHeight || !Number.isFinite(actualHeight)) {
+                if (tries < maxTries) {
+                    requestAnimationFrame(adjust);
+                } else {
+                    // Give up waiting, resolve anyway
+                    resolve();
+                }
+                return;
             }
-            return;
-        }
 
-        // Ensure wrapper behaves like a normal inline-block box.
-        wrapper.style.display = 'inline-block';
-        wrapper.style.verticalAlign = 'bottom'; // Align bottom to line bottom
+            // Ensure wrapper behaves like a normal inline-block box.
+            wrapper.style.display = 'inline-block';
+            wrapper.style.verticalAlign = 'bottom'; // Align bottom to line bottom
 
-        // 3) Case: it already fits within the limit -> no scaling.
-        if (actualHeight <= limitPx) {
-            wrapper.style.height = `${Math.ceil(actualHeight)}px`;
-            wrapper.style.width = `${Math.ceil(actualWidth)}px`;
-            target.style.transform = '';
-            target.style.transformOrigin = '';
-            return;
-        }
+            // 3) Case: it already fits within the limit -> no scaling.
+            if (actualHeight <= limitPx) {
+                wrapper.style.height = `${Math.ceil(actualHeight)}px`;
+                wrapper.style.width = `${Math.ceil(actualWidth)}px`;
+                target.style.transform = '';
+                target.style.transformOrigin = '';
+                resolve();
+                return;
+            }
 
-        // 4) Case: too tall -> scale down only the target.
-        const scale = (limitPx / actualHeight) * zoomPadding;
-        const visibleHeight = actualHeight * scale;
-        const visibleWidth = actualWidth * scale;
+            // 4) Case: too tall -> scale down only the target.
+            const scale = (limitPx / actualHeight) * zoomPadding;
+            const visibleHeight = actualHeight * scale;
+            const visibleWidth = actualWidth * scale;
 
-        wrapper.style.height = `${Math.ceil(visibleHeight)}px`;
-        wrapper.style.width = `${Math.ceil(visibleWidth)}px`;
+            wrapper.style.height = `${Math.ceil(visibleHeight)}px`;
+            wrapper.style.width = `${Math.ceil(visibleWidth)}px`;
 
-        // Use top-left origin so the element stays at the top of the wrapper
-        // and fills the calculated visible dimensions.
-        target.style.transformOrigin = 'top left';
-        target.style.transform = `scale(${scale})`;
-    };
+            // Use top-left origin so the element stays at the top of the wrapper
+            // and fills the calculated visible dimensions.
+            target.style.transformOrigin = 'top left';
+            target.style.transform = `scale(${scale})`;
+            resolve();
+        };
 
-    requestAnimationFrame(adjust);
+        requestAnimationFrame(adjust);
+    });
 }
 
 // その要素に実際に適用されているフォントサイズ(px)を取得
