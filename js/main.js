@@ -360,12 +360,11 @@ function showModeMessage(message, tone = 'error') {
     if (!dom.modeMessage) return;
     dom.modeMessage.textContent = message;
     dom.modeMessage.classList.remove('hidden');
-    dom.modeMessage.classList.remove('text-emerald-600', 'dark:text-emerald-300');
-    dom.modeMessage.classList.remove('text-rose-600', 'dark:text-rose-300');
+    dom.modeMessage.classList.remove('app-text-success', 'app-text-danger');
     if (tone === 'success') {
-        dom.modeMessage.classList.add('text-emerald-600', 'dark:text-emerald-300');
+        dom.modeMessage.classList.add('app-text-success');
     } else {
-        dom.modeMessage.classList.add('text-rose-600', 'dark:text-rose-300');
+        dom.modeMessage.classList.add('app-text-danger');
     }
 }
 
@@ -419,7 +418,7 @@ function renderModeNodes(nodes, parentElement, modeById) {
 
             const header = document.createElement('div');
             header.className =
-                'px-2 py-1 text-[0.75rem] font-semibold text-slate-500 dark:text-slate-400';
+                'px-2 py-1 text-[0.75rem] font-semibold app-text-muted';
             header.textContent = node.label || 'Group';
             groupContainer.appendChild(header);
 
@@ -449,7 +448,7 @@ function renderModeNodes(nodes, parentElement, modeById) {
             'w-full text-left px-3 py-2 rounded-xl border text-xs transition-colors ' +
             (isActive
                 ? 'border-emerald-400 dark:border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-100'
-                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800');
+                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 app-text-strong hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800');
 
         const title = document.createElement('div');
         title.className = 'font-semibold';
@@ -458,7 +457,7 @@ function renderModeNodes(nodes, parentElement, modeById) {
 
         if (mode.description) {
             const desc = document.createElement('div');
-            desc.className = 'text-[0.8rem] text-slate-500 dark:text-slate-400';
+            desc.className = 'text-[0.8rem] app-text-muted';
             desc.textContent = mode.description;
             btn.appendChild(desc);
         }
@@ -466,7 +465,7 @@ function renderModeNodes(nodes, parentElement, modeById) {
         if (engine) {
             const capacity = engine.estimateModeCapacity(mode.id);
             const info = document.createElement('div');
-            info.className = 'mt-0.5 text-[0.7rem] text-slate-400 dark:text-slate-500';
+            info.className = 'mt-0.5 text-[0.7rem] app-text-muted';
             info.textContent = capacity > 0
                 ? `Available variations: ~${capacity}`
                 : 'No questions available for this mode.';

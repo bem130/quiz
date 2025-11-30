@@ -8,13 +8,13 @@ function createCapacityElement(status, capacityValue, context) {
 
     const text = document.createElement('div');
     if (status === 'pending') {
-        text.className = 'mt-0.5 text-[11px] text-slate-500 dark:text-slate-400';
+        text.className = 'mt-0.5 text-[11px] app-text-muted';
         text.textContent = 'Calculating questions...';
         return text;
     }
 
     if (status === 'done') {
-        text.className = 'mt-0.5 text-[11px] text-slate-500 dark:text-slate-400';
+        text.className = 'mt-0.5 text-[11px] app-text-muted';
         if (capacityValue && capacityValue > 0) {
             text.textContent = context === 'entry'
                 ? `~${capacityValue} questions available`
@@ -28,7 +28,7 @@ function createCapacityElement(status, capacityValue, context) {
     }
 
     if (status === 'error') {
-        text.className = 'mt-0.5 text-[11px] text-rose-600 dark:text-rose-300';
+        text.className = 'mt-0.5 text-[11px] app-text-danger';
         text.textContent = 'Failed to estimate questions.';
         return text;
     }
@@ -48,7 +48,7 @@ export function renderEntryMenu(entrySources, currentEntry) {
     const list = Array.isArray(entrySources) ? entrySources : [];
     if (list.length === 0) {
         const empty = document.createElement('div');
-        empty.className = 'text-xs text-slate-500 dark:text-slate-400';
+        empty.className = 'text-xs app-text-muted';
         empty.textContent = 'No entries available.';
         dom.entryList.appendChild(empty);
         return;
@@ -100,7 +100,7 @@ export function renderEntryMenu(entrySources, currentEntry) {
         title.appendChild(status);
 
         const urlText = document.createElement('div');
-        urlText.className = 'text-[11px] text-slate-500 dark:text-slate-400 break-all';
+        urlText.className = 'text-[11px] app-text-muted break-all';
         urlText.textContent = entry.url;
 
         button.appendChild(title);
@@ -113,7 +113,7 @@ export function renderEntryMenu(entrySources, currentEntry) {
 
         if (!entry.available && entry.errorMessage) {
             const error = document.createElement('div');
-            error.className = 'mt-1 text-[11px] text-rose-600 dark:text-rose-300';
+            error.className = 'mt-1 text-[11px] app-text-danger';
             error.textContent = entry.errorMessage;
             button.appendChild(error);
         }
@@ -137,7 +137,7 @@ export function renderEntryMenu(entrySources, currentEntry) {
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
             removeButton.dataset.removeUrl = entry.url;
-            removeButton.className = 'absolute top-2 right-2 text-[11px] text-slate-500 hover:text-rose-500';
+            removeButton.className = 'absolute top-2 right-2 text-[11px] app-text-muted hover:text-rose-500';
             removeButton.textContent = 'Remove';
             wrapper.appendChild(removeButton);
         }
@@ -157,7 +157,7 @@ export function renderQuizMenu(entries, currentQuiz) {
     const list = Array.isArray(entries) ? entries : [];
     if (list.length === 0) {
         const empty = document.createElement('div');
-        empty.className = 'text-xs text-slate-500 dark:text-slate-400';
+        empty.className = 'text-xs app-text-muted';
         empty.textContent = 'No quizzes for this entry.';
         dom.quizList.appendChild(empty);
         return;
@@ -172,7 +172,7 @@ export function renderQuizMenu(entries, currentQuiz) {
             'w-full text-left rounded-xl border px-3 py-2 text-xs transition-colors',
             isCurrent
                 ? 'border-emerald-400 dark:border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-100'
-                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 app-text-strong hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
         ].join(' ');
 
         const title = document.createElement('div');
@@ -181,7 +181,7 @@ export function renderQuizMenu(entries, currentQuiz) {
 
         const desc = document.createElement('div');
         desc.className =
-            'text-[11px] text-slate-600 dark:text-slate-300';
+            'text-[11px] app-text-main';
         desc.textContent = entry.description || '';
 
         button.appendChild(title);

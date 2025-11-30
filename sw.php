@@ -29,6 +29,7 @@ $appShell = [
     quiz_versioned_asset_url('js/quiz-types.js'),
     quiz_versioned_asset_url('js/chem-renderer.js'),
     quiz_versioned_asset_url('css/app.css'),
+    quiz_versioned_asset_url('css/theme.css'),
     quiz_versioned_asset_url('manifest.php'),
     quiz_versioned_asset_url('manifest.webmanifest'),
     quiz_versioned_asset_url('icons/icon-192.svg'),
