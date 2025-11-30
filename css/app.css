@@ -140,7 +140,13 @@ body.app-ready .layout-container {
 }
 
 /* Black theme overrides */
+.theme-black html,
 .theme-black body {
+    background-color: #000000;
+    color: #e2e8f0;
+}
+
+.theme-black body.app-loading {
     background-color: #000000;
     color: #e2e8f0;
 }
@@ -195,6 +201,90 @@ body.app-ready .layout-container {
 .theme-black .dark\:border-slate-600,
 .theme-black .dark\:border-slate-700 {
     border-color: #111827;
+}
+
+.theme-black .text-slate-800,
+.theme-black .text-slate-700 {
+    color: #e5e7eb;
+}
+
+.theme-black .text-slate-600 {
+    color: #cbd5e1;
+}
+
+.theme-black .text-slate-500 {
+    color: #94a3b8;
+}
+
+.theme-black .main-panel > header {
+    background-color: #020617;
+    border-color: #1f2937;
+}
+
+.theme-black #question-view {
+    background-color: #020617;
+}
+
+.theme-black #options-container button {
+    background-color: #0b1224;
+    border-color: #1f2937;
+    color: #e2e8f0;
+}
+
+.theme-black #options-container button:hover {
+    background-color: #111827;
+}
+
+.theme-black #result-screen {
+    background-color: #000000;
+}
+
+.theme-black #result-screen .grid > div,
+.theme-black #review-list > li,
+.theme-black #result-list > li {
+    background-color: #020617;
+    border-color: #1f2937;
+}
+
+.theme-black #side-menu > div:first-child,
+.theme-black #side-quiz .flex-1 > div > section > div:first-child {
+    background-color: #020617;
+    border-color: #1f2937;
+}
+
+.theme-black #entry-url-input,
+.theme-black #question-count,
+.theme-black #theme-toggle-menu,
+.theme-black #fullscreen-toggle-menu,
+.theme-black #entry-add-button,
+.theme-black #start-button,
+.theme-black #next-button,
+.theme-black #interrupt-button,
+.theme-black #retry-button,
+.theme-black #retry-mistakes-button,
+.theme-black #copy-result-button,
+.theme-black #back-to-menu-button,
+.theme-black #result-pwa-install-button {
+    background-color: #0b1224;
+    border-color: #1f2937;
+    color: #e5e7eb;
+}
+
+.theme-black #theme-toggle-menu:hover,
+.theme-black #fullscreen-toggle-menu:hover,
+.theme-black #entry-add-button:hover,
+.theme-black #next-button:hover,
+.theme-black #interrupt-button:hover,
+.theme-black #retry-button:hover,
+.theme-black #retry-mistakes-button:hover,
+.theme-black #copy-result-button:hover,
+.theme-black #back-to-menu-button:hover,
+.theme-black #result-pwa-install-button:hover,
+.theme-black #result-screen .grid > div:hover,
+.theme-black #review-list > li:hover,
+.theme-black #result-list > li:hover,
+.theme-black #options-container button:hover {
+    background-color: #111827;
 }
 
 /* Scrollbar color tuning for black */
