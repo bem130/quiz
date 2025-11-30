@@ -517,8 +517,9 @@ function mergeModes(target, source, label) {
 }
 
 function resolveImportUrl(mainPath, importPath) {
-    const baseUrl = new URL(mainPath, window.location.href);
-    return new URL(importPath, baseUrl).toString();
+    const absoluteMainUrl = new URL(mainPath, window.location.href);
+    const directoryUrl = new URL('.', absoluteMainUrl);
+    return new URL(importPath, directoryUrl).toString();
 }
 
 async function fetchJson(path) {
@@ -564,7 +565,7 @@ async function loadDataBundle(mainJson, mainPath) {
         }
     }
 
-    await processImports(mainJson, mainPath);
+    await processImports(mainJson, mainUrl);
 
     if (!merged.dataSets || Object.keys(merged.dataSets).length === 0) {
         throw new Error('Quiz definition must include at least one dataSet.');
@@ -707,4 +708,4 @@ export async function loadQuizDefinitionFromQuizEntry(quizEntry) {
     return loadQuizDefinitionInternal(quizEntry.id, path);
 }
 
-export { convertToV2, validateDefinition };
+export { convertToV2, validateDefinition, resolveImportUrl };

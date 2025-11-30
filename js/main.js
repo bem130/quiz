@@ -44,6 +44,8 @@ let currentScore = 0;
 let currentQuestion = null;
 let hasAnswered = false;
 let questionHistory = [];
+let customQuestionSequence = null;
+let useCustomQuestionSequence = false;
 
 // 現在選択中の modeId
 let currentModeId = null;
@@ -54,6 +56,7 @@ let currentScreen = 'menu';
 // Timer state
 let quizStartTime = null;
 let quizTimerId = null;
+let quizFinishTime = null;
 
 /**
  * Update timer text with given elapsed seconds.
@@ -102,6 +105,55 @@ function stopQuizTimer() {
         clearInterval(quizTimerId);
         quizTimerId = null;
     }
+}
+
+function formatIsoTimestamp(timestamp) {
+    if (!timestamp) {
+        return null;
+    }
+    return new Date(timestamp).toISOString();
+}
+
+function calculateAccuracy(correctCount, answeredCount) {
+    if (answeredCount <= 0) {
+        return 0;
+    }
+    return Math.round((correctCount / answeredCount) * 100);
+}
+
+function clampQuestionCount(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+        return 10;
+    }
+    const clamped = Math.min(100, Math.max(5, numericValue));
+    const adjusted = Math.round(clamped / 5) * 5;
+    return Math.min(100, Math.max(5, adjusted));
+}
+
+function updateQuestionCountLabel(value) {
+    if (!dom.questionCountLabel) {
+        return;
+    }
+    dom.questionCountLabel.textContent = `${value} 問`;
+}
+
+function syncQuestionCountInputs(value) {
+    const normalized = clampQuestionCount(value);
+    if (dom.questionCountSlider) {
+        dom.questionCountSlider.value = normalized;
+    }
+    if (dom.questionCountInput) {
+        dom.questionCountInput.value = normalized;
+    }
+    updateQuestionCountLabel(normalized);
+}
+
+function getConfiguredQuestionCount() {
+    if (!dom.questionCountInput) {
+        return 10;
+    }
+    return clampQuestionCount(dom.questionCountInput.value);
 }
 
 
@@ -422,14 +474,18 @@ function startQuiz() {
         return;
     }
 
-    const n = parseInt(dom.questionCountInput.value, 10);
-    totalQuestions = Number.isFinite(n) && n > 0 ? n : 10;
+    const n = getConfiguredQuestionCount();
+    syncQuestionCountInputs(n);
+    totalQuestions = n;
 
     currentIndex = 0;
     currentScore = 0;
     hasAnswered = false;
+    customQuestionSequence = null;
+    useCustomQuestionSequence = false;
     dom.nextButton.disabled = true;
     questionHistory = [];
+    quizFinishTime = null;
 
     engine.setMode(modeId);
 
@@ -467,7 +523,15 @@ function loadNextQuestion() {
     resetTips();
 
     try {
-        currentQuestion = engine.generateQuestion();
+        if (useCustomQuestionSequence && Array.isArray(customQuestionSequence)) {
+            currentQuestion = customQuestionSequence[currentIndex];
+            if (!currentQuestion) {
+                showResult();
+                return;
+            }
+        } else {
+            currentQuestion = engine.generateQuestion();
+        }
     } catch (e) {
         if (e instanceof NoQuestionsAvailableError) {
             console.warn('[quiz] No questions available for current mode/filters');
@@ -567,11 +631,13 @@ function handleSelectOption(answerIndex, optionIndex) {
 function showResult() {
     // Stop timer when quiz is finished or interrupted
     stopQuizTimer();
+    quizFinishTime = quizFinishTime || Date.now();
 
     dom.resultScore.textContent = `Score: ${currentScore} / ${totalQuestions}`;
     dom.resultTotal.textContent = `${totalQuestions}`;
     dom.resultCorrect.textContent = `${currentScore}`;
-    const accuracy = totalQuestions > 0 ? Math.round((currentScore / totalQuestions) * 100) : 0;
+    const answeredCount = questionHistory.length;
+    const accuracy = calculateAccuracy(currentScore, answeredCount);
     dom.resultAccuracy.textContent = `${accuracy}%`;
 
     // 結果画面では Tips を消す
@@ -583,6 +649,116 @@ function showResult() {
     );
 
     showScreen('result');
+}
+
+function buildResultExportObject() {
+    const answeredCount = questionHistory.length;
+    const finishTimestamp = quizFinishTime || Date.now();
+    const elapsedSeconds = quizStartTime
+        ? Math.round((finishTimestamp - quizStartTime) / 1000)
+        : null;
+
+    const meta = {
+        quizId: currentQuiz ? currentQuiz.id : null,
+        quizTitle: quizDef && quizDef.meta ? quizDef.meta.title : null,
+        modeId: currentModeId,
+        totalQuestions,
+        answeredQuestions: answeredCount,
+        correctAnswers: currentScore,
+        accuracyPercent: calculateAccuracy(currentScore, answeredCount),
+        startedAt: formatIsoTimestamp(quizStartTime),
+        finishedAt: formatIsoTimestamp(finishTimestamp),
+        elapsedSeconds
+    };
+
+    const questions = questionHistory.map((item) => {
+        const question = item.question || {};
+        const answers = (question.answers || []).map((ans) => {
+            const selectedIndex = ans ? ans.userSelectedIndex : null;
+            const correctIndex = ans ? ans.correctIndex : null;
+            const selectedLabel =
+                ans && Array.isArray(ans.options) && ans.options[selectedIndex]
+                    ? ans.options[selectedIndex].label
+                    : null;
+            const correctLabel =
+                ans && Array.isArray(ans.options) && ans.options[correctIndex]
+                    ? ans.options[correctIndex].label
+                    : null;
+
+            return {
+                selectedIndex,
+                selectedLabel,
+                correctIndex,
+                correctLabel,
+                isCorrect: ans ? selectedIndex === correctIndex : false
+            };
+        });
+
+        return {
+            index: item.index,
+            correct: item.correct,
+            questionText: summarizeQuestion(question, quizDef ? quizDef.dataSets : null),
+            userAnswerSummary: item.userAnswerSummary,
+            answers
+        };
+    });
+
+    return { meta, questions };
+}
+
+async function copyResultToClipboard() {
+    if (!navigator.clipboard) {
+        console.warn('[result] Clipboard API is not available.');
+        return;
+    }
+    try {
+        const exportObject = buildResultExportObject();
+        const text = JSON.stringify(exportObject, null, 2);
+        await navigator.clipboard.writeText(text);
+        console.log('[result] Copied result JSON to clipboard');
+    } catch (error) {
+        console.error('[result] Failed to copy result JSON:', error);
+    }
+}
+
+function retryMistakes() {
+    if (!engine) {
+        return;
+    }
+    const mistakes = questionHistory.filter((item) => item && item.correct === false);
+    if (!Array.isArray(mistakes) || mistakes.length === 0) {
+        return;
+    }
+
+    const sequence = mistakes.map((item) => {
+        const cloned = typeof structuredClone === 'function'
+            ? structuredClone(item.question)
+            : JSON.parse(JSON.stringify(item.question));
+        resetSelections(cloned);
+        return cloned;
+    });
+
+    customQuestionSequence = sequence;
+    useCustomQuestionSequence = true;
+    totalQuestions = sequence.length;
+    currentIndex = 0;
+    currentScore = 0;
+    hasAnswered = false;
+    dom.nextButton.disabled = true;
+    questionHistory = [];
+    quizFinishTime = null;
+
+    renderProgress(currentIndex, totalQuestions, currentScore);
+    resetReviewList();
+    resetTips();
+    resetResultList();
+    if (dom.resultListPanel) {
+        dom.resultListPanel.classList.add('hidden');
+    }
+
+    showScreen('quiz');
+    startQuizTimer();
+    loadNextQuestion();
 }
 
 /**
@@ -965,6 +1141,18 @@ function attachMenuHandlers() {
         });
     }
 
+    if (dom.questionCountSlider) {
+        dom.questionCountSlider.addEventListener('input', (event) => {
+            syncQuestionCountInputs(event.target.value);
+        });
+    }
+
+    if (dom.questionCountInput) {
+        dom.questionCountInput.addEventListener('input', (event) => {
+            syncQuestionCountInputs(event.target.value);
+        });
+    }
+
     if (dom.menuFullscreenToggle) {
         dom.menuFullscreenToggle.addEventListener('click', () => {
             toggleFullscreen();
@@ -1019,6 +1207,20 @@ function attachMenuHandlers() {
         dom.retryButton.addEventListener('click', () => {
             console.log('[result] Retry button clicked');
             startQuiz();
+        });
+    }
+
+    if (dom.retryMistakesButton) {
+        dom.retryMistakesButton.addEventListener('click', () => {
+            console.log('[result] Retry mistakes button clicked');
+            retryMistakes();
+        });
+    }
+
+    if (dom.copyResultButton) {
+        dom.copyResultButton.addEventListener('click', () => {
+            console.log('[result] Copy result button clicked');
+            copyResultToClipboard();
         });
     }
 
@@ -1091,6 +1293,7 @@ function attachMenuHandlers() {
 async function bootstrap() {
     initThemeFromStorage();
     initAppHeightObserver();
+    syncQuestionCountInputs(dom.questionCountInput ? dom.questionCountInput.value : 10);
 
     try {
         entrySources = await loadEntrySources();

@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { convertToV2, resolveQuizJsonFromEntry, validateDefinition } from '../js/quiz-model.js';
+import {
+    convertToV2,
+    resolveImportUrl,
+    resolveQuizJsonFromEntry,
+    validateDefinition
+} from '../js/quiz-model.js';
 
 test('convertToV2 converts legacy hide.field to value for v2 data', () => {
     const json = {
@@ -400,4 +405,20 @@ test('validateDefinition requires value or field for katex tokens', () => {
         () => validateDefinition(definition),
         /requires value or field/
     );
+});
+
+test('resolveImportUrl resolves imports relative to the current JSON file', () => {
+    const originalWindow = global.window;
+    global.window = { location: { href: 'http://localhost/index.html' } };
+
+    const mainPath = 'http://127.0.0.1:8000/quizzes/nature/geo-main-nature.json';
+    const importPath = './geo-nature-climate-basic.data.json';
+
+    const resolved = resolveImportUrl(mainPath, importPath);
+    assert.equal(
+        resolved,
+        'http://127.0.0.1:8000/quizzes/nature/geo-nature-climate-basic.data.json'
+    );
+
+    global.window = originalWindow;
 });
