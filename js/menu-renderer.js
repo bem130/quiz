@@ -52,6 +52,16 @@ export function renderEntryMenu(entrySources, currentEntry) {
         }
 
         title.appendChild(labelSpan);
+        if (entry.temporary) {
+            const tempBadge = document.createElement('span');
+            tempBadge.className = [
+                'ml-2 inline-flex items-center rounded-full px-1.5 py-0.5',
+                'text-[10px] bg-amber-100 text-amber-700',
+                'dark:bg-amber-900/40 dark:text-amber-300'
+            ].join(' ');
+            tempBadge.textContent = 'Temporary';
+            title.appendChild(tempBadge);
+        }
         title.appendChild(status);
 
         const urlText = document.createElement('div');
@@ -69,6 +79,19 @@ export function renderEntryMenu(entrySources, currentEntry) {
         }
 
         wrapper.appendChild(button);
+
+        if (entry.temporary) {
+            const addButton = document.createElement('button');
+            addButton.type = 'button';
+            addButton.dataset.addUrl = entry.url;
+            addButton.className = [
+                'absolute bottom-2 right-2 text-[11px] font-semibold',
+                'text-emerald-600 hover:text-emerald-700',
+                'dark:text-emerald-300 dark:hover:text-emerald-100'
+            ].join(' ');
+            addButton.textContent = 'Add entry';
+            wrapper.appendChild(addButton);
+        }
 
         if (!entry.builtIn) {
             const removeButton = document.createElement('button');

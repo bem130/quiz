@@ -625,6 +625,61 @@ export class QuizEngine {
                 : DEFAULT_MAX_CONSECUTIVE_SKIPS;
     }
 
+    /**
+     * Estimate how many questions can be generated for the specified mode.
+     * This heuristic counts eligible rows in datasets after applying filters
+     * and returns a rough availability total.
+     * @param {string} modeId
+     * @returns {number}
+     */
+    estimateModeCapacity(modeId) {
+        const mode = this.modes.find((m) => m.id === modeId);
+        if (!mode || !Array.isArray(mode.patternWeights)) {
+            return 0;
+        }
+
+        let total = 0;
+
+        for (const pw of mode.patternWeights) {
+            const pattern = this.patterns.find((p) => p.id === pw.patternId);
+            if (!pattern) continue;
+
+            const dataSet = getDataSet(this.dataSets, pattern.dataSet);
+            if (!dataSet) continue;
+
+            let count = 0;
+
+            if (dataSet.type === 'table') {
+                const rows = getFilteredRows(dataSet, pattern.entityFilter);
+                const spec = pattern.matchingSpec || {};
+                const pairCount =
+                    typeof spec.pairCount === 'number' && spec.pairCount > 0
+                        ? spec.pairCount
+                        : typeof spec.count === 'number' && spec.count > 0
+                            ? spec.count
+                            : 0;
+
+                if (pattern.questionFormat === 'table_matching' && pairCount > 0) {
+                    count = Math.floor(rows.length / pairCount);
+                } else {
+                    count = rows.length;
+                }
+            } else if (dataSet.type === 'factSentences') {
+                if (pattern.tokensFromData === 'sentences') {
+                    const sentences = getFilteredRows(
+                        { data: dataSet.sentences || [] },
+                        pattern.entityFilter
+                    );
+                    count = sentences.length;
+                }
+            }
+
+            total += count;
+        }
+
+        return total;
+    }
+
     setMode(modeId) {
         const mode = this.modes.find((m) => m.id === modeId) || this.modes[0];
         this.currentMode = mode;
