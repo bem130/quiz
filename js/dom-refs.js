@@ -89,5 +89,6 @@ export const dom = {
     retryButton: document.getElementById('retry-button'),
     retryMistakesButton: document.getElementById('retry-mistakes-button'),
     copyResultButton: document.getElementById('copy-result-button'),
-    backToMenuButton: document.getElementById('back-to-menu-button')
+    backToMenuButton: document.getElementById('back-to-menu-button'),
+    resultPwaHint: document.getElementById('result-pwa-hint')
 };

@@ -457,6 +457,17 @@ if ($modeParam !== null) {
                                 Menu
                             </button>
                         </div>
+                        <div
+                            id="result-pwa-hint"
+                            class="mt-6 text-xs text-slate-500 dark:text-slate-400 border border-dashed border-slate-400/60 rounded-xl px-4 py-3 bg-slate-100/60 dark:bg-slate-900/40 hidden"
+                        >
+                            <p class="font-medium">
+                                Did you enjoy this quiz?
+                            </p>
+                            <p class="mt-1">
+                                You can add this app to your home screen as a PWA for quicker access.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
