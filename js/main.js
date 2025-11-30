@@ -7,6 +7,7 @@ import {
     createDefaultEntrySources,
     getEntryUrlFromLocation,
     getQuizNameFromLocation,
+    getModeIdFromLocation,
     loadEntrySourcesFromStorage,
     saveEntrySourcesToStorage
 } from './config.js';
@@ -266,6 +267,11 @@ function populateModeButtons() {
         btn.addEventListener('click', () => {
             currentModeId = mode.id;
             populateModeButtons();
+
+            // モード変更を URL に反映
+            const entryUrl = currentEntry ? currentEntry.url : null;
+            const quizId = currentQuiz ? currentQuiz.id : null;
+            updateLocationParams(entryUrl, quizId, currentModeId);
         });
 
         dom.modeList.appendChild(btn);
@@ -373,6 +379,12 @@ function startQuiz() {
     questionHistory = [];
 
     engine.setMode(modeId);
+
+    // 使用するモードを URL に保存
+    const entryUrl = currentEntry ? currentEntry.url : null;
+    const quizId = currentQuiz ? currentQuiz.id : null;
+    updateLocationParams(entryUrl, quizId, modeId);
+
     renderProgress(currentIndex, totalQuestions, currentScore);
     resetReviewList();
     resetTips();
@@ -600,7 +612,7 @@ function updateLocationParams(entryUrl, quizId, modeId) {
         params.set('quiz', quizId);
     }
 
-    // 2. mode（まだ使わないなら modeId を渡さなくてもよい）
+    // 2. mode
     if (modeId) {
         params.set('mode', modeId);
     }
@@ -608,7 +620,8 @@ function updateLocationParams(entryUrl, quizId, modeId) {
     // 3. entry
     if (entryUrl && !isDefaultEntryUrl(entryUrl)) {
         // entry=./entry.php / entry.php はここで省略される
-        params.set('entry', encodeURIComponent(entryUrl));
+        // 値のエンコードは URLSearchParams に任せる
+        params.set('entry', entryUrl);
     }
 
     const newQuery = params.toString();
@@ -683,8 +696,34 @@ async function loadCurrentQuizDefinition() {
         const def = await loadQuizDefinitionFromQuizEntry(currentQuiz);
         quizDef = def.definition;
         engine = new QuizEngine(quizDef);
-        currentModeId = null;
+
+        // URL から希望モードを取得し、このクイズで利用可能かチェック
+        let requestedModeId = getModeIdFromLocation();
+        if (
+            !quizDef.modes ||
+            !Array.isArray(quizDef.modes) ||
+            quizDef.modes.length === 0
+        ) {
+            currentModeId = null;
+        } else if (
+            requestedModeId &&
+            quizDef.modes.some((m) => m && m.id === requestedModeId)
+        ) {
+            // URL で指定されたモードがこのクイズに存在する場合
+            currentModeId = requestedModeId;
+        } else {
+            // 指定なし／存在しない場合は先頭モードをデフォルトにする
+            currentModeId = quizDef.modes[0].id;
+        }
+
+        // 決定した currentModeId でモードボタンを描画
         populateModeButtons();
+
+        // 最終的に使う entry / quiz / mode を URL に反映して正規化
+        const entryUrl = currentEntry ? currentEntry.url : null;
+        const quizId = currentQuiz ? currentQuiz.id : null;
+        updateLocationParams(entryUrl, quizId, currentModeId);
+
         document.title = quizDef.meta.title || '4-choice Quiz';
         dom.appTitle.textContent = quizDef.meta.title || '4-choice Quiz';
         dom.appDescription.textContent = quizDef.meta.description || '';
@@ -719,7 +758,7 @@ async function applyEntrySelection(entry, desiredQuizId) {
         setStartButtonEnabled(false);
         showModeMessage('エントリが選択されていません。');
         dom.appDescription.textContent = 'No entry selected.';
-        updateLocationParams(null, null);
+        updateLocationParams(null, null, null);
         return;
     }
 
@@ -727,7 +766,7 @@ async function applyEntrySelection(entry, desiredQuizId) {
         setStartButtonEnabled(false);
         showModeMessage('この entry にはアクセスできません。');
         dom.appDescription.textContent = entry.errorMessage || 'Entry is unavailable.';
-        updateLocationParams(entry.url, null);
+        updateLocationParams(entry.url, null, null);
         return;
     }
 
@@ -735,14 +774,15 @@ async function applyEntrySelection(entry, desiredQuizId) {
         setStartButtonEnabled(false);
         showModeMessage('この entry に利用可能なクイズがありません。');
         dom.appDescription.textContent = 'No quizzes available for this entry.';
-        updateLocationParams(entry.url, null);
+        updateLocationParams(entry.url, null, null);
         return;
     }
 
     const quiz = entry.quizzes.find((q) => q.id === desiredQuizId) || selectQuizFromEntry(entry);
     currentQuiz = quiz;
     renderMenus();
-    updateLocationParams(entry.url, quiz ? quiz.id : null);
+    // この段階では mode はまだ決めない（null）。実際の決定は loadCurrentQuizDefinition 内で行う。
+    updateLocationParams(entry.url, quiz ? quiz.id : null, null);
     await loadCurrentQuizDefinition();
 }
 
@@ -759,7 +799,8 @@ async function handleQuizClick(quizId) {
     if (!target) return;
     currentQuiz = target;
     renderMenus();
-    updateLocationParams(currentEntry.url, target.id);
+    // クイズを変更したので、モードは一旦未確定(null)にしておく
+    updateLocationParams(currentEntry.url, target.id, null);
     await loadCurrentQuizDefinition();
 }
 

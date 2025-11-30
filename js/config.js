@@ -23,6 +23,16 @@ export function getQuizNameFromLocation() {
 }
 
 /**
+ * URL クエリから mode パラメータを取得する。
+ * @returns {string|null} モード ID。存在しない場合は null。
+ */
+export function getModeIdFromLocation() {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    return mode;
+}
+
+/**
  * localStorage からエントリソース情報を復元する。
  * @returns {Array<object>} 復元されたエントリソース配列。欠損時は空配列を返す。
  */
