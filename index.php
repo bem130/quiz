@@ -318,11 +318,6 @@ if ($modeParam !== null) {
     </script>
 
     <style>
-        html, body {
-            background-color: #020617;
-            color: #e5e7eb;
-        }
-
         body.app-loading #app {
             opacity: 0;
         }
@@ -460,15 +455,17 @@ if ($modeParam !== null) {
                             </button>
                             <button
                                 id="copy-result-button"
-                                class="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-slate-50 hover:bg-slate-700 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700"
+                                class="px-4 py-2 rounded-xl text-sm font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
                             >
                                 Copy Result
                             </button>
                             <button
                                 id="back-to-menu-button"
                                 class="px-4 py-2 rounded-xl text-sm
-                                    bg-slate-800 text-slate-50 hover:bg-slate-700
-                                    dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700"
+                                    border border-slate-300 dark:border-slate-600
+                                    bg-white text-slate-800 hover:bg-slate-100
+                                    dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700
+                                    transition-colors"
                             >
                                 Menu
                             </button>
@@ -697,7 +694,7 @@ if ($modeParam !== null) {
                                 <button
                                     id="entry-add-button"
                                     type="button"
-                                    class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-50 hover:bg-slate-700 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700"
+                                    class="px-3 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
                                 >
                                     Add
                                 </button>
