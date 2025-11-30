@@ -49,7 +49,7 @@
 
     <link rel="stylesheet" href="css/app.css" />
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-300">
+<body class="app-loading bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-300">
 
     <!-- 画面いっぱい 2 分割レイアウト -->
     <div id="app" class="layout-container">
@@ -172,18 +172,40 @@
                             </button>
                             <button
                                 id="copy-result-button"
-                                class="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-slate-50 hover:bg-slate-700 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700"
+                                class="px-4 py-2 rounded-xl text-sm font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
                             >
                                 Copy Result
                             </button>
                             <button
                                 id="back-to-menu-button"
                                 class="px-4 py-2 rounded-xl text-sm
-                                    bg-slate-800 text-slate-50 hover:bg-slate-700
-                                    dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700"
+                                    border border-slate-300 dark:border-slate-600
+                                    bg-white text-slate-800 hover:bg-slate-100
+                                    dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700
+                                    transition-colors"
                             >
                                 Menu
                             </button>
+                        </div>
+                        <div
+                            id="result-pwa-hint"
+                            class="mt-6 text-xs text-slate-500 dark:text-slate-400 border border-dashed border-slate-400/60 rounded-xl px-4 py-3 bg-slate-100/60 dark:bg-slate-900/40 hidden"
+                        >
+                            <p class="font-medium">
+                                Did you enjoy this quiz?
+                            </p>
+                            <p class="mt-1">
+                                You can add this app to your home screen as a PWA for quicker access.
+                            </p>
+                            <div class="pt-2">
+                                <button
+                                    id="result-pwa-install-button"
+                                    type="button"
+                                    class="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-500/80 text-[11px] font-semibold bg-slate-800/80 hover:bg-slate-700/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Install this app
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -350,7 +372,7 @@
                             type="button"
                             class="px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[0.8rem] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                         >
-                            Theme
+                            Dark / Light
                         </button>
                     </div>
 
@@ -389,7 +411,7 @@
                                 <button
                                     id="entry-add-button"
                                     type="button"
-                                    class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-50 hover:bg-slate-700 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700"
+                                    class="px-3 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
                                 >
                                     Add
                                 </button>
