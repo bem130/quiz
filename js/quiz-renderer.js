@@ -93,7 +93,7 @@ function createStyledSpan(text, styles = []) {
     if (styles.includes('italic')) span.classList.add('italic');
     if (styles.includes('serif')) span.classList.add('font-serif');
     if (styles.includes('sans')) span.classList.add('font-sans');
-    if (styles.includes('muted')) span.classList.add('text-slate-500', 'dark:text-slate-400');
+    if (styles.includes('muted')) span.classList.add('app-text-muted');
     return span;
 }
 
@@ -239,7 +239,7 @@ function createOptionButton(labelNodes, isDisabled, onClick, { fullHeight = true
         // items-start → items-stretch にして中身をフル幅に
         'flex flex-col items-stretch justify-between',
         'px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700',
-        'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100',
+        'bg-white dark:bg-slate-900 app-text-strong',
         'hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
         'text-base leading-relaxed',
@@ -275,7 +275,7 @@ function createOptionButton(labelNodes, isDisabled, onClick, { fullHeight = true
     // ─────────────────────────────────
     const previewSlot = document.createElement('div');
     previewSlot.className =
-        'option-preview mt-1 text-left text-[0.7rem] text-slate-500 dark:text-slate-400 leading-relaxed';
+        'option-preview mt-1 text-left text-[0.7rem] app-text-muted leading-relaxed';
 
     // ここで高さ予約
     previewSlot.style.minHeight = '72px'; // 必要に応じて調整
@@ -326,7 +326,7 @@ function renderAnswerGroup(question, dataSets, answerIndex, onSelect) {
         const title = document.createElement('div');
         // ★ ここも元のまま
         title.className =
-            'text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2';
+            'text-sm font-semibold app-text-main mb-2';
         title.textContent = answer.meta.leftText;
         group.appendChild(title);
     }
@@ -539,7 +539,7 @@ function renderTableMatchingQuestion(question, dataSets, onSelect) {
             'w-full',
             'px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700',
             'bg-white dark:bg-slate-900',
-            'text-sm text-left text-slate-800 dark:text-slate-100',
+            'text-sm text-left app-text-strong',
             'hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800',
             'transition-colors'
         ].join(' ');
@@ -612,15 +612,15 @@ function createAnswerNavigation(question) {
 
     const prev = document.createElement('button');
     prev.type = 'button';
-    prev.className = 'px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50';
+    prev.className = 'px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-xs app-text-main bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50';
     prev.textContent = '<';
 
     const status = document.createElement('div');
-    status.className = 'text-xs text-slate-500 dark:text-slate-400';
+    status.className = 'text-xs app-text-muted';
 
     const next = document.createElement('button');
     next.type = 'button';
-    next.className = 'px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50';
+    next.className = 'px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-xs app-text-main bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50';
     next.textContent = '>';
 
     nav.appendChild(prev);
@@ -648,7 +648,7 @@ export function renderQuestion(question, dataSets, onSelect) {
     // table_matching 専用のヘッダー
     if (question.format === 'table_matching') {
         const header = document.createElement('div');
-        header.className = 'text-sm text-slate-500 dark:text-slate-400 mb-2';
+        header.className = 'text-sm app-text-muted mb-2';
         header.textContent =
             'Match the items on the left with the correct options on the right.';
         dom.questionText.appendChild(header);
@@ -1340,7 +1340,7 @@ export function addReviewItem(question, dataSets, questionNumber) {
     headerLine.className = 'flex items-center gap-2';
 
     const qLabel = document.createElement('span');
-    qLabel.className = 'font-semibold text-slate-800 dark:text-slate-100';
+    qLabel.className = 'font-semibold app-text-strong';
     qLabel.textContent = `Q${questionNumber}`;
 
     const badge = document.createElement('span');
@@ -1355,7 +1355,7 @@ export function addReviewItem(question, dataSets, questionNumber) {
 
     // 右側: 問題文（穴埋め付き）
     const qText = document.createElement('div');
-    qText.className = 'flex-1 text-slate-700 dark:text-slate-200 quiz-text-block';
+    qText.className = 'flex-1 app-text-main quiz-text-block';
 
     const row = resolveQuestionContext(question, dataSets);
 
@@ -1503,12 +1503,12 @@ export function addResultItem(historyItem, dataSets) {
     const question = historyItem.question;
     const item = document.createElement('li');
     item.className = historyItem.correct
-        ? 'p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+        ? 'p-2 rounded-lg border app-border-subtle bg-white dark:bg-slate-800'
         : 'p-2 rounded-lg border border-rose-200 dark:border-rose-700 bg-rose-50/70 dark:bg-rose-900/40';
 
     const header = document.createElement('div');
     header.className =
-        'flex items-center justify-between text-xs text-slate-500 dark:text-slate-400';
+        'flex items-center justify-between text-xs app-text-muted';
 
     const orderSpan = document.createElement('span');
     orderSpan.textContent = `Q${historyItem.index}`;
@@ -1517,14 +1517,14 @@ export function addResultItem(historyItem, dataSets) {
     // 正解 / 不正解バッジ
     const badge = document.createElement('span');
     badge.className = historyItem.correct
-        ? 'px-2 py-0.5 rounded-full text-[0.7rem] bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-300/70 dark:border-emerald-500/60'
-        : 'px-2 py-0.5 rounded-full text-[0.7rem] bg-rose-500/10 text-rose-600 dark:text-rose-300 border border-rose-300/70 dark:border-rose-500/60';
+        ? 'px-2 py-0.5 rounded-full text-[0.7rem] bg-emerald-500/10 app-text-success border border-emerald-300/70 dark:border-emerald-500/60'
+        : 'px-2 py-0.5 rounded-full text-[0.7rem] bg-rose-500/10 app-text-danger border border-rose-300/70 dark:border-rose-500/60';
     badge.textContent = historyItem.correct ? 'Correct' : 'Incorrect';
     header.appendChild(badge);
 
     // 問題文：tokens をそのまま描画（ルビ・KaTeX 対応）
     const text = document.createElement('div');
-    text.className = 'text-sm text-slate-800 dark:text-slate-100 mt-1 leading-relaxed quiz-text-block';
+    text.className = 'text-sm app-text-strong mt-1 leading-relaxed quiz-text-block';
 
     const rowContext = resolveQuestionContext(question, dataSets);
     appendTokens(text, question.tokens || [], rowContext, false);
@@ -1532,7 +1532,7 @@ export function addResultItem(historyItem, dataSets) {
 
     // ユーザ回答サマリ（文字列のまま）
     const answer = document.createElement('div');
-    answer.className = 'text-xs text-slate-500 dark:text-slate-400 mt-1';
+    answer.className = 'text-xs app-text-muted mt-1';
     answer.textContent = historyItem.userAnswerSummary;
 
     item.appendChild(header);

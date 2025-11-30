@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-theme="light">
 <head>
     <meta charset="UTF-8" />
     <title>4-choice Quiz</title>
@@ -48,18 +48,19 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/kekule/dist/themes/default/kekule.css">
 
     <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/theme.css" />
 </head>
-<body class="app-loading bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-300">
+<body class="app-loading transition-colors duration-300">
 
     <!-- 画面いっぱい 2 分割レイアウト -->
     <div id="app" class="layout-container">
         <!-- 左: メインエリア（メニュー or クイズ） -->
-        <main class="main-panel bg-white dark:bg-slate-850 flex flex-col transition-colors duration-300">
+        <main class="main-panel app-surface-main flex flex-col transition-colors duration-300">
             <!-- 共通ヘッダ -->
-            <header class="px-[0.5rem] py-[0.8rem] border-b border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-850/90 flex items-center justify-between transition-colors duration-300">
+            <header class="px-[0.5rem] py-[0.8rem] border-b app-border-subtle app-surface-header flex items-center justify-between transition-colors duration-300">
                 <div>
-                    <h1 id="app-title" class="text-lg font-semibold">4-choice Quiz</h1>
-                    <p id="app-description" class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <h1 id="app-title" class="text-lg font-semibold app-text-strong">4-choice Quiz</h1>
+                    <p id="app-description" class="text-xs app-text-muted mt-1">
                         Loading quiz definition...
                     </p>
                 </div>
@@ -69,12 +70,12 @@
             <section id="main-menu" class="flex-1 overflow-y-auto p-6 space-y-6 text-sm">
                 <section class="space-y-3">
                     <div class="flex items-center justify-between flex-wrap gap-3">
-                        <h2 class="text-base font-semibold text-slate-800 dark:text-slate-100">
+                        <h2 class="text-base font-semibold app-text-strong">
                             Number of questions
                         </h2>
                         <span
                             id="question-count-label"
-                            class="text-xs font-semibold text-slate-600 dark:text-slate-300"
+                            class="text-xs font-semibold app-text-main"
                         >
                             10 問
                         </span>
@@ -86,28 +87,25 @@
                         max="100"
                         step="5"
                         value="10"
-                        class="w-full accent-emerald-500"
+                        class="w-full app-range-accent"
                     />
                 </section>
 
                 <section class="space-y-3">
-                    <h2 class="text-base font-semibold text-slate-800 dark:text-slate-100">Mode</h2>
-                    <div id="mode-message" class="text-xs text-rose-600 dark:text-rose-300 hidden"></div>
+                    <h2 class="text-base font-semibold app-text-strong">Mode</h2>
+                    <div id="mode-message" class="text-xs app-text-danger hidden"></div>
                     <div id="mode-list" class="space-y-2">
                         <!-- JS でボタンを生成 -->
                     </div>
                 </section>
 
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
-                    <p class="text-xs text-slate-600 dark:text-slate-400">
+                    <p class="text-xs app-text-muted">
                         モードを選択して「Start Quiz」で開始します。
                     </p>
                     <button
                         id="start-button"
-                        class="interactive-button px-5 py-2 text-sm font-semibold rounded-xl
-                               bg-emerald-500 text-slate-950 hover:bg-emerald-400
-                               dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400
-                               transition-colors"
+                        class="interactive-button button-accent px-5 py-2 text-sm font-semibold rounded-xl transition-colors"
                     >
                         Start Quiz
                     </button>
@@ -135,61 +133,57 @@
                 <!-- Result（クイズ終了後にメインに表示） -->
                 <div
                     id="result-screen"
-                    class="hidden flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900/60 transition-colors duration-300"
+                    class="hidden flex-1 overflow-y-auto p-6 app-surface-muted transition-colors duration-300"
                 >
                     <div class="max-w-4xl mx-auto w-full space-y-6">
                         <div>
-                            <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Result</p>
-                            <h2 class="text-2xl font-semibold text-slate-900 dark:text-slate-100">クイズ結果</h2>
-                            <p id="result-score" class="text-sm text-slate-600 dark:text-slate-300 mt-1">Score: 0 / 0</p>
+                            <p class="text-xs uppercase tracking-wide app-text-muted">Result</p>
+                            <h2 class="text-2xl font-semibold app-text-strong">クイズ結果</h2>
+                            <p id="result-score" class="text-sm app-text-main mt-1">Score: 0 / 0</p>
                         </div>
                         <div class="grid gap-4 sm:grid-cols-3">
-                            <div class="p-4 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 shadow-sm">
-                                <div class="text-xs text-slate-500 dark:text-slate-400">Total</div>
-                                <div class="text-2xl font-bold text-slate-900 dark:text-slate-50" id="result-total">0</div>
+                            <div class="p-4 rounded-xl app-card border app-border-subtle">
+                                <div class="text-xs app-text-muted">Total</div>
+                                <div class="text-2xl font-bold app-text-strong" id="result-total">0</div>
                             </div>
-                            <div class="p-4 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 shadow-sm">
-                                <div class="text-xs text-slate-500 dark:text-slate-400">Correct</div>
-                                <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-300" id="result-correct">0</div>
+                            <div class="p-4 rounded-xl app-card border app-border-subtle">
+                                <div class="text-xs app-text-muted">Correct</div>
+                                <div class="text-2xl font-bold app-text-success" id="result-correct">0</div>
                             </div>
-                            <div class="p-4 rounded-xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 shadow-sm">
-                                <div class="text-xs text-slate-500 dark:text-slate-400">Accuracy</div>
-                                <div class="text-2xl font-bold text-slate-900 dark:text-slate-50" id="result-accuracy">0%</div>
+                            <div class="p-4 rounded-xl app-card border app-border-subtle">
+                                <div class="text-xs app-text-muted">Accuracy</div>
+                                <div class="text-2xl font-bold app-text-strong" id="result-accuracy">0%</div>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <button
                                 id="retry-button"
-                                class="interactive-button px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                class="interactive-button px-4 py-2 rounded-xl border app-border-subtle text-sm app-text-main transition-colors"
                             >
                                 Retry
                             </button>
                             <button
                                 id="retry-mistakes-button"
-                                class="interactive-button px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                class="interactive-button px-4 py-2 rounded-xl border app-border-subtle text-sm app-text-main transition-colors"
                             >
                                 Retry Mistakes
                             </button>
                             <button
                                 id="copy-result-button"
-                                class="interactive-button px-4 py-2 rounded-xl text-sm font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
+                                class="interactive-button px-4 py-2 rounded-xl text-sm font-semibold border app-border-subtle app-text-main transition-colors"
                             >
                                 Copy Result
                             </button>
                             <button
                                 id="back-to-menu-button"
-                                class="interactive-button px-4 py-2 rounded-xl text-sm
-                                    border border-slate-300 dark:border-slate-600
-                                    bg-white text-slate-800 hover:bg-slate-100
-                                    dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700
-                                    transition-colors"
+                                class="interactive-button px-4 py-2 rounded-xl text-sm border app-border-subtle app-text-main transition-colors"
                             >
                                 Menu
                             </button>
                         </div>
                         <div
                             id="result-pwa-hint"
-                            class="mt-6 text-xs text-slate-500 dark:text-slate-400 border border-dashed border-slate-400/60 rounded-xl px-4 py-3 bg-slate-100/60 dark:bg-slate-900/40 hidden"
+                            class="mt-6 text-xs app-text-muted border border-dashed app-border-subtle rounded-xl px-4 py-3 app-callout hidden"
                         >
                             <p class="font-medium">
                                 Did you enjoy this quiz?
@@ -201,7 +195,7 @@
                                 <button
                                     id="result-pwa-install-button"
                                     type="button"
-                                    class="interactive-button inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-500/80 text-[11px] font-semibold bg-slate-800/80 hover:bg-slate-700/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    class="interactive-button inline-flex items-center px-3 py-1.5 rounded-lg border app-border-strong text-[11px] font-semibold app-text-main app-surface-overlay disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Install this app
                                 </button>
@@ -211,14 +205,14 @@
                 </div>
 
                 <!-- Bottom bar: interrupt / progress / score / timer / next -->
-                <footer class="px-[0.5rem] py-[0.3rem] border-t border-slate-200 dark:border-slate-700 flex items-center gap-4 text-xs transition-colors duration-300">
+                <footer class="px-[0.5rem] py-[0.3rem] border-t app-border-subtle flex items-center gap-4 text-xs transition-colors duration-300">
                     <!-- Interrupt button -->
                     <button
                         id="interrupt-button"
                         type="button"
                         class="interactive-button px-3 py-2 rounded-xl
-                            border border-slate-300 dark:border-slate-700
-                            text-slate-700 dark:text-slate-200
+                            border app-border-subtle
+                            app-text-main
                             bg-white dark:bg-slate-900
                             hover:border-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30
                             disabled:opacity-40
@@ -235,19 +229,19 @@
                     >
                         <!-- Progress -->
                         <div class="flex items-baseline gap-1">
-                            <span class="uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <span class="uppercase tracking-wide app-text-muted">
                                 Progress
                             </span>
-                            <span class="text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100">
+                            <span class="text-sm sm:text-base font-semibold app-text-strong">
                                 <span id="current-q-num">1</span>
-                                <span class="text-[0.7rem] text-slate-400 mx-1">/</span>
-                                <span id="total-q-num" class="text-slate-500 dark:text-slate-300">10</span>
+                                <span class="text-[0.7rem] app-text-muted mx-1">/</span>
+                                <span id="total-q-num" class="app-text-muted">10</span>
                             </span>
                         </div>
 
                         <!-- Score -->
                         <div class="flex items-baseline gap-1">
-                            <span class="uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <span class="uppercase tracking-wide app-text-muted">
                                 Score
                             </span>
                             <span class="text-sm sm:text-base font-semibold text-emerald-500" id="current-score">
@@ -257,10 +251,10 @@
 
                         <!-- Timer -->
                         <div class="flex items-baseline gap-1">
-                            <span class="uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <span class="uppercase tracking-wide app-text-muted">
                                 Time
                             </span>
-                            <span class="text-sm sm:text-base font-mono text-slate-900 dark:text-slate-100" id="quiz-timer">
+                            <span class="text-sm sm:text-base font-mono app-text-strong" id="quiz-timer">
                                 00:00
                             </span>
                         </div>
@@ -270,8 +264,8 @@
                     <button
                         id="next-button"
                         class="interactive-button px-4 py-2 text-xs rounded-xl
-                            border border-slate-300 dark:border-slate-700
-                            text-slate-700 dark:text-slate-200
+                            border app-border-subtle
+                            app-text-main
                             bg-white dark:bg-slate-900
                             hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800
                             disabled:opacity-40
@@ -285,18 +279,18 @@
         </main>
 
         <!-- 右: サブエリア（共通 Settings + メニュー/クイズで切り替え） -->
-        <aside class="side-panel bg-slate-50 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 text-xs transition-colors duration-300">
+        <aside class="side-panel app-surface-side border-l app-border-subtle text-xs transition-colors duration-300">
             <!-- ① 共通: Settings（コンパクト） -->
-            <section id="side-settings" class="border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 transition-colors duration-300">
+            <section id="side-settings" class="border-b app-border-subtle app-surface-muted transition-colors duration-300">
                 <div class="px-3 py-2 flex items-center justify-between gap-3">
                     <!-- Text size -->
-                    <div class="inline-flex rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden">
+                    <div class="inline-flex rounded-full border app-border-subtle app-surface-card overflow-hidden">
                         <!-- xxs -->
                         <button
                             id="size-xxs-menu"
                             class="px-1.5 py-0.5 text-[0.6rem] font-bold
-                                text-slate-400 dark:text-slate-500
-                                hover:bg-slate-100 dark:hover:bg-slate-700"
+                                app-text-muted
+                                app-hover-muted"
                         >
                             A
                         </button>
@@ -305,8 +299,8 @@
                         <button
                             id="size-xs-menu"
                             class="px-1.5 py-0.5 text-[0.65rem] font-bold
-                                text-slate-500 dark:text-slate-400
-                                hover:bg-slate-100 dark:hover:bg-slate-700"
+                                app-text-muted
+                                app-hover-muted"
                         >
                             A
                         </button>
@@ -315,8 +309,8 @@
                         <button
                             id="size-small-menu"
                             class="px-1.5 py-0.5 text-[0.7rem] font-bold
-                                text-slate-500 dark:text-slate-400
-                                hover:bg-slate-100 dark:hover:bg-slate-700"
+                                app-text-muted
+                                app-hover-muted"
                         >
                             A
                         </button>
@@ -325,8 +319,8 @@
                         <button
                             id="size-medium-menu"
                             class="px-1.5 py-0.5 text-[0.8rem] font-bold
-                                text-slate-700 dark:text-slate-200
-                                hover:bg-slate-100 dark:hover:bg-slate-700"
+                                app-text-main
+                                app-hover-muted"
                         >
                             A
                         </button>
@@ -335,8 +329,8 @@
                         <button
                             id="size-large-menu"
                             class="px-1.5 py-0.5 text-[0.9rem] font-bold
-                                text-slate-900 dark:text-slate-50
-                                hover:bg-slate-100 dark:hover:bg-slate-700"
+                                app-text-strong
+                                app-hover-muted"
                         >
                             A
                         </button>
@@ -345,7 +339,7 @@
                         <button
                             id="size-xl-menu"
                             class="px-1.5 py-0.5 text-[1.0rem] font-bold
-                                text-slate-900 dark:text-slate-50
+                                app-text-strong
                                 hover:bg-slate-100 dark:hover:bg-slate-700"
                         >
                             A
@@ -355,7 +349,7 @@
                         <button
                             id="size-xxl-menu"
                             class="px-1.5 py-0.5 text-[1.1rem] font-bold
-                                text-slate-900 dark:text-slate-50
+                                app-text-strong
                                 hover:bg-slate-100 dark:hover:bg-slate-700"
                         >
                             A
@@ -364,13 +358,13 @@
 
                     <!-- Theme -->
                     <div class="flex items-center gap-2">
-                        <span class="text-[0.7rem] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                        <span class="text-[0.7rem] app-text-muted uppercase tracking-wide">
                             Theme
                         </span>
                         <button
                             id="theme-toggle-menu"
                             type="button"
-                            class="interactive-button px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[0.8rem] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            class="interactive-button px-3 py-1 rounded-full border app-border-subtle bg-white dark:bg-slate-800 text-[0.8rem] app-text-main hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                         >
                             Dark / Light
                         </button>
@@ -379,9 +373,9 @@
                     <button
                         id="fullscreen-toggle-menu"
                         type="button"
-                        class="interactive-button px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600
+                        class="interactive-button px-3 py-1 rounded-full border app-border-subtle
                             bg-white dark:bg-slate-800 text-[0.8rem]
-                            text-slate-700 dark:text-slate-200
+                            app-text-main
                             hover:bg-slate-100 dark:hover:bg-slate-700
                             transition-colors"
                     >
@@ -392,13 +386,13 @@
 
             <!-- ② メニュー専用: Number of questions -->
             <section id="side-menu" class="flex-1 min-h-0 flex flex-col">
-                <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 transition-colors duration-300">
-                    <h2 class="font-semibold text-slate-800 dark:text-slate-100 text-sm">Entries &amp; Quizzes</h2>
+                <div class="px-4 py-3 border-b app-border-subtle bg-slate-100 dark:bg-slate-900/60 transition-colors duration-300">
+                    <h2 class="font-semibold app-text-strong text-sm">Entries &amp; Quizzes</h2>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-6">
                     <section class="space-y-2">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Available Entries</h3>
+                            <h3 class="text-sm font-semibold app-text-strong">Available Entries</h3>
                         </div>
                         <div class="space-y-2">
                             <div class="flex gap-2">
@@ -406,31 +400,31 @@
                                     id="entry-url-input"
                                     type="url"
                                     placeholder="https://example.com/quiz/entry.php"
-                                    class="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100"
+                                    class="flex-1 app-input rounded-xl px-3 py-2 text-xs app-text-strong"
                                 />
                             <button
                                 id="entry-add-button"
                                 type="button"
-                                class="interactive-button px-3 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-600 bg-white text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700 transition-colors"
+                                class="interactive-button px-3 py-2 rounded-xl text-xs font-semibold border app-border-subtle app-text-main transition-colors"
                             >
                                 Add
                             </button>
                             </div>
-                            <p class="text-[11px] text-slate-500 dark:text-slate-400">Entries are saved in this browser.</p>
+                            <p class="text-[11px] app-text-muted">Entries are saved in this browser.</p>
                         </div>
                         <div id="entry-list" class="space-y-2"></div>
                     </section>
 
                     <section class="space-y-2">
-                        <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Available Quizzes</h3>
+                        <h3 class="text-sm font-semibold app-text-strong">Available Quizzes</h3>
                         <div id="quiz-list" class="space-y-2">
                             <!-- JS で埋め込み -->
                         </div>
                     </section>
 
                     <section class="space-y-2">
-                        <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Quiz options</h3>
-                        <label for="question-count" class="block text-xs text-slate-500 dark:text-slate-400">
+                        <h3 class="text-sm font-semibold app-text-strong">Quiz options</h3>
+                        <label for="question-count" class="block text-xs app-text-muted">
                             Number of questions
                         </label>
                         <input
@@ -440,9 +434,9 @@
                             max="100"
                             step="5"
                             value="10"
-                            class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100"
+                            class="w-full bg-white dark:bg-slate-900 border app-border-subtle rounded-xl px-3 py-2 text-xs app-text-strong"
                         />
-                        <p class="text-xs text-slate-500 dark:text-slate-500">
+                        <p class="text-xs app-text-muted">
                             You can change the number of questions between 5 and 100.
                         </p>
                     </section>
@@ -459,7 +453,7 @@
                         <!-- Mistakes パネル -->
                         <section id="mistakes-panel" class="space-y-2">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                <span class="text-xs uppercase tracking-wide app-text-muted">
                                     Mistakes
                                 </span>
                                 <span
@@ -471,7 +465,7 @@
                             </div>
                             <div
                                 id="review-empty"
-                                class="h-full flex flex-col items-center justify-center text-slate-500 text-xs"
+                                class="h-full flex flex-col items-center justify-center app-text-muted text-xs"
                             >
                                 No mistakes yet.
                             </div>
@@ -480,7 +474,7 @@
 
                         <!-- Result Questions パネル（結果画面のときだけ表示） -->
                         <section id="result-list-panel" class="space-y-2 hidden">
-                            <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <div class="text-xs uppercase tracking-wide app-text-muted">
                                 Result Questions
                             </div>
                             <ul id="result-list" class="space-y-2"></ul>
@@ -489,7 +483,7 @@
 
                     <!-- 下: Tips（固定表示・スクロールさせない） -->
                     <section id="tips-panel" class="space-y-2 shrink-0">
-                        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        <div class="text-xs uppercase tracking-wide app-text-muted">
                             Tips
                         </div>
                         <div id="tip-container" class="space-y-2 text-xs"></div>

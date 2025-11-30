@@ -17,13 +17,13 @@ const SCALE_MAP = {
 
 // 今のテーマを HTML に適用
 function applyTheme(mode) {
-    document.documentElement.classList.remove('dark', 'theme-black');
+    const html = document.documentElement;
 
-    if (mode === 'dark') {
-        document.documentElement.classList.add('dark');
-    } else if (mode === 'black') {
-        document.documentElement.classList.add('dark', 'theme-black');
+    if (mode !== 'light' && mode !== 'dark' && mode !== 'black') {
+        mode = 'light';
     }
+
+    html.dataset.theme = mode;
 }
 
 function normalizeTheme(savedTheme, prefersDark) {

@@ -1,0 +1,561 @@
+/* css/theme.css: theme definitions via data-theme and CSS variables */
+
+:root {
+    color-scheme: light;
+
+    --color-body-bg: #f8fafc;
+    --color-body-text: #0f172a;
+    --color-body-muted: #64748b;
+    --color-body-strong: #0f172a;
+
+    --color-body-loading-bg: #f8fafc;
+    --color-body-loading-text: #0f172a;
+
+    --color-surface-main: #ffffff;
+    --color-surface-side: #f8fafc;
+    --color-surface-header: rgba(255, 255, 255, 0.9);
+    --color-surface-muted: rgba(241, 245, 249, 0.9);
+    --color-surface-card: #ffffff;
+    --color-surface-overlay: rgba(255, 255, 255, 0.9);
+
+    --color-border-subtle: #e2e8f0;
+    --color-border-strong: #cbd5e1;
+
+    --color-text-main: #0f172a;
+    --color-text-strong: #0b1224;
+    --color-text-muted: #64748b;
+    --color-text-success: #059669;
+    --color-text-danger: #b91c1c;
+    --color-text-accent: #0f172a;
+
+    --color-accent-bg: #22c55e;
+    --color-accent-bg-hover: #34d399;
+    --color-accent-border: #10b981;
+
+    --color-button-bg: #ffffff;
+    --color-button-bg-hover: #f1f5f9;
+    --color-button-border: #e2e8f0;
+    --color-button-text: #1f2937;
+
+    --color-choice-default-bg: #ffffff;
+    --color-choice-default-border: #e2e8f0;
+    --color-choice-default-text: #0f172a;
+    --color-choice-default-bg-hover: #f1f5f9;
+
+    --color-choice-correct-bg: #ecfdf3;
+    --color-choice-correct-border: #34d399;
+    --color-choice-correct-text: #166534;
+
+    --color-choice-incorrect-bg: #fef2f2;
+    --color-choice-incorrect-border: #fb7185;
+    --color-choice-incorrect-text: #b91c1c;
+
+    --color-choice-selected-bg: #f0f9ff;
+    --color-choice-selected-border: #38bdf8;
+    --color-choice-selected-text: #075985;
+
+    --color-scrollbar-thumb: #cbd5e1;
+
+    --color-pwa-hint-bg: rgba(241, 245, 249, 0.6);
+    --color-pwa-hint-border: rgba(148, 163, 184, 0.6);
+
+    --color-input-bg: #ffffff;
+    --color-input-border: #e2e8f0;
+    --color-input-text: #0f172a;
+    --color-input-placeholder: #94a3b8;
+
+    --color-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme="dark"] {
+    color-scheme: dark;
+
+    --color-body-bg: #020617;
+    --color-body-text: #e2e8f0;
+    --color-body-muted: #94a3b8;
+    --color-body-strong: #e2e8f0;
+
+    --color-body-loading-bg: #020617;
+    --color-body-loading-text: #e5e7eb;
+
+    --color-surface-main: #020617;
+    --color-surface-side: #020617;
+    --color-surface-header: rgba(2, 6, 23, 0.9);
+    --color-surface-muted: rgba(15, 23, 42, 0.6);
+    --color-surface-card: #0b1224;
+    --color-surface-overlay: rgba(2, 6, 23, 0.6);
+
+    --color-border-subtle: #475569;
+    --color-border-strong: #334155;
+
+    --color-text-main: #e2e8f0;
+    --color-text-strong: #f8fafc;
+    --color-text-muted: #94a3b8;
+    --color-text-success: #34d399;
+    --color-text-danger: #fecaca;
+    --color-text-accent: #0f172a;
+
+    --color-accent-bg: #22c55e;
+    --color-accent-bg-hover: #34d399;
+    --color-accent-border: #22c55e;
+
+    --color-button-bg: #0b1224;
+    --color-button-bg-hover: #111827;
+    --color-button-border: #475569;
+    --color-button-text: #e2e8f0;
+
+    --color-choice-default-bg: rgba(15, 23, 42, 0.6);
+    --color-choice-default-border: #475569;
+    --color-choice-default-text: #e5e7eb;
+    --color-choice-default-bg-hover: #0b1224;
+
+    --color-choice-correct-bg: rgba(6, 95, 70, 0.4);
+    --color-choice-correct-border: #34d399;
+    --color-choice-correct-text: #bbf7d0;
+
+    --color-choice-incorrect-bg: rgba(127, 29, 29, 0.4);
+    --color-choice-incorrect-border: #fb7185;
+    --color-choice-incorrect-text: #fecaca;
+
+    --color-choice-selected-bg: rgba(8, 47, 73, 0.45);
+    --color-choice-selected-border: #38bdf8;
+    --color-choice-selected-text: #bae6fd;
+
+    --color-scrollbar-thumb: #475569;
+
+    --color-pwa-hint-bg: rgba(15, 23, 42, 0.4);
+    --color-pwa-hint-border: rgba(100, 116, 139, 0.6);
+
+    --color-input-bg: #0b1224;
+    --color-input-border: #475569;
+    --color-input-text: #e2e8f0;
+    --color-input-placeholder: #94a3b8;
+
+    --color-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="black"] {
+    color-scheme: dark;
+
+    --color-body-bg: #000000;
+    --color-body-text: #e2e8f0;
+    --color-body-muted: #94a3b8;
+    --color-body-strong: #e2e8f0;
+
+    --color-body-loading-bg: #000000;
+    --color-body-loading-text: #e5e7eb;
+
+    --color-surface-main: #000000;
+    --color-surface-side: #000000;
+    --color-surface-header: rgba(0, 0, 0, 0.9);
+    --color-surface-muted: rgba(2, 6, 23, 0.75);
+    --color-surface-card: #020617;
+    --color-surface-overlay: rgba(0, 0, 0, 0.6);
+
+    --color-border-subtle: #1f2937;
+    --color-border-strong: #111827;
+
+    --color-text-main: #e2e8f0;
+    --color-text-strong: #f8fafc;
+    --color-text-muted: #cbd5e1;
+    --color-text-success: #34d399;
+    --color-text-danger: #fecaca;
+    --color-text-accent: #0f172a;
+
+    --color-accent-bg: #22c55e;
+    --color-accent-bg-hover: #34d399;
+    --color-accent-border: #22c55e;
+
+    --color-button-bg: #050816;
+    --color-button-bg-hover: #0b1224;
+    --color-button-border: #1f2937;
+    --color-button-text: #e2e8f0;
+
+    --color-choice-default-bg: #050816;
+    --color-choice-default-border: #1f2937;
+    --color-choice-default-text: #e2e8f0;
+    --color-choice-default-bg-hover: #0b1224;
+
+    --color-choice-correct-bg: #022c22;
+    --color-choice-correct-border: #34d399;
+    --color-choice-correct-text: #bbf7d0;
+
+    --color-choice-incorrect-bg: #3b0b17;
+    --color-choice-incorrect-border: #fb7185;
+    --color-choice-incorrect-text: #fecaca;
+
+    --color-choice-selected-bg: #0b1726;
+    --color-choice-selected-border: #38bdf8;
+    --color-choice-selected-text: #bae6fd;
+
+    --color-scrollbar-thumb: #64748b;
+
+    --color-pwa-hint-bg: rgba(2, 6, 23, 0.6);
+    --color-pwa-hint-border: rgba(31, 41, 55, 0.7);
+
+    --color-input-bg: #050816;
+    --color-input-border: #1f2937;
+    --color-input-text: #e2e8f0;
+    --color-input-placeholder: #cbd5e1;
+
+    --color-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+body {
+    background-color: var(--color-body-bg);
+    color: var(--color-body-text);
+}
+
+body.app-loading {
+    background-color: var(--color-body-loading-bg);
+    color: var(--color-body-loading-text);
+}
+
+body.app-ready .layout-container {
+    background-color: transparent;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 0.35rem;
+    height: 0.35rem;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-scrollbar-thumb);
+    border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-scrollbar-thumb);
+    opacity: 0.8;
+}
+
+/* Typography helpers */
+.app-text-main {
+    color: var(--color-text-main);
+}
+
+.app-text-strong {
+    color: var(--color-text-strong);
+}
+
+.app-text-muted {
+    color: var(--color-text-muted);
+}
+
+.app-text-success {
+    color: var(--color-text-success);
+}
+
+.app-text-danger {
+    color: var(--color-text-danger);
+}
+
+.app-text-accent {
+    color: var(--color-text-accent);
+}
+
+/* Surfaces */
+.app-surface-main {
+    background-color: var(--color-surface-main);
+}
+
+.app-surface-side {
+    background-color: var(--color-surface-side);
+}
+
+.app-surface-header {
+    background-color: var(--color-surface-header);
+    backdrop-filter: blur(4px);
+}
+
+.app-surface-muted {
+    background-color: var(--color-surface-muted);
+}
+
+.app-surface-card {
+    background-color: var(--color-surface-card);
+    box-shadow: var(--color-card-shadow);
+}
+
+.app-surface-overlay {
+    background-color: var(--color-surface-overlay);
+}
+
+/* Borders */
+.app-border-subtle {
+    border-color: var(--color-border-subtle);
+}
+
+.app-border-strong {
+    border-color: var(--color-border-strong);
+}
+
+.app-border-accent {
+    border-color: var(--color-accent-border);
+}
+
+/* Inputs */
+.app-input {
+    background-color: var(--color-input-bg);
+    border-color: var(--color-input-border);
+    color: var(--color-input-text);
+}
+
+.app-input::placeholder {
+    color: var(--color-input-placeholder);
+}
+
+.app-range-accent {
+    accent-color: var(--color-accent-border);
+}
+
+/* Buttons */
+.interactive-button {
+    background-color: var(--color-button-bg);
+    border-color: var(--color-button-border);
+    color: var(--color-button-text);
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
+}
+
+.interactive-button:hover {
+    background-color: var(--color-button-bg-hover);
+}
+
+.interactive-button:active {
+    transform: scale(0.98);
+}
+
+.interactive-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.button-accent {
+    background-color: var(--color-accent-bg);
+    color: var(--color-text-accent);
+    border-color: var(--color-accent-border);
+}
+
+.button-accent:hover {
+    background-color: var(--color-accent-bg-hover);
+}
+
+/* Headers */
+.header-title {
+    color: var(--color-text-strong);
+}
+
+.header-subtext {
+    color: var(--color-text-muted);
+}
+
+/* Choice buttons */
+.choice-button.choice-default {
+    background-color: var(--color-choice-default-bg);
+    border-color: var(--color-choice-default-border);
+    color: var(--color-choice-default-text);
+}
+
+.choice-button.choice-default:hover {
+    background-color: var(--color-choice-default-bg-hover);
+}
+
+.choice-button.choice-correct {
+    background-color: var(--color-choice-correct-bg);
+    border-color: var(--color-choice-correct-border);
+    color: var(--color-choice-correct-text);
+}
+
+.choice-button.choice-incorrect {
+    background-color: var(--color-choice-incorrect-bg);
+    border-color: var(--color-choice-incorrect-border);
+    color: var(--color-choice-incorrect-text);
+}
+
+.choice-button.choice-selected {
+    background-color: var(--color-choice-selected-bg);
+    border-color: var(--color-choice-selected-border);
+    color: var(--color-choice-selected-text);
+}
+
+.choice-button.choice-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Cards and callouts */
+.app-card {
+    background-color: var(--color-surface-card);
+    border-color: var(--color-border-subtle);
+    box-shadow: var(--color-card-shadow);
+}
+
+.app-callout {
+    background-color: var(--color-pwa-hint-bg);
+    border-color: var(--color-pwa-hint-border);
+    color: var(--color-text-main);
+}
+
+.app-tag-muted {
+    color: var(--color-text-muted);
+}
+
+.app-quiz-text {
+    color: var(--color-text-main);
+}
+
+.app-section-heading {
+    color: var(--color-text-strong);
+}
+
+.app-section-label {
+    color: var(--color-text-muted);
+}
+
+.app-quiz-stat {
+    color: var(--color-text-strong);
+}
+
+.app-quiz-stat-label {
+    color: var(--color-text-muted);
+}
+
+.app-danger-outline {
+    border-color: var(--color-text-danger);
+    color: var(--color-text-danger);
+}
+
+.app-hover-muted:hover {
+    background-color: var(--color-choice-default-bg-hover);
+}
+
+/* Compatibility overrides for existing utility class names */
+.bg-white,
+.bg-white\/90 {
+    background-color: var(--color-surface-card);
+}
+
+.bg-slate-50 {
+    background-color: var(--color-surface-side);
+}
+
+.bg-slate-100,
+.bg-slate-100\/60 {
+    background-color: var(--color-surface-muted);
+}
+
+.bg-slate-900,
+.bg-slate-900\/60,
+.bg-slate-900\/40 {
+    background-color: var(--color-surface-overlay);
+}
+
+.bg-slate-800\/80 {
+    background-color: color-mix(in srgb, var(--color-surface-overlay) 80%, transparent);
+}
+
+.border-slate-200,
+.border-slate-300,
+.border-slate-400\/60,
+.border-slate-500,
+.border-slate-500\/80 {
+    border-color: var(--color-border-subtle);
+}
+
+.border-slate-600,
+.border-slate-700 {
+    border-color: var(--color-border-strong);
+}
+
+.text-slate-400,
+.text-slate-500 {
+    color: var(--color-text-muted);
+}
+
+.text-slate-600,
+.text-slate-700 {
+    color: var(--color-text-main);
+}
+
+.text-slate-800,
+.text-slate-900,
+.text-slate-50,
+.text-slate-100 {
+    color: var(--color-text-strong);
+}
+
+.text-emerald-500,
+.text-emerald-600,
+.text-emerald-300,
+.text-emerald-200 {
+    color: var(--color-text-success);
+}
+
+.border-emerald-400 {
+    border-color: var(--color-accent-border);
+}
+
+.bg-emerald-50,
+.bg-emerald-900\/30 {
+    background-color: color-mix(in srgb, var(--color-accent-bg) 20%, transparent);
+}
+
+.hover\:border-emerald-400:hover {
+    border-color: var(--color-accent-border);
+}
+
+.text-rose-500,
+.text-rose-400,
+.text-rose-300 {
+    color: var(--color-text-danger);
+}
+
+.border-rose-400,
+.border-rose-300,
+.border-rose-200 {
+    border-color: var(--color-choice-incorrect-border);
+}
+
+.bg-rose-50,
+.bg-rose-900\/40 {
+    background-color: color-mix(in srgb, var(--color-choice-incorrect-bg) 30%, transparent);
+}
+
+.text-sky-500,
+.text-sky-400 {
+    color: var(--color-choice-selected-text);
+}
+
+.border-sky-400,
+.border-sky-500 {
+    border-color: var(--color-choice-selected-border);
+}
+
+.bg-sky-50,
+.bg-sky-900\/30 {
+    background-color: color-mix(in srgb, var(--color-choice-selected-bg) 40%, transparent);
+}
+
+.text-amber-700,
+.text-amber-300 {
+    color: var(--color-text-main);
+}
+
+.bg-amber-100,
+.bg-amber-900\/40 {
+    background-color: var(--color-surface-muted);
+}
+
+.hover\:bg-slate-100:hover {
+    background-color: var(--color-choice-default-bg-hover);
+}
+
+.hover\:text-rose-500:hover {
+    color: var(--color-text-danger);
+}
