@@ -14,6 +14,10 @@ function buildBaseUrl(): string
     return rtrim($scheme . '://' . $host . ($directory === '/' ? '' : $directory), '/') . '/';
 }
 
+/**
+ * quiz パラメータにもとづいてローカル JSON からタイトル等を取得する。
+ * entry パラメータはここでは一切使わない（外部 URL に触れないため）。
+ */
 function loadQuizMetadata(?string $quizParam, string $baseUrl): ?array
 {
     if ($quizParam === null || !preg_match('/^[A-Za-z0-9_-]+$/', $quizParam)) {
@@ -39,9 +43,9 @@ function loadQuizMetadata(?string $quizParam, string $baseUrl): ?array
     }
 
     return [
-        'title' => $decoded['title'] ?? $quizParam,
+        'title'       => $decoded['title']       ?? $quizParam,
         'description' => $decoded['description'] ?? '',
-        'url' => $baseUrl . '?quiz=' . rawurlencode($quizParam),
+        'url'         => $baseUrl . '?quiz=' . rawurlencode($quizParam),
     ];
 }
 
@@ -50,15 +54,49 @@ function h(string $value): string
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 }
 
-$defaultTitle = '4-choice Quiz';
-$defaultDescription = 'Browse and play 4-choice quizzes.';
-$baseUrl = buildBaseUrl();
-$quizParam = $_GET['quiz'] ?? null;
-$quizMetadata = loadQuizMetadata($quizParam, $baseUrl);
+// -----------------------------
+// ここから OGP 用のパラメータ決定
+// -----------------------------
 
-$pageTitle = $quizMetadata['title'] ?? $defaultTitle;
+$defaultTitle       = '4-choice Quiz';
+$defaultDescription = 'Browse and play 4-choice quizzes.';
+$baseUrl            = buildBaseUrl();
+
+// entry が付いているかどうかだけを見る（値の中身は使わない）
+$entryParamRaw = $_GET['entry'] ?? null;
+$hasEntryParam = ($entryParamRaw !== null && $entryParamRaw !== '');
+
+// quiz と mode は通常どおり取得
+$quizParam = $_GET['quiz'] ?? null;
+
+// mode は英数字 + _ - のみ許可（それ以外は無視）
+$modeParamRaw = $_GET['mode'] ?? null;
+$modeParam = null;
+if ($modeParamRaw !== null && preg_match('/^[A-Za-z0-9_-]+$/', (string) $modeParamRaw)) {
+    $modeParam = (string) $modeParamRaw;
+}
+
+// entry が「指定されていない」場合だけ、クイズごとの OGP を読む
+// （＝ ./entry.php を使っている URL だとみなす）
+$quizMetadata = null;
+if (!$hasEntryParam) {
+    $quizMetadata = loadQuizMetadata($quizParam, $baseUrl);
+}
+
+// タイトル・説明
+$pageTitle       = $quizMetadata['title']       ?? $defaultTitle;
 $pageDescription = $quizMetadata['description'] ?? $defaultDescription;
+
+// og:url / canonical 用の URL
+// - entry あり → サイト共通の baseUrl
+// - entry なし & quizMetadata あり → ?quiz=... 付きの URL
 $ogUrl = $quizMetadata['url'] ?? $baseUrl;
+
+// mode があれば ogUrl にだけ付ける（entry とは無関係なので安全）
+if ($modeParam !== null) {
+    $ogUrl .= (strpos($ogUrl, '?') === false ? '?' : '&')
+        . 'mode=' . rawurlencode($modeParam);
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">

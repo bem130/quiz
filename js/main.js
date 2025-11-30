@@ -567,20 +567,56 @@ function setupKeyboardShortcuts() {
     });
 }
 
-function updateLocationParams(entryUrl, quizId) {
-    const params = new URLSearchParams(window.location.search);
-    if (entryUrl) {
-        params.set('entry', encodeURIComponent(entryUrl));
-    } else {
-        params.delete('entry');
+/**
+ * デフォルトの entry (entry.php / ./entry.php) かどうかを判定する。
+ * @param {string|null|undefined} entryUrl
+ * @returns {boolean}
+ */
+function isDefaultEntryUrl(entryUrl) {
+    if (!entryUrl) return false;
+
+    // 完全一致チェック（保存されている値は 'entry.php' のはず）
+    if (entryUrl === 'entry.php' || entryUrl === './entry.php') {
+        return true;
     }
+
+    // 念のため、絶対 URL に解決して比較しておく
+    try {
+        const defaultAbs = new URL('entry.php', window.location.href).href;
+        const targetAbs = new URL(entryUrl, window.location.href).href;
+        return defaultAbs === targetAbs;
+    } catch (e) {
+        return false;
+    }
+}
+
+// quiz, mode, entry の順に URL パラメータを組み立てる。
+// entry がデフォルト (entry.php / ./entry.php) のときは entry パラメータを省略する。
+function updateLocationParams(entryUrl, quizId, modeId) {
+    const params = new URLSearchParams();
+
+    // 1. quiz
     if (quizId) {
         params.set('quiz', quizId);
-    } else {
-        params.delete('quiz');
     }
+
+    // 2. mode（まだ使わないなら modeId を渡さなくてもよい）
+    if (modeId) {
+        params.set('mode', modeId);
+    }
+
+    // 3. entry
+    if (entryUrl && !isDefaultEntryUrl(entryUrl)) {
+        // entry=./entry.php / entry.php はここで省略される
+        params.set('entry', encodeURIComponent(entryUrl));
+    }
+
     const newQuery = params.toString();
-    const newUrl = `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}${window.location.hash}`;
+    const newUrl =
+        window.location.pathname +
+        (newQuery ? `?${newQuery}` : '') +
+        window.location.hash;
+
     window.history.replaceState(null, '', newUrl);
 }
 
