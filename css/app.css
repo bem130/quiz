@@ -160,8 +160,6 @@ ruby rt {
 .chem-inline-viewer {
     display: inline-block;
     vertical-align: middle;
-    width: 2.5em;
-    height: 2.5em;
     margin: 0 0.25rem;
     background-color: transparent;
 }
