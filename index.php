@@ -312,6 +312,17 @@ if ($modeParam !== null) {
         };
     </script>
 
+    <style>
+        html, body {
+            background-color: #020617;
+            color: #e5e7eb;
+        }
+
+        body.app-loading #app {
+            opacity: 0;
+        }
+    </style>
+
     <!-- KaTeX CSS & JS (with mhchem for \ce) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" crossorigin="anonymous">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js" crossorigin="anonymous"></script>
@@ -321,7 +332,7 @@ if ($modeParam !== null) {
 
     <link rel="stylesheet" href="css/app.css" />
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-300">
+<body class="app-loading bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-300">
 
     <!-- 画面いっぱい 2 分割レイアウト -->
     <div id="app" class="layout-container">
@@ -467,6 +478,15 @@ if ($modeParam !== null) {
                             <p class="mt-1">
                                 You can add this app to your home screen as a PWA for quicker access.
                             </p>
+                            <div class="pt-2">
+                                <button
+                                    id="result-pwa-install-button"
+                                    type="button"
+                                    class="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-500/80 text-[11px] font-semibold bg-slate-800/80 hover:bg-slate-700/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Install this app
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

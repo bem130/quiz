@@ -90,5 +90,6 @@ export const dom = {
     retryMistakesButton: document.getElementById('retry-mistakes-button'),
     copyResultButton: document.getElementById('copy-result-button'),
     backToMenuButton: document.getElementById('back-to-menu-button'),
-    resultPwaHint: document.getElementById('result-pwa-hint')
+    resultPwaHint: document.getElementById('result-pwa-hint'),
+    resultPwaInstallButton: document.getElementById('result-pwa-install-button')
 };

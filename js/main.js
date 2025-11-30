@@ -64,6 +64,10 @@ let quizStartTime = null;
 let quizTimerId = null;
 let quizFinishTime = null;
 
+/** @type {BeforeInstallPromptEvent | null} */
+let deferredInstallPrompt = null;
+let hasPwaInstallPromptSupport = false;
+
 /**
  * Update timer text with given elapsed seconds.
  * Format: mm:ss
@@ -165,6 +169,37 @@ function isRunningAsPwa() {
 
     return Boolean(isStandaloneDisplay || isIosStandalone || isFromAndroidApp);
 }
+
+/**
+ * Result 画面の PWA インストール案内の表示可否を更新する。
+ */
+function tryUpdatePwaHintVisibility() {
+    if (!dom.resultPwaHint || !dom.resultPwaInstallButton) {
+        return;
+    }
+
+    const shouldShow =
+        currentScreen === 'result' &&
+        !isRunningAsPwa() &&
+        deferredInstallPrompt !== null &&
+        hasPwaInstallPromptSupport;
+
+    dom.resultPwaInstallButton.disabled = !shouldShow;
+
+    if (shouldShow) {
+        dom.resultPwaHint.classList.remove('hidden');
+    } else {
+        dom.resultPwaHint.classList.add('hidden');
+    }
+}
+
+window.addEventListener('beforeinstallprompt', (event) => {
+    console.log('[pwa] beforeinstallprompt fired');
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    hasPwaInstallPromptSupport = true;
+    tryUpdatePwaHintVisibility();
+});
 
 function updateQuestionCountLabel(value) {
     if (!dom.questionCountLabel) {
@@ -688,15 +723,7 @@ function showResult() {
 
     showScreen('result');
 
-    if (!dom.resultPwaHint) {
-        return;
-    }
-
-    if (isRunningAsPwa()) {
-        dom.resultPwaHint.classList.add('hidden');
-    } else {
-        dom.resultPwaHint.classList.remove('hidden');
-    }
+    tryUpdatePwaHintVisibility();
 }
 
 function buildResultExportObject() {
@@ -1297,6 +1324,31 @@ function attachMenuHandlers() {
         });
     }
 
+    if (dom.resultPwaInstallButton) {
+        dom.resultPwaInstallButton.addEventListener('click', async () => {
+            console.log('[pwa] install button clicked');
+
+            if (!deferredInstallPrompt) {
+                console.log('[pwa] no deferred install prompt available');
+                tryUpdatePwaHintVisibility();
+                return;
+            }
+
+            dom.resultPwaInstallButton.disabled = true;
+
+            try {
+                await deferredInstallPrompt.prompt();
+                const choice = await deferredInstallPrompt.userChoice;
+                console.log('[pwa] userChoice:', choice);
+            } catch (error) {
+                console.error('[pwa] install prompt failed:', error);
+            } finally {
+                deferredInstallPrompt = null;
+                tryUpdatePwaHintVisibility();
+            }
+        });
+    }
+
     if (dom.entryList) {
         dom.entryList.addEventListener('click', async (event) => {
             const target = event.target;
@@ -1363,6 +1415,19 @@ function registerServiceWorker() {
 }
 
 /**
+ * アプリ初期化完了を示すクラスを body に付与する。
+ */
+function markAppReady() {
+    const body = document.body;
+    if (!body) {
+        return;
+    }
+
+    body.classList.remove('app-loading');
+    body.classList.add('app-ready');
+}
+
+/**
  * アプリ起動時の初期化処理。データ読込、UI 初期化、イベント登録をまとめる。
  */
 async function bootstrap() {
@@ -1389,6 +1454,9 @@ async function bootstrap() {
         console.error('[bootstrap] failed to initialize app:', e);
         dom.appDescription.textContent =
             'Failed to load quiz definition.';
+    } finally {
+        markAppReady();
+        tryUpdatePwaHintVisibility();
     }
 }
 
