@@ -17,12 +17,12 @@ $manifest = [
     'background_color' => '#020617',
     'icons' => [
         [
-            'src' => quiz_asset_url('icons/icon-192.svg'),
+            'src' => quiz_versioned_asset_url('icons/icon-192.svg'),
             'sizes' => '192x192',
             'type' => 'image/svg+xml',
         ],
         [
-            'src' => quiz_asset_url('icons/icon-512.svg'),
+            'src' => quiz_versioned_asset_url('icons/icon-512.svg'),
             'sizes' => '512x512',
             'type' => 'image/svg+xml',
         ],

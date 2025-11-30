@@ -1,6 +1,10 @@
 import { loadQuizDefinitionFromQuizEntry } from './quiz-model.js';
 import { QuizEngine } from './quiz-engine.js';
 
+/**
+ * Build version of capacity-manager module for runtime compatibility checks.
+ */
+export const CAPACITY_MANAGER_VERSION = '2024.07.01-1';
 const quizCapacityCache = new Map();
 const entryCapacityCache = new Map();
 const pendingQuizTasks = new Set();
