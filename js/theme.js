@@ -1,5 +1,7 @@
 // js/theme.js
 
+import { dom } from './dom-refs.js';
+
 const THEME_KEY = 'quiz_theme';
 const SCALE_KEY = 'quiz_scale';
 
@@ -15,26 +17,55 @@ const SCALE_MAP = {
 
 // 今のテーマを HTML に適用
 function applyTheme(mode) {
-    const useDark = mode === 'dark';
-    document.documentElement.classList.toggle('dark', useDark);
+    document.documentElement.classList.remove('dark', 'theme-black');
+
+    if (mode === 'dark') {
+        document.documentElement.classList.add('dark');
+    } else if (mode === 'black') {
+        document.documentElement.classList.add('dark', 'theme-black');
+    }
 }
 
-export function initThemeFromStorage() {
-    // --- Theme ---
+function normalizeTheme(savedTheme, prefersDark) {
+    if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'black') {
+        return savedTheme;
+    }
+
+    const fallback = prefersDark ? 'dark' : 'light';
+    localStorage.setItem(THEME_KEY, fallback);
+    return fallback;
+}
+
+function updateThemeToggleLabel(mode) {
+    if (!dom.menuThemeToggle) {
+        return;
+    }
+
+    let label = 'Dark';
+    if (mode === 'light') {
+        label = 'Light';
+    } else if (mode === 'black') {
+        label = 'Black';
+    }
+
+    dom.menuThemeToggle.textContent = label;
+    dom.menuThemeToggle.setAttribute('aria-label', `Theme: ${label}`);
+}
+
+function getCurrentTheme() {
     const savedTheme = localStorage.getItem(THEME_KEY);
     const prefersDark =
         window.matchMedia &&
         window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-    let mode;
-    if (savedTheme === 'dark' || savedTheme === 'light') {
-        mode = savedTheme;
-    } else {
-        mode = prefersDark ? 'dark' : 'light';
-        localStorage.setItem(THEME_KEY, mode);
-    }
+    return normalizeTheme(savedTheme, prefersDark);
+}
 
+export function initThemeFromStorage() {
+    // --- Theme ---
+    const mode = getCurrentTheme();
     applyTheme(mode);
+    updateThemeToggleLabel(mode);
 
     // --- Font scale ---
     const savedScale = localStorage.getItem(SCALE_KEY) || 'm';
@@ -43,10 +74,20 @@ export function initThemeFromStorage() {
 }
 
 export function toggleTheme() {
-    const isDark = document.documentElement.classList.contains('dark');
-    const next = isDark ? 'light' : 'dark';
+    const current = getCurrentTheme();
+
+    let next;
+    if (current === 'light') {
+        next = 'dark';
+    } else if (current === 'dark') {
+        next = 'black';
+    } else {
+        next = 'light';
+    }
+
     localStorage.setItem(THEME_KEY, next);
     applyTheme(next);
+    updateThemeToggleLabel(next);
 }
 
 export function setSize(size) {

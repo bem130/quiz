@@ -139,6 +139,30 @@ body.app-ready .layout-container {
     background: #94a3b8;
 }
 
+/* Black theme overrides */
+.theme-black body {
+    background-color: #000000;
+    color: #e2e8f0;
+}
+
+.theme-black .layout-container {
+    background-color: #000000;
+}
+
+.theme-black .main-panel,
+.theme-black .side-panel {
+    background-color: #0b1221;
+}
+
+.theme-black #side-settings,
+.theme-black #result-screen {
+    background-color: #0f172a;
+}
+
+.theme-black ::-webkit-scrollbar-thumb {
+    background: #64748b;
+}
+
 /* ちょっとしたフェードイン */
 .fade-in {
     animation: fadeIn 0.25s ease-in-out;
