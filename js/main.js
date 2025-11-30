@@ -137,6 +137,35 @@ function clampQuestionCount(value) {
     return Math.min(100, Math.max(5, adjusted));
 }
 
+/**
+ * 判定可能な複数のシグナルを使って、PWA として起動しているかを検出する。
+ */
+function isRunningAsPwa() {
+    const matchesDisplayMode = (query) => (
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia(query).matches
+    );
+
+    const isStandaloneDisplay =
+        matchesDisplayMode('(display-mode: standalone)') ||
+        matchesDisplayMode('(display-mode: minimal-ui)') ||
+        matchesDisplayMode('(display-mode: fullscreen)');
+
+    const isIosStandalone =
+        typeof window !== 'undefined' &&
+        typeof window.navigator !== 'undefined' &&
+        (window.navigator.standalone === true ||
+            (window.clientInformation && window.clientInformation.standalone === true));
+
+    const isFromAndroidApp =
+        typeof document !== 'undefined' &&
+        typeof document.referrer === 'string' &&
+        document.referrer.includes('android-app://');
+
+    return Boolean(isStandaloneDisplay || isIosStandalone || isFromAndroidApp);
+}
+
 function updateQuestionCountLabel(value) {
     if (!dom.questionCountLabel) {
         return;
@@ -204,6 +233,9 @@ function showScreen(name) {
     }
     if (dom.mistakesPanel) {
         dom.mistakesPanel.classList.add('hidden');
+    }
+    if (dom.resultPwaHint) {
+        dom.resultPwaHint.classList.add('hidden');
     }
 
     // Bottom buttons: hide by default
@@ -655,6 +687,16 @@ function showResult() {
     );
 
     showScreen('result');
+
+    if (!dom.resultPwaHint) {
+        return;
+    }
+
+    if (isRunningAsPwa()) {
+        dom.resultPwaHint.classList.add('hidden');
+    } else {
+        dom.resultPwaHint.classList.remove('hidden');
+    }
 }
 
 function buildResultExportObject() {
