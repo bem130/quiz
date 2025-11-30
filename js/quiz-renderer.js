@@ -97,7 +97,12 @@ function appendTokens(parent, tokens, row, placeholders = null) {
                 span.dataset.smiles = String(smiles);
             }
             parent.appendChild(span);
-            renderSmilesInline(span, String(smiles || ''));
+            const renderOptions = {
+                maxHeightEm: token.maxHeightEm,
+                maxHeightPx: token.maxHeightPx,
+                zoomPadding: token.zoomPadding
+            };
+            renderSmilesInline(span, String(smiles || ''), renderOptions);
             return;
         }
         if (token.type === 'key') {

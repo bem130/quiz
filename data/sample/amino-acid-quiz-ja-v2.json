@@ -214,7 +214,7 @@
           },
           {
             "type": "smiles",
-            "field": "smiles"
+            "field": "smilesFull"
           },
           {
             "type": "br"
@@ -258,7 +258,18 @@
               },
               {
                 "type": "smiles",
-                "field": "smiles"
+                "field": "smilesFull"
+              },
+              {
+                "type": "br"
+              },
+              {
+                "type": "text",
+                "value": "【側鎖SMILES】"
+              },
+              {
+                "type": "smiles",
+                "field": "smilesSide"
               },
               {
                 "type": "br"
