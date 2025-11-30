@@ -1,4 +1,4 @@
-const CACHE_NAME = 'quiz-app-shell-v1';
+const CACHE_NAME = 'quiz-app-shell-v2';
 const APP_SHELL = [
     '/quiz/',
     '/quiz/index.html',
@@ -9,6 +9,7 @@ const APP_SHELL = [
     '/quiz/js/dom-refs.js',
     '/quiz/js/config.js',
     '/quiz/css/app.css',
+    '/quiz/manifest.php',
     '/quiz/manifest.webmanifest',
     '/quiz/icons/icon-192.svg',
     '/quiz/icons/icon-512.svg'
