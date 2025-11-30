@@ -792,12 +792,12 @@ export function updateInlineBlank(
         // プレースホルダを「縦積み構造」にリセット
         placeholder.innerHTML = '';
         placeholder.className =
-            'inline-flex flex-col items-start mx-1 align-baseline leading-tight';
+            'inline-flex flex-col items-start mx-1 align-baseline leading-tight max-w-full';
 
         // 上段: 正答（下線つき）
         const correctLine = document.createElement('span');
         correctLine.className =
-            'block px-2 border-b border-slate-500 min-w-[2.5rem] whitespace-nowrap pb-0.5';
+            'block px-2 border-b border-slate-500 min-w-[2.5rem] whitespace-normal pb-0.5';
 
         if (isReviewContext) {
             // Mistakes では正答を少し強調（青緑）
@@ -815,7 +815,10 @@ export function updateInlineBlank(
             const wrongLine = document.createElement('span');
             wrongLine.className =
                 'mt-0.5 text-[0.7rem] text-rose-400 dark:text-rose-300 ' +
-                'flex items-center gap-1 whitespace-nowrap';
+                // レイアウト系
+                'flex items-start gap-1 ' +
+                // 長いテキスト用: 折り返し + 高さ制限 + 縦スクロール
+                'max-h-16 overflow-y-auto break-words whitespace-normal';
 
             const mark = document.createElement('span');
             mark.textContent = '×';
