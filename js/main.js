@@ -689,28 +689,31 @@ async function refreshEntryAvailability(baseSources) {
 
 function selectEntryFromParams(sources) {
     const requested = getEntryUrlFromLocation();
-    const availableEntries = sources.filter((entry) => entry.available);
-    const requestedEntry = sources.find((entry) => entry.url === requested) || null;
-
-    if (requestedEntry && requestedEntry.available) {
-        return requestedEntry;
+    if (requested) {
+        const requestedEntry = sources.find((entry) => entry.url === requested);
+        if (requestedEntry) {
+            return requestedEntry;
+        }
     }
 
+    const availableEntries = sources.filter((entry) => entry.available);
     if (availableEntries.length > 0) {
         return availableEntries[0];
     }
 
-    return requestedEntry || sources[0] || null;
+    return sources[0] || null;
 }
 
-function selectQuizFromEntry(entry) {
+function selectQuizFromEntry(entry, explicitQuizId) {
     if (!entry || !Array.isArray(entry.quizzes) || entry.quizzes.length === 0) {
         return null;
     }
-    const requestedQuiz = getQuizNameFromLocation();
-    const requestedEntry = entry.quizzes.find((quiz) => quiz.id === requestedQuiz);
-    if (requestedEntry) {
-        return requestedEntry;
+    const requestedQuizId = explicitQuizId || getQuizNameFromLocation();
+    if (requestedQuizId) {
+        const requestedEntry = entry.quizzes.find((quiz) => quiz.id === requestedQuizId);
+        if (requestedEntry) {
+            return requestedEntry;
+        }
     }
     return entry.quizzes[0];
 }
@@ -818,8 +821,7 @@ async function applyEntrySelection(entry, desiredQuizId, options = {}) {
         return;
     }
 
-    const quiz =
-        entry.quizzes.find((q) => q.id === desiredQuizId) || selectQuizFromEntry(entry);
+    const quiz = selectQuizFromEntry(entry, desiredQuizId);
     currentQuiz = quiz;
     renderMenus();
 
