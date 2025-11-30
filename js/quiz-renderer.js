@@ -1,5 +1,6 @@
 // js/quiz-renderer.js
 import { dom } from './dom-refs.js';
+import { renderSmilesInline } from './chem-renderer.js';
 
 let renderedQuestion = null;
 
@@ -85,16 +86,18 @@ function appendTokens(parent, tokens, row, placeholders = null) {
             return;
         }
         if (token.type === 'smiles') {
-            const text =
+            const smiles =
                 token.value != null
                     ? token.value
                     : token.field && row
                         ? row[token.field] ?? ''
                         : '';
             const span = document.createElement('span');
-            span.textContent = text ? `[SMILES: ${text}]` : '[SMILES]';
-            span.classList.add('font-mono');
+            if (smiles != null) {
+                span.dataset.smiles = String(smiles);
+            }
             parent.appendChild(span);
+            renderSmilesInline(span, String(smiles || ''));
             return;
         }
         if (token.type === 'key') {
