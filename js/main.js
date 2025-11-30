@@ -744,7 +744,9 @@ function renderMenus() {
     renderQuizMenu(currentEntry && currentEntry.available ? currentEntry.quizzes : [], currentQuiz);
 }
 
-async function applyEntrySelection(entry, desiredQuizId) {
+async function applyEntrySelection(entry, desiredQuizId, options = {}) {
+    const preserveModeFromUrl = options.preserveModeFromUrl === true;
+
     currentEntry = entry;
     currentQuiz = null;
     quizDef = null;
@@ -758,7 +760,9 @@ async function applyEntrySelection(entry, desiredQuizId) {
         setStartButtonEnabled(false);
         showModeMessage('エントリが選択されていません。');
         dom.appDescription.textContent = 'No entry selected.';
-        updateLocationParams(null, null, null);
+
+        const modeToKeep = preserveModeFromUrl ? getModeIdFromLocation() : null;
+        updateLocationParams(null, null, modeToKeep);
         return;
     }
 
@@ -766,7 +770,9 @@ async function applyEntrySelection(entry, desiredQuizId) {
         setStartButtonEnabled(false);
         showModeMessage('この entry にはアクセスできません。');
         dom.appDescription.textContent = entry.errorMessage || 'Entry is unavailable.';
-        updateLocationParams(entry.url, null, null);
+
+        const modeToKeep = preserveModeFromUrl ? getModeIdFromLocation() : null;
+        updateLocationParams(entry.url, null, modeToKeep);
         return;
     }
 
@@ -774,15 +780,20 @@ async function applyEntrySelection(entry, desiredQuizId) {
         setStartButtonEnabled(false);
         showModeMessage('この entry に利用可能なクイズがありません。');
         dom.appDescription.textContent = 'No quizzes available for this entry.';
-        updateLocationParams(entry.url, null, null);
+
+        const modeToKeep = preserveModeFromUrl ? getModeIdFromLocation() : null;
+        updateLocationParams(entry.url, null, modeToKeep);
         return;
     }
 
-    const quiz = entry.quizzes.find((q) => q.id === desiredQuizId) || selectQuizFromEntry(entry);
+    const quiz =
+        entry.quizzes.find((q) => q.id === desiredQuizId) || selectQuizFromEntry(entry);
     currentQuiz = quiz;
     renderMenus();
-    // この段階では mode はまだ決めない（null）。実際の決定は loadCurrentQuizDefinition 内で行う。
-    updateLocationParams(entry.url, quiz ? quiz.id : null, null);
+
+    const modeToKeep = preserveModeFromUrl ? getModeIdFromLocation() : null;
+    updateLocationParams(entry.url, quiz ? quiz.id : null, modeToKeep);
+
     await loadCurrentQuizDefinition();
 }
 
@@ -973,7 +984,10 @@ async function bootstrap() {
         attachMenuHandlers();
         setupKeyboardShortcuts();
         showScreen('menu');
-        await applyEntrySelection(initialEntry, getQuizNameFromLocation());
+
+        await applyEntrySelection(initialEntry, getQuizNameFromLocation(), {
+            preserveModeFromUrl: true
+        });
     } catch (e) {
         console.error('[bootstrap] failed to initialize app:', e);
         dom.appDescription.textContent =
