@@ -130,7 +130,7 @@ function appendTokens(parent, tokens, row, placeholders = null) {
             if (placeholders && token.answer) {
                 const span = document.createElement('span');
                 span.dataset.answerIndex = String(answerIndexCounter);
-                span.className = 'inline-block min-w-[2.5rem] border-b border-slate-500 mx-1';
+                span.className = 'inline-block min-w-[2.5rem] border-b border-slate-500 mx-1 pb-0.5';
                 span.textContent = ' ';
                 parent.appendChild(span);
             } else {
@@ -783,7 +783,7 @@ export function updateInlineBlank(
         // 上段: 正答（下線つき）
         const correctLine = document.createElement('span');
         correctLine.className =
-            'block px-2 border-b border-slate-500 min-w-[2.5rem] whitespace-nowrap';
+            'block px-2 border-b border-slate-500 min-w-[2.5rem] whitespace-nowrap pb-0.5';
 
         if (isReviewContext) {
             // Mistakes では正答を少し強調（青緑）
