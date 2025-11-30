@@ -12,7 +12,7 @@ import {
     saveEntrySourcesToStorage
 } from './config.js';
 import { renderEntryMenu, renderQuizMenu } from './menu-renderer.js';
-import { QuizEngine, NoQuestionsAvailableError } from './quiz-engine.js';
+import { QuizEngine, NoQuestionsAvailableError, QUIZ_ENGINE_VERSION } from './quiz-engine.js';
 import {
     renderQuestion,
     renderProgress,
@@ -35,7 +35,8 @@ import { cloneQuestionForRetry } from './question-clone.js';
 import {
     enqueueEntryCapacityTask,
     enqueueQuizCapacityTask,
-    setCapacityRenderCallback
+    setCapacityRenderCallback,
+    CAPACITY_MANAGER_VERSION
 } from './capacity-manager.js';
 
 let entrySources = [];
@@ -67,6 +68,36 @@ let quizFinishTime = null;
 /** @type {BeforeInstallPromptEvent | null} */
 let deferredInstallPrompt = null;
 let hasPwaInstallPromptSupport = false;
+
+/**
+ * Compare expected app version with module versions to surface cache mismatches early.
+ */
+function assertVersionCompatibility() {
+    const expectedVersion = window.APP_VERSION;
+
+    if (!expectedVersion) {
+        return;
+    }
+
+    const mismatches = [];
+    const components = [
+        { name: 'quiz-engine', version: QUIZ_ENGINE_VERSION },
+        { name: 'capacity-manager', version: CAPACITY_MANAGER_VERSION }
+    ];
+
+    for (const component of components) {
+        if (!component.version || component.version !== expectedVersion) {
+            mismatches.push(component);
+        }
+    }
+
+    if (mismatches.length > 0) {
+        console.error('[version-mismatch]', {
+            expected: expectedVersion,
+            mismatches
+        });
+    }
+}
 
 /**
  * Update timer text with given elapsed seconds.
@@ -1402,15 +1433,42 @@ function attachMenuHandlers() {
     }
 }
 
+/**
+ * Remove outdated service worker registrations that used the legacy sw.js entry point.
+ */
+async function unregisterLegacyServiceWorkers() {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.getRegistrations) {
+        return;
+    }
+
+    try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+            if (registration.active && registration.active.scriptURL.endsWith('/quiz/sw.js')) {
+                await registration.unregister();
+            }
+        }
+    } catch (error) {
+        console.warn('[pwa] Failed to unregister legacy service workers:', error);
+    }
+}
+
 function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) {
         return;
     }
 
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/quiz/sw.js').catch((error) => {
-            console.error('[pwa] Service worker registration failed:', error);
-        });
+        const swUrl = typeof window.APP_SERVICE_WORKER_URL === 'string'
+            ? window.APP_SERVICE_WORKER_URL
+            : '/quiz/sw.php';
+
+        navigator.serviceWorker
+            .register(swUrl)
+            .then(() => unregisterLegacyServiceWorkers())
+            .catch((error) => {
+                console.error('[pwa] Service worker registration failed:', error);
+            });
     });
 }
 
@@ -1431,6 +1489,7 @@ function markAppReady() {
  * アプリ起動時の初期化処理。データ読込、UI 初期化、イベント登録をまとめる。
  */
 async function bootstrap() {
+    assertVersionCompatibility();
     initThemeFromStorage();
     initAppHeightObserver();
     syncQuestionCountInputs(dom.questionCountInput ? dom.questionCountInput.value : 10);

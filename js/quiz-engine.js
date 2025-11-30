@@ -10,6 +10,10 @@ import {
 } from './dataset-utils.js';
 
 const DEFAULT_MAX_CONSECUTIVE_SKIPS = 20;
+/**
+ * Build version of quiz-engine module for runtime compatibility checks.
+ */
+export const QUIZ_ENGINE_VERSION = '2024.07.01-1';
 
 export class NoQuestionsAvailableError extends Error {
     constructor(message = 'No questions available for the selected mode or filters.') {

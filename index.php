@@ -256,17 +256,17 @@ if ($modeParam !== null) {
     <meta charset="UTF-8" />
     <title><?php echo h($pageTitle); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="manifest" href="<?php echo h(quiz_asset_url('manifest.php')); ?>" />
+    <link rel="manifest" href="<?php echo h(quiz_versioned_asset_url('manifest.php')); ?>" />
     <meta name="theme-color" content="#020617" />
     <link
         rel="icon"
         type="image/svg+xml"
-        href="<?php echo h(quiz_asset_url('icons/icon-192.svg')); ?>"
+        href="<?php echo h(quiz_versioned_asset_url('icons/icon-192.svg')); ?>"
     />
     <link
         rel="apple-touch-icon"
         sizes="180x180"
-        href="<?php echo h(quiz_asset_url('icons/icon-192.svg')); ?>"
+        href="<?php echo h(quiz_versioned_asset_url('icons/icon-192.svg')); ?>"
     />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -312,6 +312,11 @@ if ($modeParam !== null) {
         };
     </script>
 
+    <script>
+        window.APP_VERSION = <?php echo json_encode(APP_VERSION, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+        window.APP_SERVICE_WORKER_URL = <?php echo json_encode(quiz_versioned_asset_url('sw.php'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+    </script>
+
     <style>
         html, body {
             background-color: #020617;
@@ -330,7 +335,7 @@ if ($modeParam !== null) {
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/kekule/dist/themes/default/kekule.css">
 
-    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="<?php echo h(quiz_versioned_asset_url('css/app.css')); ?>" />
 </head>
 <body class="app-loading bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-300">
 
@@ -782,6 +787,6 @@ if ($modeParam !== null) {
 
     <script src="https://cdn.jsdelivr.net/npm/kekule/dist/kekule.min.js"></script>
     <script src="https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
-    <script type="module" src="js/main.js"></script>
+    <script type="module" src="<?php echo h(quiz_versioned_asset_url('js/main.js')); ?>"></script>
 </body>
 </html>

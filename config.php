@@ -17,6 +17,11 @@ function quiz_base_url(): string
 }
 
 /**
+ * Application version string.
+ */
+define('APP_VERSION', '2024.07.01-1');
+
+/**
  * Constant base URL for the quiz application.
  */
 define('QUIZ_BASE_URL', quiz_base_url());
@@ -29,4 +34,12 @@ function quiz_asset_url(string $relativePath): string
     $path = ltrim($relativePath, '/');
 
     return QUIZ_BASE_URL . $path;
+}
+
+/**
+ * Build an absolute asset URL with an app-version query parameter for cache busting.
+ */
+function quiz_versioned_asset_url(string $relativePath): string
+{
+    return quiz_asset_url($relativePath) . '?v=' . rawurlencode(APP_VERSION);
 }
