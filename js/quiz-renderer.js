@@ -80,7 +80,7 @@ function createStyledSpan(text, styles = []) {
 
 function resolveSubTokenValue(spec, row) {
     if (!spec) return '';
-    const source = spec.source || 'text';
+    const source = spec.source || spec.type || 'text';
     if (source === 'key') {
         const field = spec.field;
         return field && row ? row[field] ?? '' : '';

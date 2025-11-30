@@ -114,6 +114,72 @@ test('QuizEngine supports KaTeX tokens in group choices', () => {
     );
 });
 
+test('QuizEngine builds choice options when ruby parts reference key fields', () => {
+    const definition = {
+        meta: { id: 'em', title: 'Electromagnetism' },
+        dataSets: {
+            em: {
+                type: 'table',
+                data: [
+                    { id: 'c1', nameEn: 'Current', nameJa: '電流' },
+                    { id: 'c2', nameEn: 'Resistance', nameJa: '抵抗' },
+                    { id: 'c3', nameEn: 'Capacitance', nameJa: '電気容量' },
+                    { id: 'c4', nameEn: 'Magnetic flux', nameJa: '磁束' }
+                ]
+            }
+        },
+        patterns: [
+            {
+                id: 'p_em_def_desc_to_name',
+                dataSet: 'em',
+                questionFormat: 'table_fill_choice',
+                tokens: [
+                    { type: 'text', value: '説明：' },
+                    {
+                        type: 'hide',
+                        value: [
+                            {
+                                type: 'ruby',
+                                base: { type: 'key', field: 'nameEn' },
+                                ruby: { type: 'key', field: 'nameJa' }
+                            }
+                        ],
+                        answer: {
+                            mode: 'choice_from_entities',
+                            choiceCount: 4,
+                            distractorSource: {
+                                scope: 'all'
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        modes: [
+            {
+                id: 'm1',
+                label: 'Mode',
+                patternWeights: [{ patternId: 'p_em_def_desc_to_name', weight: 1 }]
+            }
+        ]
+    };
+
+    const engine = new QuizEngine(definition);
+    engine.setMode('m1');
+    const question = engine.generateQuestion();
+
+    assert.equal(question.answers.length, 1);
+    const answer = question.answers[0];
+    assert.equal(answer.options.length, 4);
+    assert.ok(
+        answer.options.every(
+            (opt) =>
+                Array.isArray(opt.labelTokens) &&
+                opt.labelTokens.some((token) => token.type === 'ruby')
+        )
+    );
+});
+
 test('estimateModeCapacity counts each pattern once per mode', () => {
     const definition = {
         dataSets: {

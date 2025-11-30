@@ -24,7 +24,8 @@ export class NoQuestionsAvailableError extends Error {
 
 function resolveSubTokenValue(spec, row) {
     if (!spec) return '';
-    if (spec.source === 'key') {
+    const source = spec.source || spec.type || 'text';
+    if (source === 'key') {
         return row && spec.field ? row[spec.field] ?? '' : '';
     }
     return spec.value ?? '';
