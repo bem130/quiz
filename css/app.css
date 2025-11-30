@@ -225,14 +225,14 @@ body.app-ready .layout-container {
     background-color: #020617;
 }
 
-.theme-black #options-container button {
-    background-color: #0b1224;
+.theme-black #options-container .choice-button.choice-default {
+    background-color: #050816;
     border-color: #1f2937;
     color: #e2e8f0;
 }
 
-.theme-black #options-container button:hover {
-    background-color: #111827;
+.theme-black #options-container .choice-button.choice-default:hover {
+    background-color: #0b1224;
 }
 
 .theme-black #result-screen {
@@ -253,43 +253,101 @@ body.app-ready .layout-container {
 }
 
 .theme-black #entry-url-input,
-.theme-black #question-count,
-.theme-black #theme-toggle-menu,
-.theme-black #fullscreen-toggle-menu,
-.theme-black #entry-add-button,
-.theme-black #start-button,
-.theme-black #next-button,
-.theme-black #interrupt-button,
-.theme-black #retry-button,
-.theme-black #retry-mistakes-button,
-.theme-black #copy-result-button,
-.theme-black #back-to-menu-button,
-.theme-black #result-pwa-install-button {
-    background-color: #0b1224;
+.theme-black #question-count {
+    background-color: #050816;
     border-color: #1f2937;
     color: #e5e7eb;
 }
 
-.theme-black #theme-toggle-menu:hover,
-.theme-black #fullscreen-toggle-menu:hover,
-.theme-black #entry-add-button:hover,
-.theme-black #next-button:hover,
-.theme-black #interrupt-button:hover,
-.theme-black #retry-button:hover,
-.theme-black #retry-mistakes-button:hover,
-.theme-black #copy-result-button:hover,
-.theme-black #back-to-menu-button:hover,
-.theme-black #result-pwa-install-button:hover,
+.theme-black .interactive-button {
+    background-color: #050816;
+    border-color: #1f2937;
+    color: #e5e7eb;
+}
+
+.theme-black .interactive-button:hover,
 .theme-black #result-screen .grid > div:hover,
 .theme-black #review-list > li:hover,
 .theme-black #result-list > li:hover,
-.theme-black #options-container button:hover {
-    background-color: #111827;
+.theme-black #options-container .choice-button.choice-default:hover {
+    background-color: #0b1224;
 }
 
 /* Scrollbar color tuning for black */
 .theme-black ::-webkit-scrollbar-thumb {
     background: #64748b;
+}
+
+/* Choice button state styles */
+.choice-button.choice-default {
+    background-color: #ffffff;
+    border-color: #e2e8f0;
+    color: #0f172a;
+}
+
+.dark .choice-button.choice-default {
+    background-color: rgba(15, 23, 42, 0.6);
+    border-color: #475569;
+    color: #e5e7eb;
+}
+
+.choice-button.choice-correct {
+    background-color: #ecfdf3;
+    border-color: #34d399;
+    color: #166534;
+}
+
+.dark .choice-button.choice-correct {
+    background-color: rgba(6, 95, 70, 0.4);
+    border-color: #34d399;
+    color: #bbf7d0;
+}
+
+.theme-black .choice-button.choice-correct {
+    background-color: #022c22;
+    border-color: #34d399;
+    color: #bbf7d0;
+}
+
+.choice-button.choice-incorrect {
+    background-color: #fef2f2;
+    border-color: #fb7185;
+    color: #b91c1c;
+}
+
+.dark .choice-button.choice-incorrect {
+    background-color: rgba(127, 29, 29, 0.4);
+    border-color: #fb7185;
+    color: #fecaca;
+}
+
+.theme-black .choice-button.choice-incorrect {
+    background-color: #3b0b17;
+    border-color: #fb7185;
+    color: #fecaca;
+}
+
+.choice-button.choice-selected {
+    background-color: #f0f9ff;
+    border-color: #38bdf8;
+    color: #075985;
+}
+
+.dark .choice-button.choice-selected {
+    background-color: rgba(8, 47, 73, 0.45);
+    border-color: #38bdf8;
+    color: #bae6fd;
+}
+
+.theme-black .choice-button.choice-selected {
+    background-color: #0b1726;
+    border-color: #38bdf8;
+    color: #bae6fd;
+}
+
+.choice-button.choice-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 /* ちょっとしたフェードイン */
