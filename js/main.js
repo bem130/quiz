@@ -32,6 +32,11 @@ import {
 } from './quiz-renderer.js';
 import { selectAnswer, resetSelections } from './answer-state.js';
 import { cloneQuestionForRetry } from './question-clone.js';
+import {
+    enqueueEntryCapacityTask,
+    enqueueQuizCapacityTask,
+    setCapacityRenderCallback
+} from './capacity-manager.js';
 
 let entrySources = [];
 let currentEntry = null;
@@ -1004,6 +1009,10 @@ function renderMenus() {
     renderQuizMenu(currentEntry && currentEntry.available ? currentEntry.quizzes : [], currentQuiz);
 }
 
+setCapacityRenderCallback(() => {
+    renderMenus();
+});
+
 async function applyEntrySelection(entry, desiredQuizId, options = {}) {
     const preserveModeFromUrl = options.preserveModeFromUrl === true;
 
@@ -1048,6 +1057,12 @@ async function applyEntrySelection(entry, desiredQuizId, options = {}) {
 
     const quiz = selectQuizFromEntry(entry, desiredQuizId);
     currentQuiz = quiz;
+
+    (entry.quizzes || []).forEach((quizEntry) => {
+        enqueueQuizCapacityTask(entry, quizEntry);
+    });
+    enqueueEntryCapacityTask(entry);
+
     renderMenus();
 
     const modeToKeep = preserveModeFromUrl ? getModeIdFromLocation() : null;
@@ -1293,6 +1308,18 @@ function attachMenuHandlers() {
     }
 }
 
+function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) {
+        return;
+    }
+
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/quiz/sw.js').catch((error) => {
+            console.error('[pwa] Service worker registration failed:', error);
+        });
+    });
+}
+
 /**
  * アプリ起動時の初期化処理。データ読込、UI 初期化、イベント登録をまとめる。
  */
@@ -1300,6 +1327,7 @@ async function bootstrap() {
     initThemeFromStorage();
     initAppHeightObserver();
     syncQuestionCountInputs(dom.questionCountInput ? dom.questionCountInput.value : 10);
+    registerServiceWorker();
 
     try {
         entrySources = await loadEntrySources();

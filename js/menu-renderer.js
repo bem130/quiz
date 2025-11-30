@@ -1,6 +1,41 @@
 // js/menu-renderer.js
 import { dom } from './dom-refs.js';
 
+function createCapacityElement(status, capacityValue, context) {
+    if (!status) {
+        return null;
+    }
+
+    const text = document.createElement('div');
+    if (status === 'pending') {
+        text.className = 'mt-0.5 text-[11px] text-slate-500 dark:text-slate-400';
+        text.textContent = 'Calculating questions...';
+        return text;
+    }
+
+    if (status === 'done') {
+        text.className = 'mt-0.5 text-[11px] text-slate-500 dark:text-slate-400';
+        if (capacityValue && capacityValue > 0) {
+            text.textContent = context === 'entry'
+                ? `~${capacityValue} questions available`
+                : `~${capacityValue} questions`;
+        } else {
+            text.textContent = context === 'entry'
+                ? 'No questions available in this entry.'
+                : 'No questions in this quiz.';
+        }
+        return text;
+    }
+
+    if (status === 'error') {
+        text.className = 'mt-0.5 text-[11px] text-rose-600 dark:text-rose-300';
+        text.textContent = 'Failed to estimate questions.';
+        return text;
+    }
+
+    return null;
+}
+
 /**
  * エントリ一覧を描画する。
  * @param {Array<object>} entrySources - EntrySource 配列。
@@ -70,6 +105,11 @@ export function renderEntryMenu(entrySources, currentEntry) {
 
         button.appendChild(title);
         button.appendChild(urlText);
+
+        const capacity = createCapacityElement(entry._capacityStatus, entry._capacity, 'entry');
+        if (capacity) {
+            button.appendChild(capacity);
+        }
 
         if (!entry.available && entry.errorMessage) {
             const error = document.createElement('div');
@@ -146,6 +186,11 @@ export function renderQuizMenu(entries, currentQuiz) {
 
         button.appendChild(title);
         button.appendChild(desc);
+
+        const capacity = createCapacityElement(entry._capacityStatus, entry._capacity, 'quiz');
+        if (capacity) {
+            button.appendChild(capacity);
+        }
 
         dom.quizList.appendChild(button);
     });
