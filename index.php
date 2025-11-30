@@ -493,11 +493,9 @@ if ($modeParam !== null) {
                     <button
                         id="interrupt-button"
                         type="button"
-                        class="interactive-button px-3 py-2 rounded-xl
-                            border app-border-subtle
+                        class="interactive-button button-ghost button-danger px-3 py-2 rounded-xl
+                            app-border-subtle
                             app-text-main
-                            bg-white dark:bg-slate-900
-                            hover:border-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30
                             disabled:opacity-40
                             transition-colors
                             hidden"
@@ -527,7 +525,7 @@ if ($modeParam !== null) {
                             <span class="uppercase tracking-wide app-text-muted">
                                 Score
                             </span>
-                            <span class="text-sm sm:text-base font-semibold text-emerald-500" id="current-score">
+                            <span class="text-sm sm:text-base font-semibold app-text-success" id="current-score">
                                 0
                             </span>
                         </div>
@@ -546,11 +544,9 @@ if ($modeParam !== null) {
                     <!-- Next button -->
                     <button
                         id="next-button"
-                        class="interactive-button px-4 py-2 text-xs rounded-xl
-                            border app-border-subtle
+                        class="interactive-button button-ghost px-4 py-2 text-xs rounded-xl
+                            app-border-subtle
                             app-text-main
-                            bg-white dark:bg-slate-900
-                            hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800
                             disabled:opacity-40
                             transition-colors"
                         disabled
@@ -623,7 +619,7 @@ if ($modeParam !== null) {
                             id="size-xl-menu"
                             class="px-1.5 py-0.5 text-[1.0rem] font-bold
                                 app-text-strong
-                                hover:bg-slate-100 dark:hover:bg-slate-700"
+                                app-hover-muted"
                         >
                             A
                         </button>
@@ -633,7 +629,7 @@ if ($modeParam !== null) {
                             id="size-xxl-menu"
                             class="px-1.5 py-0.5 text-[1.1rem] font-bold
                                 app-text-strong
-                                hover:bg-slate-100 dark:hover:bg-slate-700"
+                                app-hover-muted"
                         >
                             A
                         </button>
@@ -647,7 +643,7 @@ if ($modeParam !== null) {
                         <button
                             id="theme-toggle-menu"
                             type="button"
-                            class="interactive-button px-3 py-1 rounded-full border app-border-subtle bg-white dark:bg-slate-800 text-[0.8rem] app-text-main hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            class="interactive-button button-ghost px-3 py-1 rounded-full border app-border-subtle text-[0.8rem] app-text-main transition-colors"
                         >
                             Dark / Light
                         </button>
@@ -656,10 +652,9 @@ if ($modeParam !== null) {
                     <button
                         id="fullscreen-toggle-menu"
                         type="button"
-                        class="interactive-button px-3 py-1 rounded-full border app-border-subtle
-                            bg-white dark:bg-slate-800 text-[0.8rem]
+                        class="interactive-button button-ghost px-3 py-1 rounded-full border app-border-subtle
+                            text-[0.8rem]
                             app-text-main
-                            hover:bg-slate-100 dark:hover:bg-slate-700
                             transition-colors"
                     >
                         Full
@@ -669,7 +664,7 @@ if ($modeParam !== null) {
 
             <!-- ② メニュー専用: Number of questions -->
             <section id="side-menu" class="flex-1 min-h-0 flex flex-col">
-                <div class="px-4 py-3 border-b app-border-subtle bg-slate-100 dark:bg-slate-900/60 transition-colors duration-300">
+                <div class="px-4 py-3 border-b app-border-subtle app-panel-heading transition-colors duration-300">
                     <h2 class="font-semibold app-text-strong text-sm">Entries &amp; Quizzes</h2>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-6">
@@ -717,7 +712,7 @@ if ($modeParam !== null) {
                             max="100"
                             step="5"
                             value="10"
-                            class="w-full bg-white dark:bg-slate-900 border app-border-subtle rounded-xl px-3 py-2 text-xs app-text-strong"
+                            class="w-full app-input rounded-xl px-3 py-2 text-xs app-text-strong"
                         />
                         <p class="text-xs app-text-muted">
                             You can change the number of questions between 5 and 100.
@@ -741,7 +736,7 @@ if ($modeParam !== null) {
                                 </span>
                                 <span
                                     id="mistake-count"
-                                    class="hidden bg-red-500 text-white text-[0.7rem] font-semibold px-2 py-0.5 rounded-full"
+                                    class="hidden app-pill app-pill-danger app-pill-compact"
                                 >
                                     0
                                 </span>
@@ -778,6 +773,6 @@ if ($modeParam !== null) {
 
     <script src="https://cdn.jsdelivr.net/npm/kekule/dist/kekule.min.js"></script>
     <script src="https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
-    <script type="module" src="<?php echo h(quiz_versioned_asset_url('js/main.js')); ?>"></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
