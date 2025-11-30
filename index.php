@@ -115,7 +115,7 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
         <!-- 左: メインエリア（メニュー or クイズ） -->
         <main class="main-panel bg-white dark:bg-slate-850 flex flex-col transition-colors duration-300">
             <!-- 共通ヘッダ -->
-            <header class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-850/90 flex items-center justify-between transition-colors duration-300">
+            <header class="px-[0.5rem] py-[0.8rem] border-b border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-850/90 flex items-center justify-between transition-colors duration-300">
                 <div>
                     <h1 id="app-title" class="text-lg font-semibold">4-choice Quiz</h1>
                     <p id="app-description" class="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -128,6 +128,7 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
             <section id="main-menu" class="flex-1 overflow-y-auto p-6 space-y-6 text-sm">
                 <section class="space-y-3">
                     <h2 class="text-base font-semibold text-slate-800 dark:text-slate-100">Mode</h2>
+                    <div id="mode-message" class="text-xs text-rose-600 dark:text-rose-300 hidden"></div>
                     <div id="mode-list" class="space-y-2">
                         <!-- JS でボタンを生成 -->
                     </div>
@@ -152,7 +153,7 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
             <!-- メイン: クイズ画面 -->
             <section id="main-quiz" class="hidden flex-1 overflow-y-auto flex flex-col">
 
-                <div id="question-view" class="flex-1 overflow-y-auto p-6 flex flex-col">
+                <div id="question-view" class="flex-1 overflow-y-auto p-[0.9rem] flex flex-col">
                     <!-- 内側ラッパーを flex-1 + flex-col にする -->
                     <div class="max-w-4xl w-full mx-auto flex-1 flex flex-col space-y-4">
                         <div id="question-text" class="text-base leading-relaxed space-y-2">
@@ -212,7 +213,7 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
                 </div>
 
                 <!-- Bottom bar: interrupt / progress / score / timer / next -->
-                <footer class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center gap-4 text-xs transition-colors duration-300">
+                <footer class="px-[0.5rem] py-[0.3rem] border-t border-slate-200 dark:border-slate-700 flex items-center gap-4 text-xs transition-colors duration-300">
                     <!-- Interrupt button -->
                     <button
                         id="interrupt-button"
@@ -226,7 +227,7 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
                             transition-colors
                             hidden"
                     >
-                        中断して結果へ
+                        Retire
                     </button>
 
                     <!-- Center status: Progress + Score + Timer -->
@@ -394,10 +395,36 @@ $ogUrl = $quizMetadata['url'] ?? $baseUrl;
             <!-- ② メニュー専用: Number of questions -->
             <section id="side-menu" class="flex-1 flex flex-col">
                 <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/60 transition-colors duration-300">
-                    <h2 class="font-semibold text-slate-800 dark:text-slate-100 text-sm">Available Quizzes</h2>
+                    <h2 class="font-semibold text-slate-800 dark:text-slate-100 text-sm">Entries &amp; Quizzes</h2>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-6">
                     <section class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Available Entries</h3>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex gap-2">
+                                <input
+                                    id="entry-url-input"
+                                    type="url"
+                                    placeholder="https://example.com/quiz/entry.php"
+                                    class="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100"
+                                />
+                                <button
+                                    id="entry-add-button"
+                                    type="button"
+                                    class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-50 hover:bg-slate-700 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-700"
+                                >
+                                    Add
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400">Entries are saved in this browser.</p>
+                        </div>
+                        <div id="entry-list" class="space-y-2"></div>
+                    </section>
+
+                    <section class="space-y-2">
+                        <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">Available Quizzes</h3>
                         <div id="quiz-list" class="space-y-2">
                             <!-- JS で埋め込み -->
                         </div>
