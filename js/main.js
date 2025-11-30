@@ -445,10 +445,8 @@ function renderModeNodes(nodes, parentElement, modeById) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className =
-            'w-full text-left px-3 py-2 rounded-xl border text-xs transition-colors ' +
-            (isActive
-                ? 'border-emerald-400 dark:border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-100'
-                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 app-text-strong hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800');
+            'w-full text-left px-3 py-2 rounded-xl border text-xs transition-colors app-list-button ' +
+            (isActive ? 'app-list-button-active' : '');
 
         const title = document.createElement('div');
         title.className = 'font-semibold';

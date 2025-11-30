@@ -63,11 +63,8 @@ export function renderEntryMenu(entrySources, currentEntry) {
         button.type = 'button';
         button.dataset.entryUrl = entry.url;
         button.className = [
-            'w-full text-left rounded-xl border px-3 py-2 transition-colors',
-            'bg-white dark:bg-slate-900',
-            isCurrent
-                ? 'border-emerald-400 dark:border-emerald-400 shadow-sm'
-                : 'border-slate-300 dark:border-slate-700 hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            'w-full text-left rounded-xl border px-3 py-2 transition-colors app-list-button',
+            isCurrent ? 'app-list-button-active shadow-sm' : ''
         ].join(' ');
 
         const title = document.createElement('div');
@@ -79,21 +76,17 @@ export function renderEntryMenu(entrySources, currentEntry) {
         const status = document.createElement('span');
         status.className = 'text-[11px] font-semibold';
         if (entry.available) {
-            status.classList.add('text-emerald-600', 'dark:text-emerald-300');
+            status.classList.add('app-text-success');
             status.textContent = '✓ Available';
         } else {
-            status.classList.add('text-rose-500', 'dark:text-rose-300');
+            status.classList.add('app-text-danger');
             status.textContent = '× Unavailable';
         }
 
         title.appendChild(labelSpan);
         if (entry.temporary) {
             const tempBadge = document.createElement('span');
-            tempBadge.className = [
-                'ml-2 inline-flex items-center rounded-full px-1.5 py-0.5',
-                'text-[10px] bg-amber-100 text-amber-700',
-                'dark:bg-amber-900/40 dark:text-amber-300'
-            ].join(' ');
+            tempBadge.className = 'ml-2 inline-flex items-center text-[10px] app-pill app-pill-warning app-pill-compact';
             tempBadge.textContent = 'Temporary';
             title.appendChild(tempBadge);
         }
@@ -124,11 +117,7 @@ export function renderEntryMenu(entrySources, currentEntry) {
             const addButton = document.createElement('button');
             addButton.type = 'button';
             addButton.dataset.addUrl = entry.url;
-            addButton.className = [
-                'absolute bottom-2 right-2 text-[11px] font-semibold',
-                'text-emerald-600 hover:text-emerald-700',
-                'dark:text-emerald-300 dark:hover:text-emerald-100'
-            ].join(' ');
+            addButton.className = 'absolute bottom-2 right-2 text-[11px] font-semibold app-link-accent';
             addButton.textContent = 'Add entry';
             wrapper.appendChild(addButton);
         }
@@ -137,7 +126,7 @@ export function renderEntryMenu(entrySources, currentEntry) {
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
             removeButton.dataset.removeUrl = entry.url;
-            removeButton.className = 'absolute top-2 right-2 text-[11px] app-text-muted hover:text-rose-500';
+            removeButton.className = 'absolute top-2 right-2 text-[11px] app-link-danger';
             removeButton.textContent = 'Remove';
             wrapper.appendChild(removeButton);
         }
@@ -169,10 +158,8 @@ export function renderQuizMenu(entries, currentQuiz) {
         button.type = 'button';
         button.dataset.quizId = entry.id;
         button.className = [
-            'w-full text-left rounded-xl border px-3 py-2 text-xs transition-colors',
-            isCurrent
-                ? 'border-emerald-400 dark:border-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-100'
-                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 app-text-strong hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            'w-full text-left rounded-xl border px-3 py-2 text-xs transition-colors app-list-button',
+            isCurrent ? 'app-list-button-active' : ''
         ].join(' ');
 
         const title = document.createElement('div');
