@@ -21,14 +21,20 @@ html {
 
 /* 全体設定 */
 body {
-    height: var(--app-height); /* モバイルブラウザ対策 */
-    overflow: hidden;          /* 全体スクロールを防ぎ、中身だけスクロール */
+    height: var(--app-height);
+    /* モバイルブラウザ対策 */
+    overflow: hidden;
+    /* 全体スクロールを防ぎ、中身だけスクロール */
 
     /* テキスト選択禁止（ドラッグ選択でレイアウトが崩れないように） */
-    -webkit-user-select: none; /* Safari / Chrome */
-    -moz-user-select: none;    /* Firefox */
-    -ms-user-select: none;     /* 旧 Edge / IE */
-    user-select: none;         /* 標準 */
+    -webkit-user-select: none;
+    /* Safari / Chrome */
+    -moz-user-select: none;
+    /* Firefox */
+    -ms-user-select: none;
+    /* 旧 Edge / IE */
+    user-select: none;
+    /* 標準 */
 }
 
 /* レイアウトコンテナ: 画面いっぱいのフレックス */
@@ -47,11 +53,13 @@ body {
     .layout-container {
         flex-direction: row;
     }
+
     .main-panel {
         flex: 3;
         height: 100%;
         overflow-y: auto;
     }
+
     .side-panel {
         flex: 2;
         height: 100%;
@@ -71,11 +79,13 @@ body {
     .layout-container {
         flex-direction: column;
     }
+
     .main-panel {
         flex: 3;
         width: 100%;
         overflow-y: auto;
     }
+
     .side-panel {
         flex: 2;
         width: 100%;
@@ -121,6 +131,7 @@ body {
         opacity: 0;
         transform: translateY(0.25rem);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -166,5 +177,11 @@ ruby rt {
 
 .chem-inline-viewer-inner {
     display: block;
-    transform-origin: left bottom; /* テキスト行のベースライン寄せ */
+    transform-origin: left bottom;
+    /* テキスト行のベースライン寄せ */
+}
+
+.chem-inline-viewer-inner canvas {
+  image-rendering: smooth;
+    /* Prevent blurring when scaled down */
 }
