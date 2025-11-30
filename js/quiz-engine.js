@@ -623,6 +623,86 @@ export class QuizEngine {
             typeof options.maxConsecutiveSkips === 'number'
                 ? options.maxConsecutiveSkips
                 : DEFAULT_MAX_CONSECUTIVE_SKIPS;
+        this._patternCapacityCache = null;
+    }
+
+    /**
+     * Build and cache the per-pattern capacity map for the current quiz definition.
+     * @returns {Map<string, number>}
+     */
+    _ensurePatternCapacityMap() {
+        if (this._patternCapacityCache) {
+            return this._patternCapacityCache;
+        }
+
+        const map = new Map();
+        for (const pattern of this.patterns) {
+            if (!pattern || !pattern.id) {
+                continue;
+            }
+            map.set(pattern.id, this._estimatePatternCapacity(pattern));
+        }
+        this._patternCapacityCache = map;
+        return map;
+    }
+
+    /**
+     * Estimate how many questions a single pattern can generate.
+     * @param {object} pattern
+     * @returns {number}
+     */
+    _estimatePatternCapacity(pattern) {
+        const dataSet = getDataSet(this.dataSets, pattern.dataSet);
+        if (!dataSet) {
+            return 0;
+        }
+
+        if (dataSet.type === 'table') {
+            const rows = getFilteredRows(dataSet, pattern.entityFilter);
+            const spec = pattern.matchingSpec || {};
+            const pairCount =
+                typeof spec.pairCount === 'number' && spec.pairCount > 0
+                    ? spec.pairCount
+                    : typeof spec.count === 'number' && spec.count > 0
+                        ? spec.count
+                        : 0;
+
+            if (pattern.questionFormat === 'table_matching' && pairCount > 0) {
+                return Math.floor(rows.length / pairCount);
+            }
+            return rows.length;
+        }
+
+        if (dataSet.type === 'factSentences' && pattern.tokensFromData === 'sentences') {
+            const sentences = getFilteredRows(
+                { data: dataSet.sentences || [] },
+                pattern.entityFilter
+            );
+            return sentences.length;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Retrieve capacity for a specific pattern id.
+     * @param {string} patternId
+     * @returns {number}
+     */
+    getPatternCapacity(patternId) {
+        if (!patternId) {
+            return 0;
+        }
+        const map = this._ensurePatternCapacityMap();
+        return map.get(patternId) || 0;
+    }
+
+    /**
+     * Return the cached pattern capacity map.
+     * @returns {Map<string, number>}
+     */
+    getAllPatternCapacities() {
+        return this._ensurePatternCapacityMap();
     }
 
     /**
@@ -638,43 +718,18 @@ export class QuizEngine {
             return 0;
         }
 
-        let total = 0;
+        const capacities = this._ensurePatternCapacityMap();
+        const uniqueIds = new Set();
 
         for (const pw of mode.patternWeights) {
-            const pattern = this.patterns.find((p) => p.id === pw.patternId);
-            if (!pattern) continue;
-
-            const dataSet = getDataSet(this.dataSets, pattern.dataSet);
-            if (!dataSet) continue;
-
-            let count = 0;
-
-            if (dataSet.type === 'table') {
-                const rows = getFilteredRows(dataSet, pattern.entityFilter);
-                const spec = pattern.matchingSpec || {};
-                const pairCount =
-                    typeof spec.pairCount === 'number' && spec.pairCount > 0
-                        ? spec.pairCount
-                        : typeof spec.count === 'number' && spec.count > 0
-                            ? spec.count
-                            : 0;
-
-                if (pattern.questionFormat === 'table_matching' && pairCount > 0) {
-                    count = Math.floor(rows.length / pairCount);
-                } else {
-                    count = rows.length;
-                }
-            } else if (dataSet.type === 'factSentences') {
-                if (pattern.tokensFromData === 'sentences') {
-                    const sentences = getFilteredRows(
-                        { data: dataSet.sentences || [] },
-                        pattern.entityFilter
-                    );
-                    count = sentences.length;
-                }
+            if (pw && pw.patternId) {
+                uniqueIds.add(pw.patternId);
             }
+        }
 
-            total += count;
+        let total = 0;
+        for (const id of uniqueIds) {
+            total += capacities.get(id) || 0;
         }
 
         return total;

@@ -19,12 +19,26 @@ export function estimateQuizCapacity(definition) {
     }
 
     const engine = new QuizEngine(definition);
-    let total = 0;
+    const patternCaps = engine.getAllPatternCapacities();
+    const quizPatternIds = new Set();
+
     for (const mode of definition.modes) {
-        if (!mode || !mode.id) {
+        if (!mode || !Array.isArray(mode.patternWeights)) {
             continue;
         }
-        total += engine.estimateModeCapacity(mode.id);
+        for (const pw of mode.patternWeights) {
+            if (!pw || !pw.patternId) {
+                continue;
+            }
+            if ((patternCaps.get(pw.patternId) || 0) > 0) {
+                quizPatternIds.add(pw.patternId);
+            }
+        }
+    }
+
+    let total = 0;
+    for (const id of quizPatternIds) {
+        total += patternCaps.get(id) || 0;
     }
     return total;
 }

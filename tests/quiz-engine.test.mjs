@@ -113,3 +113,39 @@ test('QuizEngine supports KaTeX tokens in group choices', () => {
         )
     );
 });
+
+test('estimateModeCapacity counts each pattern once per mode', () => {
+    const definition = {
+        dataSets: {
+            tableSet: {
+                type: 'table',
+                data: [
+                    { id: 'r1', value: 'Alpha' },
+                    { id: 'r2', value: 'Beta' },
+                    { id: 'r3', value: 'Gamma' }
+                ]
+            }
+        },
+        patterns: [
+            {
+                id: 'p1',
+                dataSet: 'tableSet',
+                questionFormat: 'table_fill_choice',
+                tokens: []
+            }
+        ],
+        modes: [
+            {
+                id: 'modeA',
+                patternWeights: [
+                    { patternId: 'p1', weight: 1 },
+                    { patternId: 'p1', weight: 2 }
+                ]
+            }
+        ]
+    };
+
+    const engine = new QuizEngine(definition);
+    assert.equal(engine.getPatternCapacity('p1'), 3);
+    assert.equal(engine.estimateModeCapacity('modeA'), 3);
+});
