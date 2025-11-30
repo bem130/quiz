@@ -55,9 +55,7 @@ export function ensureChemReady() {
  * @param {number} [options.zoomPadding=0.9] - Additional shrink factor to keep margin.
  */
 export async function renderSmilesInline(container, smiles, options = {}) {
-    if (!container) {
-        return;
-    }
+    if (!container) return;
 
     const text = (smiles || '').trim();
     if (!text) {
@@ -66,11 +64,20 @@ export async function renderSmilesInline(container, smiles, options = {}) {
         return;
     }
 
-    container.classList.add(INLINE_VIEWER_CLASS);
+    // Treat container as "wrapper" element for layout.
+    const wrapper = container;
+    wrapper.classList.add(INLINE_VIEWER_CLASS);
+
+    // Clear existing contents.
+    wrapper.textContent = '';
+
+    // Create inner element for actual chemical viewer.
+    const inner = document.createElement('span');
+    inner.className = `${INLINE_VIEWER_CLASS}-inner`;
+    wrapper.appendChild(inner);
 
     try {
         await ensureChemReady();
-        container.textContent = '';
 
         const mol = rdkitModule.get_mol(text);
         if (!mol) {
@@ -80,7 +87,9 @@ export async function renderSmilesInline(container, smiles, options = {}) {
         try {
             const molBlock = mol.get_molblock();
             const kekuleMol = window.Kekule.IO.loadFormatData(molBlock, 'mol');
-            const viewer = new window.Kekule.ChemWidget.Viewer2D(container);
+
+            // ★ Viewer2D is created on the inner element
+            const viewer = new window.Kekule.ChemWidget.Viewer2D(inner);
             viewer.setPredefinedSetting('static');
             viewer.setAutoSize(true);
             viewer.setEnableToolbar(false);
@@ -88,44 +97,88 @@ export async function renderSmilesInline(container, smiles, options = {}) {
             viewer.setInheritedRenderColor(true);
             viewer.setAutofit(true);
             viewer.setChemObj(kekuleMol);
-            scheduleZoomAdjust(container, viewer, options);
+
+            // ★ Scale only the inner element, while wrapper controls line layout.
+            scheduleScaleAdjust(wrapper, inner, options);
         } finally {
             mol.delete();
         }
     } catch (err) {
         console.error('[chem] Failed to render SMILES:', text, err);
-        container.textContent = `[SMILES: ${text}]`;
-        container.classList.add('font-mono');
+        wrapper.textContent = `[SMILES: ${text}]`;
+        wrapper.classList.add('font-mono');
     }
 }
 
-function scheduleZoomAdjust(container, viewer, options) {
-    const maxHeightEm = options.maxHeightEm ?? 4;
-    const maxHeightPx = options.maxHeightPx;
-    const zoomPadding = options.zoomPadding ?? 0.9;
+function scheduleScaleAdjust(wrapper, target, options = {}) {
+    const {
+        maxHeightEm = 4,       // About 3 lines of text by default
+        maxHeightPx,
+        zoomPadding = 0.9,     // Keep a small margin inside the limit
+    } = options;
 
-    requestAnimationFrame(() => {
-        const limitPx = maxHeightPx ?? maxHeightEm * getComputedFontSize(container);
-        const rect = container.getBoundingClientRect();
-        const actualHeight = rect.height || container.offsetHeight;
-        if (!actualHeight || actualHeight <= 0) {
+    const maxTries = 5;
+    let tries = 0;
+
+    const adjust = () => {
+        tries += 1;
+
+        // 1) Get line height around this inline element.
+        const lineHeight = getComputedLineHeight(wrapper);
+        const limitPx = maxHeightPx ?? (maxHeightEm * lineHeight);
+
+        // 2) Measure actual height of the chemical drawing.
+        const rect = target.getBoundingClientRect();
+        const actualHeight = rect.height || target.offsetHeight;
+        const actualWidth = rect.width || target.offsetWidth;
+
+        // If height is not ready yet, try again on the next frame.
+        if (!actualHeight || !Number.isFinite(actualHeight)) {
+            if (tries < maxTries) {
+                requestAnimationFrame(adjust);
+            }
             return;
         }
 
-        if (actualHeight > limitPx && viewer.getZoom && viewer.setZoom) {
-            const scale = (limitPx / actualHeight) * zoomPadding;
-            if (scale < 1) {
-                viewer.setZoom(viewer.getZoom() * scale);
-            }
+        // Ensure wrapper behaves like a normal inline-block box.
+        wrapper.style.display = 'inline-block';
+        wrapper.style.verticalAlign = 'bottom'; // Align bottom to line bottom
+
+        // 3) Case: it already fits within the limit -> no scaling.
+        if (actualHeight <= limitPx) {
+            wrapper.style.height = `${Math.ceil(actualHeight)}px`;
+            wrapper.style.width = `${Math.ceil(actualWidth)}px`;
+            target.style.transform = '';
+            target.style.transformOrigin = '';
+            return;
         }
-    });
+
+        // 4) Case: too tall -> scale down only the target.
+        const scale = (limitPx / actualHeight) * zoomPadding;
+        const visibleHeight = actualHeight * scale;
+        const visibleWidth = actualWidth * scale;
+
+        wrapper.style.height = `${Math.ceil(visibleHeight)}px`;
+        wrapper.style.width = `${Math.ceil(visibleWidth)}px`;
+
+        // Use top-left origin so the element stays at the top of the wrapper
+        // and fills the calculated visible dimensions.
+        target.style.transformOrigin = 'top left';
+        target.style.transform = `scale(${scale})`;
+    };
+
+    requestAnimationFrame(adjust);
 }
 
-function getComputedFontSize(element) {
-    const fontSize = window.getComputedStyle(element).fontSize;
-    const parsed = parseFloat(fontSize);
-    if (!Number.isFinite(parsed)) {
-        return 16;
+// その要素に実際に適用されているフォントサイズ(px)を取得
+function getComputedLineHeight(element) {
+    const style = window.getComputedStyle(element);
+    const fontSize = parseFloat(style.fontSize) || 16;
+
+    if (!style.lineHeight || style.lineHeight === 'normal') {
+        // normal の場合はだいたい 1.4 倍くらい
+        return fontSize * 1.4;
     }
-    return parsed;
+    const lh = parseFloat(style.lineHeight);
+    return Number.isFinite(lh) && lh > 0 ? lh : fontSize * 1.4;
 }

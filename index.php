@@ -144,6 +144,8 @@ if ($modeParam !== null) {
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js" crossorigin="anonymous"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/mhchem.min.js" crossorigin="anonymous"></script>
 
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/kekule/dist/themes/default/kekule.css">
+
     <link rel="stylesheet" href="css/app.css" />
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-300">
@@ -194,7 +196,7 @@ if ($modeParam !== null) {
                 <div id="question-view" class="flex-1 overflow-y-auto p-[0.9rem] flex flex-col">
                     <!-- 内側ラッパーを flex-1 + flex-col にする -->
                     <div class="max-w-4xl w-full mx-auto flex-1 flex flex-col space-y-4">
-                        <div id="question-text" class="text-base leading-relaxed space-y-2">
+                        <div id="question-text" class="text-base leading-snug space-y-2">
                             <!-- 問題文 -->
                         </div>
 
@@ -538,6 +540,8 @@ if ($modeParam !== null) {
         </aside>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/kekule/dist/kekule.min.js"></script>
+    <script src="https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
