@@ -259,6 +259,12 @@ if ($modeParam !== null) {
     <meta charset="UTF-8" />
     <title><?php echo h($pageTitle); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/quiz/manifest.webmanifest" />
+    <meta name="theme-color" content="#020617" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/quiz/icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="4-choice Quiz" />
 
     <!-- General description -->
     <meta name="description" content="<?php echo h($pageDescription); ?>" />
