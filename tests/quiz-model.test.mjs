@@ -74,6 +74,126 @@ test('convertToV2 converts hideruby tokens inside factSentences for v2 data', ()
     assert.ok(token.value && token.value.type === 'ruby');
 });
 
+test('convertToV2 normalizes nested modes into flat list and modeTree', () => {
+    const json = {
+        version: 2,
+        dataSets: {
+            sample: {
+                type: 'table',
+                data: [{ id: 'r1', name: 'Alpha' }]
+            }
+        },
+        questionRules: {
+            patterns: [
+                {
+                    id: 'p1',
+                    dataSet: 'sample',
+                    tokens: [
+                        {
+                            type: 'hide',
+                            value: { type: 'key', field: 'name' },
+                            answer: { mode: 'choice_from_entities' }
+                        }
+                    ]
+                }
+            ],
+            modes: [
+                {
+                    type: 'modes',
+                    label: 'Group A',
+                    description: 'Root group',
+                    value: [
+                        {
+                            id: 'm1',
+                            label: 'Mode 1',
+                            description: 'First',
+                            patternWeights: [{ patternId: 'p1', weight: 1 }]
+                        },
+                        {
+                            type: 'modes',
+                            label: 'Sub',
+                            description: 'Sub group',
+                            value: [
+                                {
+                                    id: 'm2',
+                                    label: 'Mode 2',
+                                    description: 'Second',
+                                    patternWeights: [{ patternId: 'p1', weight: 2 }]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    id: 'm3',
+                    label: 'Mode 3',
+                    description: 'Third',
+                    patternWeights: [{ patternId: 'p1', weight: 3 }]
+                }
+            ]
+        }
+    };
+
+    const def = convertToV2(json);
+
+    assert.equal(def.modes.length, 3);
+    assert.deepEqual(
+        def.modes.map((m) => m.id),
+        ['m1', 'm2', 'm3']
+    );
+    assert.deepEqual(def.modeTree, [
+        {
+            type: 'modes',
+            label: 'Group A',
+            description: 'Root group',
+            children: [
+                { type: 'mode', modeId: 'm1' },
+                {
+                    type: 'modes',
+                    label: 'Sub',
+                    description: 'Sub group',
+                    children: [{ type: 'mode', modeId: 'm2' }]
+                }
+            ]
+        },
+        { type: 'mode', modeId: 'm3' }
+    ]);
+});
+
+test('convertToV2 generates default mode and modeTree when modes are missing', () => {
+    const json = {
+        version: 2,
+        dataSets: {
+            sample: {
+                type: 'table',
+                data: [{ id: 'r1', name: 'Alpha' }]
+            }
+        },
+        questionRules: {
+            patterns: [
+                {
+                    id: 'p1',
+                    dataSet: 'sample',
+                    tokens: [
+                        {
+                            type: 'hide',
+                            value: { type: 'key', field: 'name' },
+                            answer: { mode: 'choice_from_entities' }
+                        }
+                    ]
+                }
+            ]
+        }
+    };
+
+    const def = convertToV2(json);
+
+    assert.equal(def.modes.length, 1);
+    assert.equal(def.modes[0].id, 'default');
+    assert.equal(def.modes[0].label, 'Standard');
+    assert.deepEqual(def.modeTree, [{ type: 'mode', modeId: 'default' }]);
+});
+
 test('convertToV2 allows skipping validation for main files with imports only', () => {
     const json = {
         version: 2,

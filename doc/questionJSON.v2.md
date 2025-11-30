@@ -67,7 +67,7 @@ Main Quiz File のトップレベルは、次のフィールドを持つオブ�
 
   "questionRules": {                        // 必須
     "patterns": [ /* Pattern[] */ ],
-    "modes": [ /* Mode[] */ ]
+    "modes": [ /* Mode[] or ModeGroup[] */ ]
   }
 }
 ```
@@ -81,6 +81,9 @@ Main Quiz File のトップレベルは、次のフィールドを持つオブ�
 * `imports` は Data Bundle File への相対パス配列
 * `dataSets` は、このファイル固有の DataSet 群
 * `questionRules` は問題生成ルール
+
+  * `modes` には **Mode（葉ノード）** と **ModeGroup（type: "modes"）** を混在させることができます。
+  * ModeGroup を使うと、UI でツリー状にモードを並べるための情報を保持できます。
 
 #### 処理
 
@@ -561,35 +564,75 @@ DataSet は `dataSets[<id>]` に格納されるオブジェクトです。共通
 
 #### 記述
 
+Mode 定義には **2 種類のノード**を混在させられます。
+
+1. **Mode（葉ノード）**: クリック可能なモードそのもの
+2. **ModeGroup（type: "modes"）**: UI 表示用のグループノード
+
+Mode は従来通りの構造で定義します。
+
+```jsonc
+{
+  "id": "mix_all",
+  "label": "総合モード",
+  "description": "全パターンを均等に出題", // 任意
+  "patternWeights": [
+    { "patternId": "p_abbr_to_name",         "weight": 3 },
+    { "patternId": "p_match_name_to_class",  "weight": 2 },
+    { "patternId": "p_fact_sentence_choice", "weight": 1 }
+  ]
+}
+```
+
+ModeGroup は次のように書きます。
+
+```jsonc
+{
+  "type": "modes",
+  "label": "分野別",              // 必須（表示名）
+  "description": "分野別モード", // 任意
+  "value": [
+    /* 子要素（Mode or ModeGroup） */
+  ]
+}
+```
+
+Mode と ModeGroup を混在させた例：
+
 ```jsonc
 "modes": [
   {
-    "id": "mix_all",
-    "label": "総合モード",
-    "patternWeights": [
-      { "patternId": "p_abbr_to_name",        "weight": 3 },
-      { "patternId": "p_match_name_to_class", "weight": 2 },
-      { "patternId": "p_fact_sentence_choice","weight": 1 }
+    "type": "modes",
+    "label": "ミックス",
+    "value": [
+      { "id": "mix_basic", "label": "ミックス（基礎）", "patternWeights": [/* ... */] },
+      { "id": "mix_adv",   "label": "ミックス（応用）", "patternWeights": [/* ... */] }
     ]
-  }
+  },
+  {
+    "type": "modes",
+    "label": "分野別",
+    "value": [
+      { "id": "climate", "label": "気候", "patternWeights": [/* ... */] },
+      { "id": "agri",    "label": "農業", "patternWeights": [/* ... */] }
+    ]
+  },
+  { "id": "quick", "label": "クイック", "patternWeights": [/* ... */] }
 ]
 ```
 
-* `id`: モード識別子
-* `label`: 表示名
-* `patternWeights`: 利用する Pattern とその出題比重
+この JSON から、UI では「ミックス」「分野別」の見出し配下に子モードがぶら下がるツリー状のメニューを描画できます。
 
 #### 処理
 
-* クイズ開始時に、ユーザーがモードを選ぶか、デフォルトモードを使用します。
-* モード内では `patternWeights` に基づいて Pattern を重み付きランダムで選択します。
-* Pattern ごとに異なる `entityFilter` を設定しておくことで、
+* 変換層では、`questionRules.modes` から **2 つの構造**を生成します。
 
-  * 例：
+  1. `definition.modes`: Mode（葉）だけを集めたフラット配列（従来どおりエンジンが参照）
+  2. `definition.modeTree`: UI 用のツリー情報（ModeGroup と `{ type: "mode", modeId }` の組み合わせ）
 
-    * `p_abbr_to_name_acidic`（酸性アミノ酸のみ）
-    * `p_abbr_to_name_all`（全アミノ酸）
-  * のような Pattern を組み合わせたモードを簡単に作ることができます。
+* ModeGroup を使わずにフラット配列を渡した場合は、ツリーも自動的に 1 階層で生成されます。
+* モードが 1 つも定義されていない場合は、全 Pattern を均等に出題する `id: "default"` のモードが自動生成され、`modeTree` もその 1 件を指す構造になります。
+* クイズエンジンは従来通り **`definition.modes` と `patternWeights` のみ**を用いて出題を行います。`modeTree` は UI 表示専用です。
 
 ---
 
