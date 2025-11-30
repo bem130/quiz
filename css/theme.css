@@ -37,6 +37,35 @@
     --color-button-border: #e2e8f0;
     --color-button-text: #1f2937;
 
+    --color-button-danger-bg: #fef2f2;
+    --color-button-danger-bg-hover: #fee2e2;
+    --color-button-danger-border: #fb7185;
+    --color-button-danger-text: #991b1b;
+
+    --color-card-hover-bg: #f1f5f9;
+    --color-list-hover-bg: #f8fafc;
+    --color-section-header-bg: #e2e8f0;
+
+    --color-accent-quiet-bg: #ecfdf3;
+
+    --color-status-success-bg: #ecfdf3;
+    --color-status-success-border: #22c55e;
+    --color-status-success-text: #166534;
+
+    --color-status-danger-bg: #fef2f2;
+    --color-status-danger-border: #fb7185;
+    --color-status-danger-text: #b91c1c;
+
+    --color-status-warning-bg: #fff7ed;
+    --color-status-warning-border: #fb923c;
+    --color-status-warning-text: #c2410c;
+
+    --color-status-info-bg: #eff6ff;
+    --color-status-info-border: #38bdf8;
+    --color-status-info-text: #075985;
+
+    --color-focus-ring: #22c55e;
+
     --color-choice-default-bg: #ffffff;
     --color-choice-default-border: #e2e8f0;
     --color-choice-default-text: #0f172a;
@@ -104,6 +133,35 @@ html[data-theme="dark"] {
     --color-button-border: #475569;
     --color-button-text: #e2e8f0;
 
+    --color-button-danger-bg: rgba(127, 29, 29, 0.5);
+    --color-button-danger-bg-hover: rgba(127, 29, 29, 0.6);
+    --color-button-danger-border: #fb7185;
+    --color-button-danger-text: #fecaca;
+
+    --color-card-hover-bg: rgba(15, 23, 42, 0.75);
+    --color-list-hover-bg: rgba(15, 23, 42, 0.75);
+    --color-section-header-bg: rgba(15, 23, 42, 0.5);
+
+    --color-accent-quiet-bg: rgba(6, 95, 70, 0.4);
+
+    --color-status-success-bg: rgba(6, 95, 70, 0.4);
+    --color-status-success-border: #34d399;
+    --color-status-success-text: #bbf7d0;
+
+    --color-status-danger-bg: rgba(127, 29, 29, 0.4);
+    --color-status-danger-border: #fb7185;
+    --color-status-danger-text: #fecaca;
+
+    --color-status-warning-bg: rgba(120, 53, 15, 0.5);
+    --color-status-warning-border: #fb923c;
+    --color-status-warning-text: #fed7aa;
+
+    --color-status-info-bg: rgba(8, 47, 73, 0.45);
+    --color-status-info-border: #38bdf8;
+    --color-status-info-text: #bae6fd;
+
+    --color-focus-ring: #38bdf8;
+
     --color-choice-default-bg: rgba(15, 23, 42, 0.6);
     --color-choice-default-border: #475569;
     --color-choice-default-text: #e5e7eb;
@@ -170,6 +228,35 @@ html[data-theme="black"] {
     --color-button-bg-hover: #0b1224;
     --color-button-border: #1f2937;
     --color-button-text: #e2e8f0;
+
+    --color-button-danger-bg: #3b0b17;
+    --color-button-danger-bg-hover: #4a0e1f;
+    --color-button-danger-border: #fb7185;
+    --color-button-danger-text: #fecaca;
+
+    --color-card-hover-bg: #0b1224;
+    --color-list-hover-bg: #0b1224;
+    --color-section-header-bg: rgba(5, 8, 22, 0.75);
+
+    --color-accent-quiet-bg: #022c22;
+
+    --color-status-success-bg: #022c22;
+    --color-status-success-border: #34d399;
+    --color-status-success-text: #bbf7d0;
+
+    --color-status-danger-bg: #3b0b17;
+    --color-status-danger-border: #fb7185;
+    --color-status-danger-text: #fecaca;
+
+    --color-status-warning-bg: #4f2e04;
+    --color-status-warning-border: #fb923c;
+    --color-status-warning-text: #fed7aa;
+
+    --color-status-info-bg: #0b1726;
+    --color-status-info-border: #38bdf8;
+    --color-status-info-text: #bae6fd;
+
+    --color-focus-ring: #38bdf8;
 
     --color-choice-default-bg: #050816;
     --color-choice-default-border: #1f2937;
@@ -331,6 +418,16 @@ body.app-ready .layout-container {
     transform: scale(0.98);
 }
 
+.interactive-button:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}
+
+.app-focus-ring:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}
+
 .interactive-button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -344,6 +441,26 @@ body.app-ready .layout-container {
 
 .button-accent:hover {
     background-color: var(--color-accent-bg-hover);
+}
+
+.button-danger {
+    background-color: var(--color-button-danger-bg);
+    border-color: var(--color-button-danger-border);
+    color: var(--color-button-danger-text);
+}
+
+.button-danger:hover {
+    background-color: var(--color-button-danger-bg-hover);
+}
+
+.button-ghost {
+    background-color: var(--color-surface-card);
+    border-color: var(--color-border-subtle);
+    color: var(--color-text-main);
+}
+
+.button-ghost:hover {
+    background-color: var(--color-card-hover-bg);
 }
 
 /* Headers */
@@ -396,6 +513,44 @@ body.app-ready .layout-container {
     box-shadow: var(--color-card-shadow);
 }
 
+.app-card-status-success {
+    background-color: var(--color-status-success-bg);
+    border-color: var(--color-status-success-border);
+    color: var(--color-status-success-text);
+}
+
+.app-card-status-danger {
+    background-color: var(--color-status-danger-bg);
+    border-color: var(--color-status-danger-border);
+    color: var(--color-status-danger-text);
+}
+
+.app-card-hoverable:hover {
+    background-color: var(--color-card-hover-bg);
+}
+
+.app-list-button {
+    background-color: var(--color-surface-card);
+    border-color: var(--color-border-subtle);
+    color: var(--color-text-main);
+    box-shadow: var(--color-card-shadow);
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+.app-list-button:hover {
+    background-color: var(--color-list-hover-bg);
+    border-color: var(--color-border-strong);
+}
+
+.app-list-button.app-list-button-active {
+    background-color: var(--color-accent-quiet-bg);
+    border-color: var(--color-accent-border);
+}
+
 .app-callout {
     background-color: var(--color-pwa-hint-bg);
     border-color: var(--color-pwa-hint-border);
@@ -433,6 +588,86 @@ body.app-ready .layout-container {
 
 .app-hover-muted:hover {
     background-color: var(--color-choice-default-bg-hover);
+}
+
+.app-panel-heading {
+    background-color: var(--color-section-header-bg);
+}
+
+.app-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-width: 1px;
+    border-style: solid;
+    font-weight: 600;
+}
+
+.app-pill-compact {
+    padding: 0.15rem 0.45rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+}
+
+.app-pill-success {
+    background-color: var(--color-status-success-bg);
+    border-color: var(--color-status-success-border);
+    color: var(--color-status-success-text);
+}
+
+.app-pill-danger {
+    background-color: var(--color-status-danger-bg);
+    border-color: var(--color-status-danger-border);
+    color: var(--color-status-danger-text);
+}
+
+.app-pill-warning {
+    background-color: var(--color-status-warning-bg);
+    border-color: var(--color-status-warning-border);
+    color: var(--color-status-warning-text);
+}
+
+.app-pill-info {
+    background-color: var(--color-status-info-bg);
+    border-color: var(--color-status-info-border);
+    color: var(--color-status-info-text);
+}
+
+.app-link-accent {
+    color: var(--color-text-success);
+}
+
+.app-link-accent:hover {
+    color: var(--color-text-success);
+    text-decoration: underline;
+}
+
+.app-link-danger {
+    color: var(--color-text-danger);
+}
+
+.app-link-danger:hover {
+    color: var(--color-text-danger);
+    text-decoration: underline;
+}
+
+.app-link-muted {
+    color: var(--color-text-muted);
+    transition: color 0.15s ease;
+}
+
+.app-link-muted:hover {
+    color: var(--color-text-main);
+}
+
+.app-focus-outline {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}
+
+.app-match-highlight {
+    background-color: var(--color-card-hover-bg);
+    border-color: var(--color-accent-border);
 }
 
 /* Compatibility overrides for existing utility class names */

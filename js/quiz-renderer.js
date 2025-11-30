@@ -12,38 +12,19 @@ const CHOICE_STATE_CLASSES = [
     'choice-disabled'
 ];
 
-const CHOICE_FEEDBACK_CLASSES = [
-    'border-emerald-400',
-    'bg-emerald-50',
-    'dark:bg-emerald-900/30',
-    'border-rose-400',
-    'bg-rose-50',
-    'dark:bg-rose-900/30',
-    'border-sky-400',
-    'bg-sky-50',
-    'dark:bg-sky-900/30'
-];
+const CHOICE_FEEDBACK_CLASSES = [];
 
-const CHOICE_BASE_BORDER_CLASSES = ['border-slate-300', 'dark:border-slate-700'];
+const CHOICE_BASE_BORDER_CLASSES = [];
 
 const CHOICE_STATE_MAP = {
     correct: [
-        'choice-correct',
-        'border-emerald-400',
-        'bg-emerald-50',
-        'dark:bg-emerald-900/30'
+        'choice-correct'
     ],
     incorrect: [
-        'choice-incorrect',
-        'border-rose-400',
-        'bg-rose-50',
-        'dark:bg-rose-900/30'
+        'choice-incorrect'
     ],
     selected: [
-        'choice-selected',
-        'border-sky-400',
-        'bg-sky-50',
-        'dark:bg-sky-900/30'
+        'choice-selected'
     ],
     disabled: ['choice-disabled']
 };
@@ -210,7 +191,7 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
             if (placeholders && token.answer) {
                 const span = document.createElement('span');
                 span.dataset.answerIndex = String(answerIndexCounter);
-                span.className = 'inline-block min-w-[2.5rem] border-b border-slate-500 mx-1 pb-0.5';
+                span.className = 'inline-block min-w-[2.5rem] border-b app-border-strong mx-1 pb-0.5';
                 span.textContent = ' ';
                 parent.appendChild(span);
             } else {
@@ -238,10 +219,7 @@ function createOptionButton(labelNodes, isDisabled, onClick, { fullHeight = true
         fullHeight ? 'h-full' : '',   // ★ ここで制御
         // items-start → items-stretch にして中身をフル幅に
         'flex flex-col items-stretch justify-between',
-        'px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700',
-        'bg-white dark:bg-slate-900 app-text-strong',
-        'hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+        'px-3 py-2 rounded-xl border app-text-strong app-focus-ring',
         'text-base leading-relaxed',
         'transition-colors'
     ].join(' ');
@@ -426,22 +404,16 @@ function renderTableMatchingQuestion(question, dataSets, onSelect) {
         matchingState.leftButtons.forEach((btn) => {
             if (!btn) return;
             btn.classList.remove(
-                'ring-2',
-                'ring-emerald-500',
-                'border-emerald-300',
-                'bg-slate-100',
-                'dark:bg-slate-800'
+                'app-focus-outline',
+                'app-match-highlight'
             );
         });
 
         matchingState.rightButtons.forEach((btn) => {
             if (!btn) return;
             btn.classList.remove(
-                'ring-2',
-                'ring-emerald-500',
-                'border-emerald-300',
-                'bg-slate-100',
-                'dark:bg-slate-800'
+                'app-focus-outline',
+                'app-match-highlight'
             );
         });
 
@@ -453,16 +425,8 @@ function renderTableMatchingQuestion(question, dataSets, onSelect) {
             const rightBtn = matchingState.rightButtons[rightIndex];
             if (!leftBtn || !rightBtn) return;
 
-            leftBtn.classList.add(
-                'border-emerald-300',
-                'bg-slate-100',
-                'dark:bg-slate-800'
-            );
-            rightBtn.classList.add(
-                'border-emerald-300',
-                'bg-slate-100',
-                'dark:bg-slate-800'
-            );
+            leftBtn.classList.add('app-match-highlight');
+            rightBtn.classList.add('app-match-highlight');
         });
 
         // その上で「今 1 個目として選択中」のボタンにリングを付ける
@@ -473,7 +437,7 @@ function renderTableMatchingQuestion(question, dataSets, onSelect) {
                     : matchingState.rightButtons;
             const btn = list[first.index];
             if (btn) {
-                btn.classList.add('ring-2', 'ring-emerald-500');
+                btn.classList.add('app-focus-outline');
             }
         }
     }
@@ -537,10 +501,8 @@ function renderTableMatchingQuestion(question, dataSets, onSelect) {
         btn.className = [
             'choice-button choice-default',
             'w-full',
-            'px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700',
-            'bg-white dark:bg-slate-900',
-            'text-sm text-left app-text-strong',
-            'hover:border-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+            'px-3 py-2 rounded-xl border app-text-strong app-focus-ring',
+            'text-sm text-left',
             'transition-colors'
         ].join(' ');
 
@@ -612,7 +574,7 @@ function createAnswerNavigation(question) {
 
     const prev = document.createElement('button');
     prev.type = 'button';
-    prev.className = 'px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-xs app-text-main bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50';
+    prev.className = 'interactive-button button-ghost px-3 py-1 rounded-lg border app-border-subtle text-xs app-text-main disabled:opacity-50';
     prev.textContent = '<';
 
     const status = document.createElement('div');
@@ -620,7 +582,7 @@ function createAnswerNavigation(question) {
 
     const next = document.createElement('button');
     next.type = 'button';
-    next.className = 'px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-xs app-text-main bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50';
+    next.className = 'interactive-button button-ghost px-3 py-1 rounded-lg border app-border-subtle text-xs app-text-main disabled:opacity-50';
     next.textContent = '>';
 
     nav.appendChild(prev);
@@ -871,13 +833,12 @@ export function updateInlineBlank(
         // 上段: 正答（下線つき）
         const correctLine = document.createElement('span');
         correctLine.className =
-            'block px-2 border-b border-slate-500 min-w-[2.5rem] whitespace-normal pb-0.5';
+            'block px-2 border-b app-border-strong min-w-[2.5rem] whitespace-normal pb-0.5';
 
         if (isReviewContext) {
             // Mistakes では正答を少し強調（青緑）
             correctLine.classList.add(
-                'text-emerald-300',
-                'dark:text-emerald-200'
+                'app-text-success'
             );
         }
 
@@ -888,7 +849,7 @@ export function updateInlineBlank(
         if (!isCorrect && selectedOpt) {
             const wrongLine = document.createElement('span');
             wrongLine.className =
-                'mt-0.5 text-[0.7rem] text-rose-400 dark:text-rose-300 ' +
+                'mt-0.5 text-[0.7rem] app-text-danger ' +
                 // レイアウト系
                 'flex items-start gap-1 ' +
                 // 長いテキスト用: 折り返し + 高さ制限 + 縦スクロール
@@ -1323,10 +1284,7 @@ export function addReviewItem(question, dataSets, questionNumber) {
 
     const li = document.createElement('li');
     li.className = [
-        'rounded-lg border border-slate-300 dark:border-slate-700',
-        'bg-white dark:bg-slate-900',
-        'px-3 py-2',
-        'text-xs'
+        'rounded-lg border px-3 py-2 text-xs app-card'
     ].join(' ');
 
     const topRow = document.createElement('div');
@@ -1344,9 +1302,7 @@ export function addReviewItem(question, dataSets, questionNumber) {
     qLabel.textContent = `Q${questionNumber}`;
 
     const badge = document.createElement('span');
-    badge.className =
-        'text-[0.7rem] px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 ' +
-        'dark:text-red-300 border border-red-300/60 dark:border-red-500/50';
+    badge.className = 'text-[0.7rem] app-pill app-pill-danger app-pill-compact';
     badge.textContent = 'Incorrect';
 
     headerLine.appendChild(qLabel);
@@ -1387,7 +1343,7 @@ export function renderTips(tips, row, isCorrect) {
             (when === 'after_incorrect' && !isCorrect);
         if (!visible) return;
         const block = document.createElement('div');
-        block.className = 'p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm mb-2';
+        block.className = 'p-2 rounded-lg app-surface-muted border app-border-subtle text-sm mb-2';
         appendTokens(block, tip.tokens, row);
         dom.tipContainer.appendChild(block);
     });
@@ -1503,8 +1459,8 @@ export function addResultItem(historyItem, dataSets) {
     const question = historyItem.question;
     const item = document.createElement('li');
     item.className = historyItem.correct
-        ? 'p-2 rounded-lg border app-border-subtle bg-white dark:bg-slate-800'
-        : 'p-2 rounded-lg border border-rose-200 dark:border-rose-700 bg-rose-50/70 dark:bg-rose-900/40';
+        ? 'p-2 rounded-lg border app-card app-card-status-success'
+        : 'p-2 rounded-lg border app-card app-card-status-danger';
 
     const header = document.createElement('div');
     header.className =
@@ -1517,8 +1473,8 @@ export function addResultItem(historyItem, dataSets) {
     // 正解 / 不正解バッジ
     const badge = document.createElement('span');
     badge.className = historyItem.correct
-        ? 'px-2 py-0.5 rounded-full text-[0.7rem] bg-emerald-500/10 app-text-success border border-emerald-300/70 dark:border-emerald-500/60'
-        : 'px-2 py-0.5 rounded-full text-[0.7rem] bg-rose-500/10 app-text-danger border border-rose-300/70 dark:border-rose-500/60';
+        ? 'app-pill app-pill-success app-pill-compact'
+        : 'app-pill app-pill-danger app-pill-compact';
     badge.textContent = historyItem.correct ? 'Correct' : 'Incorrect';
     header.appendChild(badge);
 
