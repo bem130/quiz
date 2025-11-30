@@ -1126,6 +1126,7 @@ export function showOptionFeedback(question) {
             }
         });
     });
+}
 
 export function showOptionFeedbackForAnswer(question, answerIndex) {
     if (!question || !Array.isArray(question.answers)) return;
