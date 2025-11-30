@@ -31,6 +31,7 @@ import {
     addResultItem
 } from './quiz-renderer.js';
 import { selectAnswer, resetSelections } from './answer-state.js';
+import { cloneQuestionForRetry } from './question-clone.js';
 
 let entrySources = [];
 let currentEntry = null;
@@ -731,12 +732,17 @@ function retryMistakes() {
     }
 
     const sequence = mistakes.map((item) => {
-        const cloned = typeof structuredClone === 'function'
-            ? structuredClone(item.question)
-            : JSON.parse(JSON.stringify(item.question));
+        const cloned = cloneQuestionForRetry(item.question);
+        if (!cloned) {
+            return null;
+        }
         resetSelections(cloned);
         return cloned;
-    });
+    }).filter((item) => item !== null && item !== undefined);
+
+    if (!Array.isArray(sequence) || sequence.length === 0) {
+        return;
+    }
 
     customQuestionSequence = sequence;
     useCustomQuestionSequence = true;
