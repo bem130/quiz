@@ -243,9 +243,15 @@ function normalizeModes(rawModes, patterns) {
                 id: modeId,
                 label: node.label || node.id || `Mode ${flatModes.length + 1}`,
                 description: node.description,
-                patternWeights: (node.patternWeights || []).filter((pw) =>
-                    patternIds.has(pw.patternId)
-                )
+                patternWeights: (node.patternWeights || []).filter((pw) => {
+                    const exists = patternIds.has(pw.patternId);
+                    if (!exists) {
+                        console.warn(
+                            `[quiz] Mode ${modeId} references missing pattern ${pw.patternId}, ignoring during normalization.`
+                        );
+                    }
+                    return exists;
+                })
             };
             flatModes.push(mode);
             result.push({ type: 'mode', modeId });
@@ -437,14 +443,27 @@ function convertToV2(json, options = {}) {
         convertHideField: treatAsV2
     };
     const patternsSource = json.questionRules?.patterns || json.patterns;
-    const modesSource = json.questionRules?.modes || json.modes || [];
+    const modesSource =
+        json.questionRules?.modeTree ||
+        json.modeTree ||
+        json.questionRules?.modes ||
+        json.modes ||
+        [];
 
     const dataSets = json.dataSets
         ? convertDataSetsToV2(json.dataSets || {}, convertOptions)
         : convertEntitySetToDataSet(json.entitySet || {});
     const dataSetId = Object.keys(dataSets)[0];
     const patterns = normalizePatterns(patternsSource, dataSetId, convertOptions);
-    const { modes, modeTree } = normalizeModes(modesSource, patterns);
+    
+    let modes = [];
+    let modeTree = [];
+
+    if (!options.skipModeNormalization) {
+        const result = normalizeModes(modesSource, patterns);
+        modes = result.modes;
+        modeTree = result.modeTree;
+    }
 
     warnUnknownKeys(
         json,
@@ -459,6 +478,7 @@ function convertToV2(json, options = {}) {
             'questionRules',
             'patterns',
             'modes',
+            'modeTree', // Added modeTree to allowed keys
             'entitySet'
         ]),
         'quiz definition'
@@ -533,10 +553,17 @@ async function fetchJson(path) {
 
 async function loadDataBundle(mainJson, mainPath) {
     const visited = new Set();
-    const merged = convertToV2(mainJson, { skipValidation: true, isBundle: true });
+    // Pass skipModeNormalization: true to defer mode processing
+    const merged = convertToV2(mainJson, { skipValidation: true, isBundle: true, skipModeNormalization: true });
     merged.dataSets = merged.dataSets || {};
     merged.patterns = merged.patterns || [];
     merged.modes = merged.modes || [];
+    // Store raw modes for later normalization
+    let accumulatedRawModes = mainJson.questionRules?.modeTree ||
+        mainJson.modeTree ||
+        mainJson.questionRules?.modes ||
+        mainJson.modes ||
+        [];
 
     const mainUrl = new URL(mainPath, window.location.href).toString();
     visited.add(mainUrl);
@@ -552,14 +579,35 @@ async function loadDataBundle(mainJson, mainPath) {
 
             console.log('[quiz] loading import bundle:', url);
             const importedJson = await fetchJson(url);
-            const importedDefinition = convertToV2(importedJson, { skipValidation: true, isBundle: true });
+            // Also skip mode normalization for imports
+            const importedDefinition = convertToV2(importedJson, { skipValidation: true, isBundle: true, skipModeNormalization: true });
             if (!importedDefinition.dataSets || Object.keys(importedDefinition.dataSets).length === 0) {
                 throw new Error(`Import file must include at least one dataSet: ${url}`);
             }
 
             mergeDataSets(merged.dataSets, importedDefinition.dataSets, url);
             mergePatterns(merged.patterns, importedDefinition.patterns, url);
-            mergeModes(merged.modes, importedDefinition.modes, url);
+            // We don't merge normalized modes anymore, we collect raw modes if needed,
+            // but typically modes are defined in the main file.
+            // If imports HAVE modes, we might want to merge them, but 'modes' array is now empty/partial.
+            // Let's assume imports might contribute modes too.
+            const importedRawModes = importedJson.questionRules?.modeTree ||
+                importedJson.modeTree ||
+                importedJson.questionRules?.modes ||
+                importedJson.modes ||
+                [];
+            
+            if (importedRawModes.length > 0) {
+                 // Simple concatenation of raw mode trees is tricky. 
+                 // For now, let's assume modes are primarily in the root or we just append them.
+                 // But wait, mergeModes expects normalized modes.
+                 // If we want to support modes in imports, we should collect them.
+                 // However, the current logic was merging *normalized* modes.
+                 // Let's stick to the plan: normalize at the end.
+                 if (Array.isArray(accumulatedRawModes)) {
+                     accumulatedRawModes = accumulatedRawModes.concat(importedRawModes);
+                 }
+            }
 
             await processImports(importedJson, url);
         }
@@ -570,6 +618,11 @@ async function loadDataBundle(mainJson, mainPath) {
     if (!merged.dataSets || Object.keys(merged.dataSets).length === 0) {
         throw new Error('Quiz definition must include at least one dataSet.');
     }
+
+    // NOW normalize modes with the full set of patterns
+    const { modes, modeTree } = normalizeModes(accumulatedRawModes, merged.patterns);
+    merged.modes = modes;
+    merged.modeTree = modeTree;
 
     return validateDefinition(merged);
 }

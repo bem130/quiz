@@ -700,6 +700,19 @@ function startQuiz() {
         return;
     }
 
+    const questionLimit = getConfiguredQuestionCount();
+    console.log('[quiz][start] Starting quiz with mode:', {
+        quizId: quizDef.meta.id,
+        modeId,
+        questionLimit
+    });
+
+    const modeCapacity = engine.estimateModeCapacity(modeId);
+    console.log('[quiz][start] Estimated capacity for mode:', {
+        modeId,
+        modeCapacity
+    });
+
     const n = getConfiguredQuestionCount();
     syncQuestionCountInputs(n);
     totalQuestions = n;

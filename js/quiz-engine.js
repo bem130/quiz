@@ -748,25 +748,107 @@ export class QuizEngine {
     setMode(modeId) {
         const mode = this.modes.find((m) => m.id === modeId) || this.modes[0];
         this.currentMode = mode;
-        const weights = (mode && mode.patternWeights) || [];
+
+        // Fallback: if mode has no patternWeights, use uniform weights across all patterns.
+        const rawWeights = (mode && Array.isArray(mode.patternWeights))
+            ? mode.patternWeights
+            : this.patterns.map((p) => ({ patternId: p.id, weight: 1 }));
+
         const list = [];
         let sum = 0;
-        for (const pw of weights) {
+
+        for (const pw of rawWeights) {
+            if (!pw || !pw.patternId || typeof pw.weight !== 'number' || pw.weight <= 0) {
+                continue;
+            }
             const pattern = this.patterns.find((p) => p.id === pw.patternId);
-            if (!pattern) continue;
+            if (!pattern) {
+                continue;
+            }
             sum += pw.weight;
-            list.push({ pattern, cumulative: sum });
+            list.push({
+                pattern,
+                patternId: pattern.id,
+                weight: pw.weight,
+                cumulative: sum
+            });
         }
+
+        if (list.length === 0 || sum <= 0) {
+            console.warn('[quiz][mode] No valid patternWeights for mode. Falling back to uniform.', {
+                requestedModeId: modeId,
+                resolvedModeId: mode && mode.id,
+                availablePatternIds: this.patterns.map((p) => p.id)
+            });
+
+            const uniformList = [];
+            let uniformSum = 0;
+            for (const pattern of this.patterns) {
+                uniformSum += 1;
+                uniformList.push({
+                    pattern,
+                    patternId: pattern.id,
+                    weight: 1,
+                    cumulative: uniformSum
+                });
+            }
+            this.currentWeights = { list: uniformList, total: uniformSum };
+            return;
+        }
+
         this.currentWeights = { list, total: sum };
+
+        console.log('[quiz][mode] Mode configured:', {
+            modeId: mode && mode.id,
+            modeLabel: mode && mode.label,
+            totalWeight: sum,
+            patternWeights: list.map((entry) => ({
+                patternId: entry.patternId,
+                patternLabel: entry.pattern.label,
+                weight: entry.weight,
+                cumulative: entry.cumulative
+            }))
+        });
     }
 
     choosePattern() {
         const w = this.currentWeights;
         if (!w || !w.list.length || !w.total) {
-            return randomChoice(this.patterns);
+            const pattern = randomChoice(this.patterns);
+            console.warn('[quiz][pattern] Using uniform fallback pattern choice:', {
+                modeId: this.currentMode && this.currentMode.id,
+                patternId: pattern && pattern.id,
+                patternLabel: pattern && pattern.label
+            });
+            return pattern;
         }
+
         const r = Math.random() * w.total;
-        return w.list.find((x) => r < x.cumulative).pattern;
+        const chosen = w.list.find((x) => r < x.cumulative);
+
+        if (!chosen) {
+            const pattern = randomChoice(this.patterns);
+            console.warn('[quiz][pattern] No pattern matched random value, using uniform fallback:', {
+                modeId: this.currentMode && this.currentMode.id,
+                randomValue: r,
+                totalWeight: w.total
+            });
+            return pattern;
+        }
+
+        console.log('[quiz][pattern] Pattern chosen:', {
+            modeId: this.currentMode && this.currentMode.id,
+            patternId: chosen.pattern.id,
+            patternLabel: chosen.pattern.label,
+            randomValue: r,
+            totalWeight: w.total,
+            weights: w.list.map((entry) => ({
+                patternId: entry.pattern.id,
+                cumulative: entry.cumulative
+            }))
+        });
+
+        return chosen.pattern;
     }
 
     generateQuestion() {

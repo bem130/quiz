@@ -60,12 +60,21 @@ function createStyledSpan(text, styles = []) {
     const span = document.createElement('span');
     if (styles.includes('katex') && window.katex) {
         try {
+            // Check for common malformed patterns that cause msub errors
+            // e.g. "A_" with nothing after it, or "_{}" empty subscript
+            if (text.includes('_{}') || /_\s*$/.test(text)) {
+                // Attempt to clean up or just fallback
+                console.warn('[katex] Potential invalid subscript in:', text);
+            }
+
             window.katex.render(text, span, {
                 throwOnError: false,
-                strict: false
+                strict: false,
+                errorColor: '#cc0000'
             });
             return span;
         } catch (e) {
+            console.error('[katex] render error:', e);
             span.textContent = text;
         }
     }
@@ -134,6 +143,13 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                     : token.field && row
                         ? row[token.field] ?? ''
                         : '';
+
+            // Basic validation to prevent empty msub errors if text is empty or malformed
+            if (!text) {
+                parent.appendChild(createStyledSpan('', ['katex', ...(token.styles || [])]));
+                return;
+            }
+
             parent.appendChild(createStyledSpan(String(text), ['katex', ...(token.styles || [])]));
             return;
         }
