@@ -67,6 +67,87 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+let QUIZ_DATA_URLS = new Set();
+
+self.addEventListener('message', (event) => {
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+
+    if (data.type === 'UPDATE_QUIZ_DATA_URLS' && Array.isArray(data.urls)) {
+        QUIZ_DATA_URLS = new Set(data.urls);
+        console.log('[sw] Updated QUIZ_DATA_URLS:', QUIZ_DATA_URLS.size);
+    }
+
+    if (data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
+
+function isQuizDataRequest(request) {
+    const url = new URL(request.url);
+    const full = url.href; // full URL
+    const path = url.pathname;
+
+    // Check against the Set of known quiz data URLs
+    // We check both full URL and pathname to be safe, though full URL is preferred for exact matching
+    return QUIZ_DATA_URLS.has(full) || QUIZ_DATA_URLS.has(path);
+}
+
+/**
+ * Network First strategy with Cache fallback.
+ * Used for quiz data (entry.php, .json) to ensure freshness.
+ */
+function networkFirstWithCache(request) {
+    return fetch(request)
+        .then((response) => {
+            // Check if we received a valid response
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+                return response;
+            }
+
+            // Clone the response to store in cache
+            const responseToCache = response.clone();
+
+            caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseToCache);
+            });
+
+            return response;
+        })
+        .catch(() => {
+            // Network failed, try cache
+            return caches.match(request);
+        });
+}
+
+/**
+ * Cache First strategy with Network fallback (and App Shell fallback).
+ * Used for static assets and App Shell.
+ */
+function cacheFirstWithFallback(request) {
+    return caches.match(request).then((cached) => {
+        if (cached) {
+            return cached;
+        }
+
+        return caches.match(request, { ignoreSearch: true }).then((matched) => {
+            if (matched) {
+                return matched;
+            }
+
+            return fetch(request).catch(async () => {
+                if (request.mode === 'navigate' || request.destination === 'document') {
+                    const fallback = await caches.match(FALLBACK_URL);
+                    if (fallback) {
+                        return fallback;
+                    }
+                }
+                return Response.error();
+            });
+        });
+    });
+}
+
 self.addEventListener('fetch', (event) => {
     const request = event.request;
     const url = new URL(request.url);
@@ -75,27 +156,9 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    event.respondWith(
-        caches.match(request).then((cached) => {
-            if (cached) {
-                return cached;
-            }
-
-            return caches.match(request, { ignoreSearch: true }).then((matched) => {
-                if (matched) {
-                    return matched;
-                }
-
-                return fetch(request).catch(async () => {
-                    if (request.mode === 'navigate' || request.destination === 'document') {
-                        const fallback = await caches.match(FALLBACK_URL);
-                        if (fallback) {
-                            return fallback;
-                        }
-                    }
-                    return Response.error();
-                });
-            });
-        })
-    );
+    if (isQuizDataRequest(request)) {
+        event.respondWith(networkFirstWithCache(request));
+    } else {
+        event.respondWith(cacheFirstWithFallback(request));
+    }
 });

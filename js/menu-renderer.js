@@ -163,6 +163,22 @@ export function renderEntryMenu(entrySources, currentEntry) {
             wrapper.appendChild(addButton);
         }
 
+        // Reload button (for all entries except maybe local draft if it doesn't make sense, but let's allow it for consistency or at least for remote/built-in)
+        // Actually, for local draft (isLocal), "reload" might not mean much if it's from storage, but if it has a URL it might.
+        // But the requirement emphasizes "Network First" for quiz data.
+        // Let's add it for everything.
+        const reloadButton = document.createElement('button');
+        reloadButton.type = 'button';
+        reloadButton.dataset.reloadEntryUrl = entry.url;
+        reloadButton.className = 'absolute top-2 right-12 text-[11px] app-link-accent'; // Positioned to the left of Remove (right-2)
+        reloadButton.innerHTML = '&#x21bb;'; // Clockwise Open Circle Arrow or similar. Or just "Reload" text if space permits.
+        reloadButton.title = 'Reload this entry';
+        // If there is no remove button (builtIn), we can move it to right-2
+        if (entry.builtIn || entry.isLocal) {
+            reloadButton.className = 'absolute top-2 right-2 text-[11px] app-link-accent';
+        }
+        wrapper.appendChild(reloadButton);
+
         if (!entry.builtIn && !isLocal) {
             const removeButton = document.createElement('button');
             removeButton.type = 'button';

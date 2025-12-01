@@ -79,6 +79,131 @@ const CACHE_PREFIX = 'quiz-app-shell-';
 const CACHE_RECOVERY_FLAG_KEY = 'quiz-app-cache-recovery-attempted';
 
 /**
+ * Collect all quiz data URLs and send them to the Service Worker.
+ */
+function syncQuizDataUrlsToServiceWorker() {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+        return;
+    }
+
+    const urls = new Set();
+    if (Array.isArray(entrySources)) {
+        entrySources.forEach((entry) => {
+            if (entry.url) {
+                try {
+                    // Add entry URL (entry.php)
+                    urls.add(new URL(entry.url, window.location.href).href);
+
+                    // Add data URL if available (e.g. .json)
+                    if (entry.dataUrl) {
+                        urls.add(new URL(entry.dataUrl, window.location.href).href);
+                    }
+                } catch (e) {
+                    // Ignore invalid URLs
+                }
+            }
+        });
+    }
+
+    navigator.serviceWorker.controller.postMessage({
+        type: 'UPDATE_QUIZ_DATA_URLS',
+        urls: Array.from(urls)
+    });
+}
+
+/**
+ * Reload the application with Service Worker update check.
+ */
+async function reloadApp() {
+    if (!('serviceWorker' in navigator)) {
+        window.location.reload();
+        return;
+    }
+
+    const reg = await navigator.serviceWorker.getRegistration();
+
+    if (!reg) {
+        window.location.reload();
+        return;
+    }
+
+    // Check for updates
+    await reg.update();
+
+    // If there's a waiting worker, skip waiting to activate it immediately
+    if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+
+    // Wait for controller change if a new worker is taking over
+    if (reg.waiting || reg.installing) {
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            window.location.reload();
+        });
+    } else {
+        // No update pending, just reload
+        window.location.reload();
+    }
+}
+
+/**
+ * Force reload a specific entry.
+ * @param {string} url - The entry URL to reload.
+ */
+async function reloadEntry(url) {
+    const entry = entrySources.find((e) => e.url === url);
+    if (!entry) return;
+
+    // Show loading state (optional, can be handled by caller or global spinner)
+    const button = document.querySelector(`button[data-reload-entry-url="${url}"]`);
+    if (button) {
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<span class="animate-spin inline-block">↻</span>';
+
+        try {
+            // Force fetch with cache: 'reload' to bypass HTTP cache and update SW cache via Network First
+            await fetch(entry.url, { cache: 'reload' });
+
+            // If the entry has a separate dataUrl, fetch that too
+            if (entry.dataUrl) {
+                await fetch(entry.dataUrl, { cache: 'reload' });
+            }
+
+            // Refresh the entry data in the app
+            const loaded = await loadEntrySourceFromUrl(entry.url);
+
+            // Update the entry in the list
+            const index = entrySources.findIndex((e) => e.url === url);
+            if (index !== -1) {
+                entrySources[index] = {
+                    ...entrySources[index],
+                    ...loaded,
+                    label: loaded.label || entrySources[index].label,
+                    updatedAt: Date.now() // Mark as updated
+                };
+                persistEntrySources();
+                renderMenus();
+            }
+
+            // If this is the current entry, reload it
+            if (currentEntry && currentEntry.url === url) {
+                await applyEntrySelection(entrySources[index], getQuizNameFromLocation(), {
+                    preserveModeFromUrl: true
+                });
+            }
+
+        } catch (error) {
+            console.error('[reloadEntry] Failed to reload entry:', error);
+            alert('Failed to reload entry. Please check your connection.');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    }
+}
+
+/**
  * Clear app-specific caches and unregister service workers, then reload.
  * This function is safe to call multiple times, but callers should avoid
  * creating reload loops (use sessionStorage guard for auto-recovery).
@@ -1140,6 +1265,7 @@ function persistEntrySources() {
         (entry) => !entry.temporary && !entry.isLocal
     );
     saveEntrySourcesToStorage(permanent);
+    syncQuizDataUrlsToServiceWorker();
 }
 
 async function refreshEntryAvailability(baseSources) {
@@ -1163,6 +1289,7 @@ function reloadLocalDraftEntry() {
     const withoutLocal = entrySources.filter((entry) => !entry.isLocal);
     const localDraft = loadLocalDraftEntry();
     entrySources = [localDraft, ...withoutLocal];
+    syncQuizDataUrlsToServiceWorker();
     if (currentEntry && currentEntry.isLocal) {
         currentEntry = localDraft;
         currentQuiz = Array.isArray(localDraft.quizzes)
@@ -1505,6 +1632,13 @@ function attachMenuHandlers() {
         dom.menuSizeXXLarge.addEventListener('click', () => setSize('xxl'));
     }
 
+    const appReloadButton = document.getElementById('app-reload-button');
+    if (appReloadButton) {
+        appReloadButton.addEventListener('click', () => {
+            reloadApp();
+        });
+    }
+
     if (dom.cacheClearButton) {
         dom.cacheClearButton.addEventListener('click', async () => {
             if (!confirm('Are you sure you want to clear the cache and reload?')) {
@@ -1625,6 +1759,15 @@ function attachMenuHandlers() {
                 if (entryUrl) {
                     await handleEntryClick(entryUrl);
                 }
+                return;
+            }
+            const reloadButton = target.closest('[data-reload-entry-url]');
+            if (reloadButton && reloadButton instanceof HTMLElement) {
+                const reloadUrl = reloadButton.dataset.reloadEntryUrl;
+                if (reloadUrl) {
+                    await reloadEntry(reloadUrl);
+                }
+                return;
             }
         });
     }
@@ -1724,6 +1867,7 @@ async function bootstrap() {
         entrySources = await loadEntrySources();
         entrySources = await refreshEntryAvailability(entrySources);
         persistEntrySources();
+        syncQuizDataUrlsToServiceWorker();
 
         const initialEntry = selectEntryFromParams(entrySources);
         renderMenus();
