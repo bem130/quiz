@@ -14,6 +14,12 @@ import {
 import { renderEntryMenu, renderQuizMenu } from './menu-renderer.js';
 import { QuizEngine, NoQuestionsAvailableError, QUIZ_ENGINE_VERSION } from './quiz-engine.js';
 import {
+    clearLocalDraft,
+    loadLocalDraftEntry,
+    LOCAL_DRAFT_ENTRY_URL,
+    updateLocalDraftFromText
+} from './local-draft.js';
+import {
     renderQuestion,
     renderProgress,
     showOptionFeedback,
@@ -1073,17 +1079,24 @@ async function loadEntrySources() {
         ];
     }
 
-    return sources;
+    const filtered = sources.filter((entry) => entry.url !== LOCAL_DRAFT_ENTRY_URL);
+    const localDraft = loadLocalDraftEntry();
+    return [localDraft, ...filtered];
 }
 
 function persistEntrySources() {
-    const permanent = entrySources.filter((entry) => !entry.temporary);
+    const permanent = entrySources.filter(
+        (entry) => !entry.temporary && !entry.isLocal
+    );
     saveEntrySourcesToStorage(permanent);
 }
 
 async function refreshEntryAvailability(baseSources) {
     const results = await Promise.all(
         baseSources.map(async (source) => {
+            if (source.isLocal) {
+                return source;
+            }
             const loaded = await loadEntrySourceFromUrl(source.url);
             return {
                 ...source,
@@ -1093,6 +1106,18 @@ async function refreshEntryAvailability(baseSources) {
         })
     );
     return results;
+}
+
+function reloadLocalDraftEntry() {
+    const withoutLocal = entrySources.filter((entry) => !entry.isLocal);
+    const localDraft = loadLocalDraftEntry();
+    entrySources = [localDraft, ...withoutLocal];
+    if (currentEntry && currentEntry.isLocal) {
+        currentEntry = localDraft;
+        currentQuiz = Array.isArray(localDraft.quizzes)
+            ? localDraft.quizzes[0]
+            : null;
+    }
 }
 
 function selectEntryFromParams(sources) {
@@ -1333,6 +1358,43 @@ async function removeEntry(url) {
     await applyEntrySelection(nextEntry, getQuizNameFromLocation());
 }
 
+async function handleLocalDraftUpdate() {
+    try {
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+            throw new Error('クリップボードへアクセスできません。');
+        }
+        const text = await navigator.clipboard.readText();
+        updateLocalDraftFromText(text);
+        reloadLocalDraftEntry();
+        renderMenus();
+        persistEntrySources();
+        const localEntry = entrySources.find((entry) => entry.isLocal) || null;
+        await applyEntrySelection(localEntry, getQuizNameFromLocation(), {
+            preserveModeFromUrl: true
+        });
+    } catch (error) {
+        alert(error instanceof Error ? error.message : String(error));
+    }
+}
+
+async function handleLocalDraftDelete() {
+    if (!confirm('ローカル下書きを削除しますか？')) {
+        return;
+    }
+    clearLocalDraft();
+    reloadLocalDraftEntry();
+    renderMenus();
+    persistEntrySources();
+
+    if (currentEntry && currentEntry.isLocal) {
+        const nextEntry = entrySources.find((entry) => !entry.isLocal && entry.available)
+            || entrySources.find((entry) => !entry.isLocal)
+            || entrySources[0]
+            || null;
+        await applyEntrySelection(nextEntry, getQuizNameFromLocation());
+    }
+}
+
 function attachMenuHandlers() {
     if (dom.menuThemeToggle) {
         dom.menuThemeToggle.addEventListener('click', () => {
@@ -1475,6 +1537,16 @@ function attachMenuHandlers() {
         dom.entryList.addEventListener('click', async (event) => {
             const target = event.target;
             if (!(target instanceof HTMLElement)) return;
+            const localDraftButton = target.closest('[data-local-draft-action]');
+            if (localDraftButton && localDraftButton instanceof HTMLElement) {
+                const action = localDraftButton.dataset.localDraftAction;
+                if (action === 'update') {
+                    await handleLocalDraftUpdate();
+                } else if (action === 'delete') {
+                    await handleLocalDraftDelete();
+                }
+                return;
+            }
             const addButton = target.closest('[data-add-url]');
             if (addButton && addButton instanceof HTMLElement) {
                 const addUrl = addButton.dataset.addUrl;

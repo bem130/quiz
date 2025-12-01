@@ -56,6 +56,8 @@ export function renderEntryMenu(entrySources, currentEntry) {
 
     list.forEach((entry) => {
         const isCurrent = currentEntry && currentEntry.url === entry.url;
+        const isLocal = Boolean(entry.isLocal);
+        const hasDraftData = Boolean(entry.hasDraftData);
         const wrapper = document.createElement('div');
         wrapper.className = 'relative';
 
@@ -71,16 +73,18 @@ export function renderEntryMenu(entrySources, currentEntry) {
         title.className = 'flex items-center gap-2';
         const labelSpan = document.createElement('span');
         labelSpan.className = 'font-semibold text-sm';
-        labelSpan.textContent = entry.label || entry.url;
+        labelSpan.textContent = isLocal
+            ? (hasDraftData ? (entry.label || 'Local draft') : '下書き（データなし）')
+            : (entry.label || entry.url);
 
         const status = document.createElement('span');
         status.className = 'text-[11px] font-semibold';
         if (entry.available) {
             status.classList.add('app-text-success');
-            status.textContent = '✓ Available';
+            status.textContent = isLocal ? '✓ Local draft ready' : '✓ Available';
         } else {
             status.classList.add('app-text-danger');
-            status.textContent = '× Unavailable';
+            status.textContent = isLocal ? 'Draft unavailable' : '× Unavailable';
         }
 
         title.appendChild(labelSpan);
@@ -99,6 +103,13 @@ export function renderEntryMenu(entrySources, currentEntry) {
         button.appendChild(title);
         button.appendChild(urlText);
 
+        if (isLocal && entry.updatedAt) {
+            const updated = document.createElement('div');
+            updated.className = 'text-[11px] app-text-muted';
+            updated.textContent = `Updated at ${new Date(entry.updatedAt).toLocaleString()}`;
+            button.appendChild(updated);
+        }
+
         const capacity = createCapacityElement(entry._capacityStatus, entry._capacity, 'entry');
         if (capacity) {
             button.appendChild(capacity);
@@ -113,6 +124,36 @@ export function renderEntryMenu(entrySources, currentEntry) {
 
         wrapper.appendChild(button);
 
+        if (isLocal) {
+            const actionRow = document.createElement('div');
+            actionRow.className = 'mt-2 flex flex-wrap gap-2';
+
+            const updateButton = document.createElement('button');
+            updateButton.type = 'button';
+            updateButton.dataset.localDraftAction = 'update';
+            updateButton.className = 'text-[11px] font-semibold app-link-accent';
+            updateButton.textContent = 'クリップボードから更新';
+            actionRow.appendChild(updateButton);
+
+            if (hasDraftData) {
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.dataset.localDraftAction = 'delete';
+                deleteButton.className = 'text-[11px] font-semibold app-link-danger';
+                deleteButton.textContent = '削除';
+                actionRow.appendChild(deleteButton);
+            }
+
+            if (!hasDraftData) {
+                const helper = document.createElement('div');
+                helper.className = 'text-[11px] app-text-muted';
+                helper.textContent = 'クリップボードのJSONを下書きとして取り込めます。';
+                actionRow.appendChild(helper);
+            }
+
+            wrapper.appendChild(actionRow);
+        }
+
         if (entry.temporary) {
             const addButton = document.createElement('button');
             addButton.type = 'button';
@@ -122,7 +163,7 @@ export function renderEntryMenu(entrySources, currentEntry) {
             wrapper.appendChild(addButton);
         }
 
-        if (!entry.builtIn) {
+        if (!entry.builtIn && !isLocal) {
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
             removeButton.dataset.removeUrl = entry.url;

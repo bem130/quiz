@@ -701,6 +701,14 @@ export async function loadQuizDefinitionFromQuizEntry(quizEntry) {
     if (!quizEntry) {
         throw new Error('Quiz entry is required to load definition.');
     }
+    if (quizEntry.inlineDefinition) {
+        const definition = JSON.parse(JSON.stringify(quizEntry.inlineDefinition));
+        validateDefinition(definition);
+        return {
+            quizName: quizEntry.id,
+            definition
+        };
+    }
     const path = resolveQuizJsonFromEntry(quizEntry);
     if (!path) {
         throw new Error('Failed to resolve quiz JSON path from entry.');
