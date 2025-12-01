@@ -471,6 +471,36 @@ function goToNextQuestion() {
 }
 
 /**
+ * modeTree を深さ優先で走査し、最初の葉モード ID を取得する。
+ * @param {Array<object>} nodes
+ * @returns {string|null}
+ */
+function findFirstLeafModeId(nodes) {
+    if (!Array.isArray(nodes)) {
+        return null;
+    }
+
+    for (const node of nodes) {
+        if (!node) {
+            continue;
+        }
+
+        if (node.type === 'mode' && node.modeId) {
+            return node.modeId;
+        }
+
+        if (node.type === 'modes') {
+            const child = findFirstLeafModeId(node.children || node.value || []);
+            if (child) {
+                return child;
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
  * 利用可能なモードの一覧を描画し、選択状態に応じてスタイルを更新する。
  */
 function populateModeButtons() {
@@ -481,14 +511,22 @@ function populateModeButtons() {
 
     const modeById = new Map((quizDef.modes || []).map((mode) => [mode.id, mode]));
 
+    const hasModeTree =
+        Array.isArray(quizDef.modeTree) && quizDef.modeTree.length > 0;
+
     if (!currentModeId) {
-        currentModeId = quizDef.modes[0].id;
+        if (hasModeTree) {
+            currentModeId =
+                findFirstLeafModeId(quizDef.modeTree) ||
+                (quizDef.modes[0] && quizDef.modes[0].id);
+        } else {
+            currentModeId = quizDef.modes[0].id;
+        }
     }
 
-    const modeTree =
-        (Array.isArray(quizDef.modeTree) && quizDef.modeTree.length > 0)
-            ? quizDef.modeTree
-            : (quizDef.modes || []).map((mode) => ({ type: 'mode', modeId: mode.id }));
+    const modeTree = hasModeTree
+        ? quizDef.modeTree
+        : (quizDef.modes || []).map((mode) => ({ type: 'mode', modeId: mode.id }));
 
     renderModeNodes(modeTree, dom.modeList, modeById);
 }
@@ -1167,11 +1205,12 @@ async function loadCurrentQuizDefinition() {
 
         // URL から希望モードを取得し、このクイズで利用可能かチェック
         let requestedModeId = getModeIdFromLocation();
-        if (
-            !quizDef.modes ||
-            !Array.isArray(quizDef.modes) ||
-            quizDef.modes.length === 0
-        ) {
+        const hasModes =
+            quizDef.modes && Array.isArray(quizDef.modes) && quizDef.modes.length > 0;
+        const hasModeTree =
+            Array.isArray(quizDef.modeTree) && quizDef.modeTree.length > 0;
+
+        if (!hasModes) {
             currentModeId = null;
         } else if (
             requestedModeId &&
@@ -1179,8 +1218,12 @@ async function loadCurrentQuizDefinition() {
         ) {
             // URL で指定されたモードがこのクイズに存在する場合
             currentModeId = requestedModeId;
+        } else if (hasModeTree) {
+            // 指定なし／存在しない場合は modeTree の最初の葉モードをデフォルトにする
+            currentModeId =
+                findFirstLeafModeId(quizDef.modeTree) ||
+                (quizDef.modes[0] && quizDef.modes[0].id);
         } else {
-            // 指定なし／存在しない場合は先頭モードをデフォルトにする
             currentModeId = quizDef.modes[0].id;
         }
 
