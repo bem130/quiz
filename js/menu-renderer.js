@@ -177,6 +177,203 @@ export function renderEntryMenu(entrySources, currentEntry) {
 }
 
 /**
+ * クイズエントリ配列をディレクトリ構造のツリーに変換する。
+ * @param {Array<object>} entries
+ * @returns {Array<object>} root-level nodes
+ */
+function buildQuizTree(entries) {
+    const root = {
+        type: 'dir',
+        name: '',
+        label: '',
+        children: []
+    };
+
+    function ensureDirNode(parent, segment) {
+        if (!segment) {
+            return parent;
+        }
+
+        let child = (parent.children || []).find(
+            (node) => node.type === 'dir' && node.name === segment
+        );
+
+        if (!child) {
+            child = {
+                type: 'dir',
+                name: segment,
+                label: segment,
+                children: []
+            };
+            parent.children.push(child);
+        }
+
+        return child;
+    }
+
+    (entries || []).forEach((entry) => {
+        if (!entry) {
+            return;
+        }
+
+        const rawDir = typeof entry.dir === 'string' ? entry.dir : '';
+        const normalized = rawDir
+            .replace(/^[.\/]+/, '')
+            .replace(/\/+$/, '');
+
+        const segments = normalized ? normalized.split('/') : [];
+        let parent = root;
+
+        segments.forEach((segment) => {
+            parent = ensureDirNode(parent, segment);
+        });
+
+        parent.children.push({
+            type: 'quiz',
+            quiz: entry
+        });
+    });
+
+    return root.children;
+}
+
+/**
+ * ツリーノードの hierarchy スコアを計算する。
+ * @param {object} node
+ * @returns {number}
+ */
+function getQuizNodeHierarchyScore(node) {
+    if (!node) {
+        return 0;
+    }
+
+    if (node.type === 'quiz') {
+        const quiz = node.quiz;
+        if (quiz && typeof quiz.hierarchy === 'number') {
+            return quiz.hierarchy;
+        }
+        return 0;
+    }
+
+    if (node.type === 'dir') {
+        const children = node.children || [];
+        let maxScore = 0;
+        for (const child of children) {
+            const score = getQuizNodeHierarchyScore(child);
+            if (score > maxScore) {
+                maxScore = score;
+            }
+        }
+        return maxScore;
+    }
+
+    return 0;
+}
+
+/**
+ * ツリーノードの表示ラベルを取得する（ソートのサブキーとして利用）。
+ * @param {object} node
+ * @returns {string}
+ */
+function getQuizNodeLabel(node) {
+    if (!node) {
+        return '';
+    }
+
+    if (node.type === 'quiz') {
+        const quiz = node.quiz;
+        if (!quiz) {
+            return '';
+        }
+        return (quiz.title || quiz.id || '') + '';
+    }
+
+    if (node.type === 'dir') {
+        return (node.label || node.name || '') + '';
+    }
+
+    return '';
+}
+
+/**
+ * クイズツリーを再帰的に描画する。
+ * @param {Array<object>} nodes
+ * @param {HTMLElement} parentElement
+ * @param {object|null} currentQuiz
+ */
+function renderQuizTreeNodes(nodes, parentElement, currentQuiz) {
+    if (!Array.isArray(nodes) || nodes.length === 0) {
+        return;
+    }
+
+    const sortedNodes = [...nodes].sort((a, b) => {
+        const aScore = getQuizNodeHierarchyScore(a);
+        const bScore = getQuizNodeHierarchyScore(b);
+        if (aScore !== bScore) {
+            return bScore - aScore;
+        }
+
+        const aLabel = getQuizNodeLabel(a);
+        const bLabel = getQuizNodeLabel(b);
+        return aLabel.localeCompare(bLabel, 'ja');
+    });
+
+    sortedNodes.forEach((node) => {
+        if (node.type === 'dir') {
+            const header = document.createElement('div');
+            header.className =
+                'mt-2 text-[11px] font-semibold app-text-muted';
+            header.textContent = node.label || node.name || 'Group';
+            parentElement.appendChild(header);
+
+            const container = document.createElement('div');
+            container.className = 'ml-3 space-y-1';
+            parentElement.appendChild(container);
+
+            renderQuizTreeNodes(node.children || [], container, currentQuiz);
+            return;
+        }
+
+        if (node.type === 'quiz') {
+            const entry = node.quiz;
+            if (!entry) {
+                return;
+            }
+
+            const isCurrent =
+                currentQuiz && currentQuiz.id === entry.id;
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.quizId = entry.id;
+            button.className = [
+                'w-full text-left rounded-xl border px-3 py-2 text-xs transition-colors app-list-button',
+                isCurrent ? 'app-list-button-active' : ''
+            ].join(' ');
+
+            const title = document.createElement('div');
+            title.className = 'font-semibold mb-0.5';
+            title.textContent = entry.title || entry.id;
+
+            const desc = document.createElement('div');
+            desc.className =
+                'text-[11px] app-text-main';
+            desc.textContent = entry.description || '';
+
+            button.appendChild(title);
+            button.appendChild(desc);
+
+            const capacity = createCapacityElement(entry._capacityStatus, entry._capacity, 'quiz');
+            if (capacity) {
+                button.appendChild(capacity);
+            }
+
+            parentElement.appendChild(button);
+        }
+    });
+}
+
+/**
  * クイズ一覧をサイドメニューに描画し、選択状態を示す。
  * @param {Array<object>} entries - 表示するクイズエントリの配列。
  * @param {object|null} currentQuiz - 現在選択中のクイズエントリ。
@@ -193,33 +390,6 @@ export function renderQuizMenu(entries, currentQuiz) {
         return;
     }
 
-    list.forEach((entry) => {
-        const isCurrent = currentQuiz && currentQuiz.id === entry.id;
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.dataset.quizId = entry.id;
-        button.className = [
-            'w-full text-left rounded-xl border px-3 py-2 text-xs transition-colors app-list-button',
-            isCurrent ? 'app-list-button-active' : ''
-        ].join(' ');
-
-        const title = document.createElement('div');
-        title.className = 'font-semibold mb-0.5';
-        title.textContent = entry.title || entry.id;
-
-        const desc = document.createElement('div');
-        desc.className =
-            'text-[11px] app-text-main';
-        desc.textContent = entry.description || '';
-
-        button.appendChild(title);
-        button.appendChild(desc);
-
-        const capacity = createCapacityElement(entry._capacityStatus, entry._capacity, 'quiz');
-        if (capacity) {
-            button.appendChild(capacity);
-        }
-
-        dom.quizList.appendChild(button);
-    });
+    const tree = buildQuizTree(list);
+    renderQuizTreeNodes(tree, dom.quizList, currentQuiz);
 }
