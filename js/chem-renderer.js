@@ -50,7 +50,7 @@ export function ensureChemReady() {
  * @param {HTMLElement} container - Target element to host the viewer.
  * @param {string} smiles - SMILES string.
  * @param {object} [options] - Render control options.
- * @param {number} [options.maxHeightEm=4] - Max inline height in em.
+ * @param {number} [options.maxHeightEm=7] - Max inline height in em.
  * @param {number} [options.maxHeightPx] - Explicit max height in px if provided.
  * @param {number} [options.zoomPadding=0.9] - Additional shrink factor to keep margin.
  */
@@ -79,7 +79,19 @@ export async function renderSmilesInline(container, smiles, options = {}) {
     try {
         await ensureChemReady();
 
-        const mol = rdkitModule.get_mol(text);
+        let mol = rdkitModule.get_mol(text);
+        if (!mol) {
+            // Try replacing [*] with * (common wildcard issue)
+            const sanitized = text.replace(/\[\*\]/g, '*');
+            if (sanitized !== text) {
+                mol = rdkitModule.get_mol(sanitized);
+            }
+        }
+        if (!mol) {
+            // Fallback to query molecule if standard parsing fails
+            mol = rdkitModule.get_qmol(text);
+        }
+
         if (!mol) {
             throw new Error('Invalid SMILES');
         }
@@ -112,7 +124,7 @@ export async function renderSmilesInline(container, smiles, options = {}) {
 
 function scheduleScaleAdjust(wrapper, target, options = {}) {
     const {
-        maxHeightEm = 4,       // About 3 lines of text by default
+        maxHeightEm = 7,       // About 7 lines of text by default
         maxHeightPx,
         zoomPadding = 0.9,     // Keep a small margin inside the limit
     } = options;
