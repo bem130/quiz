@@ -10,7 +10,7 @@
     --layout-side-weight-land: 2;
 
     /* 縦長レイアウト時の main:sub 比率 */
-    --layout-main-weight-port: 3;
+    --layout-main-weight-port: 5;
     --layout-side-weight-port: 2;
 }
 
@@ -68,13 +68,13 @@ body.app-ready .layout-container {
     }
 
     .main-panel {
-        flex: 3;
+        flex: var(--layout-main-weight-land);
         height: 100%;
         overflow-y: auto;
     }
 
     .side-panel {
-        flex: 2;
+        flex: var(--layout-side-weight-land);
         height: 100%;
         border-left-width: 1px;
         display: flex;
@@ -94,13 +94,13 @@ body.app-ready .layout-container {
     }
 
     .main-panel {
-        flex: 3;
+        flex: var(--layout-main-weight-port);
         width: 100%;
         overflow-y: auto;
     }
 
     .side-panel {
-        flex: 2;
+        flex: var(--layout-side-weight-port);
         width: 100%;
         border-top-width: 1px;
         display: flex;
