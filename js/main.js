@@ -1399,14 +1399,20 @@ function renderDraftSummary(definition, entry, engineInstance) {
  * Render buttons to test individual patterns.
  */
 function renderDraftPatternButtons(definition, engineInstance) {
-    if (!dom.draftPatternPanel || !dom.draftPatternList) return;
+    if (!dom.draftPatternList) return;
+
+    // Header is the previous sibling of the list
+    const header = dom.draftPatternList.previousElementSibling;
 
     if (!isDraftEntry(currentEntry)) {
-        dom.draftPatternPanel.classList.add('hidden');
+        dom.draftPatternList.classList.add('hidden');
+        if (header) header.classList.add('hidden');
         return;
     }
 
-    dom.draftPatternPanel.classList.remove('hidden');
+    dom.draftPatternList.classList.remove('hidden');
+    if (header) header.classList.remove('hidden');
+
     dom.draftPatternList.innerHTML = '';
 
     if (!definition.patterns || definition.patterns.length === 0) {
@@ -1569,6 +1575,15 @@ async function applyEntrySelection(entry, desiredQuizId, options = {}) {
     engine = null;
     currentModeId = null;
     dom.modeList.innerHTML = '';
+
+    // Clear Draft UI
+    if (dom.draftSummaryPanel) dom.draftSummaryPanel.classList.add('hidden');
+    if (dom.draftPatternList) {
+        dom.draftPatternList.classList.add('hidden');
+        const header = dom.draftPatternList.previousElementSibling;
+        if (header) header.classList.add('hidden');
+    }
+
     setStartButtonEnabled(false);
     renderMenus();
 

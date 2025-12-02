@@ -22,8 +22,8 @@ export const dom = {
     draftSummaryPanel: document.getElementById('draft-summary-panel'),
     draftSummaryContent: document.getElementById('draft-summary-content'),
     draftSummaryUpdated: document.getElementById('draft-summary-updated'),
-    draftPatternPanel: document.getElementById('draft-pattern-panel'),
-    draftPatternList: document.getElementById('draft-pattern-list'),
+    // draftPatternPanel is removed in favor of inline header + list
+    draftPatternList: document.getElementById('pattern-mode-list'),
 
     // メニュー側: テキストサイズ & テーマ
     menuSizeXXSmall: document.getElementById('size-xxs-menu'),
