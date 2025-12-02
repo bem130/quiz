@@ -343,14 +343,15 @@ if ($modeParam !== null) {
     <link rel="stylesheet" href="<?php echo h(quiz_versioned_asset_url('css/app.css')); ?>" />
     <link rel="stylesheet" href="<?php echo h(quiz_versioned_asset_url('css/theme.css')); ?>" />
 </head>
-<body class="app-loading transition-colors duration-300">
 
+<body class="app-loading transition-colors duration-300">
     <!-- 画面いっぱい 2 分割レイアウト -->
     <div id="app" class="layout-container">
         <!-- 左: メインエリア（メニュー or クイズ） -->
         <main class="main-panel app-surface-main flex flex-col transition-colors duration-300">
             <!-- 共通ヘッダ -->
-            <header class="px-[0.5rem] py-[0.8rem] border-b app-border-subtle app-surface-header flex items-center justify-between transition-colors duration-300">
+            <header
+                class="px-[0.5rem] py-[0.8rem] border-b app-border-subtle app-surface-header flex items-center justify-between transition-colors duration-300">
                 <div>
                     <h1 id="app-title" class="text-lg font-semibold app-text-strong">4-choice Quiz</h1>
                     <p id="app-description" class="text-xs app-text-muted mt-1">
@@ -366,29 +367,17 @@ if ($modeParam !== null) {
                         <h2 class="text-base font-semibold app-text-strong">
                             Number of questions
                         </h2>
-                        <span
-                            id="question-count-label"
-                            class="text-xs font-semibold app-text-main"
-                        >
+                        <span id="question-count-label" class="text-xs font-semibold app-text-main">
                             10 問
                         </span>
                     </div>
-                    <input
-                        id="question-count-slider"
-                        type="range"
-                        min="5"
-                        max="100"
-                        step="5"
-                        value="10"
-                        class="w-full app-range-accent"
-                    />
+                    <input id="question-count-slider" type="range" min="5" max="100" step="5" value="10"
+                        class="w-full app-range-accent" />
                 </section>
 
                 <!-- Draft summary (Draft のときだけ表示) -->
-                <section
-                    id="draft-summary-panel"
-                    class="mt-4 rounded-xl border app-border-subtle app-surface-muted px-3 py-2 text-xs hidden"
-                >
+                <section id="draft-summary-panel"
+                    class="mt-4 rounded-xl border app-border-subtle app-surface-muted px-3 py-2 text-xs hidden">
                     <div class="flex items-center justify-between mb-1">
                         <h3 class="font-semibold text-[11px] app-text-muted">
                             Draft summary (read-only)
@@ -412,12 +401,10 @@ if ($modeParam !== null) {
 
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
                     <p class="text-xs app-text-muted">
-                        モードを選択して「Start Quiz」で開始します。
+                        Select a mode and click "Start Quiz" to begin.
                     </p>
-                    <button
-                        id="start-button"
-                        class="interactive-button button-accent px-5 py-2 text-sm font-semibold rounded-xl transition-colors"
-                    >
+                    <button id="start-button"
+                        class="interactive-button button-accent px-5 py-2 text-sm font-semibold rounded-xl transition-colors">
                         Start Quiz
                     </button>
                 </div>
@@ -434,22 +421,17 @@ if ($modeParam !== null) {
                         </div>
 
                         <!-- 選択肢領域：フル高さの 2x2 グリッド -->
-                        <div
-                            id="options-container"
-                            class="flex-1"
-                        ></div>
+                        <div id="options-container" class="flex-1"></div>
                     </div>
                 </div>
 
                 <!-- Result（クイズ終了後にメインに表示） -->
-                <div
-                    id="result-screen"
-                    class="hidden flex-1 overflow-y-auto p-6 app-surface-muted transition-colors duration-300"
-                >
+                <div id="result-screen"
+                    class="hidden flex-1 overflow-y-auto p-6 app-surface-muted transition-colors duration-300">
                     <div class="max-w-4xl mx-auto w-full space-y-6">
                         <div>
                             <p class="text-xs uppercase tracking-wide app-text-muted">Result</p>
-                            <h2 class="text-2xl font-semibold app-text-strong">クイズ結果</h2>
+                            <h2 class="text-2xl font-semibold app-text-strong">Quiz Result</h2>
                             <p id="result-score" class="text-sm app-text-main mt-1">Score: 0 / 0</p>
                         </div>
                         <div class="grid gap-4 sm:grid-cols-3">
@@ -467,35 +449,25 @@ if ($modeParam !== null) {
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <button
-                                id="retry-button"
-                                class="interactive-button px-4 py-2 rounded-xl border app-border-subtle text-sm app-text-main transition-colors"
-                            >
+                            <button id="retry-button"
+                                class="interactive-button px-4 py-2 rounded-xl border app-border-subtle text-sm app-text-main transition-colors">
                                 Retry
                             </button>
-                            <button
-                                id="retry-mistakes-button"
-                                class="interactive-button px-4 py-2 rounded-xl border app-border-subtle text-sm app-text-main transition-colors"
-                            >
+                            <button id="retry-mistakes-button"
+                                class="interactive-button px-4 py-2 rounded-xl border app-border-subtle text-sm app-text-main transition-colors">
                                 Retry Mistakes
                             </button>
-                            <button
-                                id="copy-result-button"
-                                class="interactive-button px-4 py-2 rounded-xl text-sm font-semibold border app-border-subtle app-text-main transition-colors"
-                            >
+                            <button id="copy-result-button"
+                                class="interactive-button px-4 py-2 rounded-xl text-sm font-semibold border app-border-subtle app-text-main transition-colors">
                                 Copy Result
                             </button>
-                            <button
-                                id="back-to-menu-button"
-                                class="interactive-button px-4 py-2 rounded-xl text-sm border app-border-subtle app-text-main transition-colors"
-                            >
+                            <button id="back-to-menu-button"
+                                class="interactive-button px-4 py-2 rounded-xl text-sm border app-border-subtle app-text-main transition-colors">
                                 Menu
                             </button>
                         </div>
-                        <div
-                            id="result-pwa-hint"
-                            class="mt-6 text-xs app-text-muted border border-dashed app-border-subtle rounded-xl px-4 py-3 app-callout hidden"
-                        >
+                        <div id="result-pwa-hint"
+                            class="mt-6 text-xs app-text-muted border border-dashed app-border-subtle rounded-xl px-4 py-3 app-callout hidden">
                             <p class="font-medium">
                                 Did you enjoy this quiz?
                             </p>
@@ -503,11 +475,8 @@ if ($modeParam !== null) {
                                 You can add this app to your home screen as a PWA for quicker access.
                             </p>
                             <div class="pt-2">
-                                <button
-                                    id="result-pwa-install-button"
-                                    type="button"
-                                    class="interactive-button inline-flex items-center px-3 py-1.5 rounded-lg border app-border-strong text-[11px] font-semibold app-text-main app-surface-overlay disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
+                                <button id="result-pwa-install-button" type="button"
+                                    class="interactive-button inline-flex items-center px-3 py-1.5 rounded-lg border app-border-strong text-[11px] font-semibold app-text-main app-surface-overlay disabled:opacity-50 disabled:cursor-not-allowed">
                                     Install this app
                                 </button>
                             </div>
@@ -516,26 +485,21 @@ if ($modeParam !== null) {
                 </div>
 
                 <!-- Bottom bar: interrupt / progress / score / timer / next -->
-                <footer class="px-[0.5rem] py-[0.3rem] border-t app-border-subtle flex items-center gap-4 text-xs transition-colors duration-300">
+                <footer
+                    class="px-[0.5rem] py-[0.3rem] border-t app-border-subtle flex items-center gap-4 text-xs transition-colors duration-300">
                     <!-- Interrupt button -->
-                    <button
-                        id="interrupt-button"
-                        type="button"
-                        class="interactive-button button-ghost button-danger px-3 py-2 rounded-xl
+                    <button id="interrupt-button" type="button" class="interactive-button button-ghost button-danger px-3 py-2 rounded-xl
                             app-border-subtle
                             app-text-main
                             disabled:opacity-40
                             transition-colors
-                            hidden"
-                    >
+                            hidden">
                         Retire
                     </button>
 
                     <!-- Center status: Progress + Score + Timer -->
-                    <div
-                        id="quiz-header-score"
-                        class="flex-1 flex items-center justify-center gap-6 text-[0.7rem] sm:text-xs hidden"
-                    >
+                    <div id="quiz-header-score"
+                        class="flex-1 flex items-center justify-center gap-6 text-[0.7rem] sm:text-xs hidden">
                         <!-- Progress -->
                         <div class="flex items-baseline gap-1">
                             <span class="uppercase tracking-wide app-text-muted">
@@ -570,15 +534,11 @@ if ($modeParam !== null) {
                     </div>
 
                     <!-- Next button -->
-                    <button
-                        id="next-button"
-                        class="interactive-button button-ghost px-4 py-2 text-xs rounded-xl
+                    <button id="next-button" class="interactive-button button-ghost px-4 py-2 text-xs rounded-xl
                             app-border-subtle
                             app-text-main
                             disabled:opacity-40
-                            transition-colors"
-                        disabled
-                    >
+                            transition-colors" disabled>
                         Next
                     </button>
                 </footer>
@@ -588,77 +548,57 @@ if ($modeParam !== null) {
         <!-- 右: サブエリア（共通 Settings + メニュー/クイズで切り替え） -->
         <aside class="side-panel app-surface-side border-l app-border-subtle text-xs transition-colors duration-300">
             <!-- ① 共通: Settings（コンパクト） -->
-            <section id="side-settings" class="border-b app-border-subtle app-surface-muted transition-colors duration-300">
+            <section id="side-settings"
+                class="border-b app-border-subtle app-surface-muted transition-colors duration-300">
                 <div class="px-3 py-2 flex items-center justify-between gap-3">
                     <!-- Text size -->
                     <div class="inline-flex rounded-full border app-border-subtle app-surface-card overflow-hidden">
                         <!-- xxs -->
-                        <button
-                            id="size-xxs-menu"
-                            class="px-1.5 py-0.5 text-[0.6rem] font-bold
+                        <button id="size-xxs-menu" class="px-1.5 py-0.5 text-[0.6rem] font-bold
                                 app-text-muted
-                                app-hover-muted"
-                        >
+                                app-hover-muted">
                             A
                         </button>
 
                         <!-- xs -->
-                        <button
-                            id="size-xs-menu"
-                            class="px-1.5 py-0.5 text-[0.65rem] font-bold
+                        <button id="size-xs-menu" class="px-1.5 py-0.5 text-[0.65rem] font-bold
                                 app-text-muted
-                                app-hover-muted"
-                        >
+                                app-hover-muted">
                             A
                         </button>
 
                         <!-- s (existing small) -->
-                        <button
-                            id="size-small-menu"
-                            class="px-1.5 py-0.5 text-[0.7rem] font-bold
+                        <button id="size-small-menu" class="px-1.5 py-0.5 text-[0.7rem] font-bold
                                 app-text-muted
-                                app-hover-muted"
-                        >
+                                app-hover-muted">
                             A
                         </button>
 
                         <!-- m (existing medium) -->
-                        <button
-                            id="size-medium-menu"
-                            class="px-1.5 py-0.5 text-[0.8rem] font-bold
+                        <button id="size-medium-menu" class="px-1.5 py-0.5 text-[0.8rem] font-bold
                                 app-text-main
-                                app-hover-muted"
-                        >
+                                app-hover-muted">
                             A
                         </button>
 
                         <!-- l (existing large) -->
-                        <button
-                            id="size-large-menu"
-                            class="px-1.5 py-0.5 text-[0.9rem] font-bold
+                        <button id="size-large-menu" class="px-1.5 py-0.5 text-[0.9rem] font-bold
                                 app-text-strong
-                                app-hover-muted"
-                        >
+                                app-hover-muted">
                             A
                         </button>
 
                         <!-- xl -->
-                        <button
-                            id="size-xl-menu"
-                            class="px-1.5 py-0.5 text-[1.0rem] font-bold
+                        <button id="size-xl-menu" class="px-1.5 py-0.5 text-[1.0rem] font-bold
                                 app-text-strong
-                                app-hover-muted"
-                        >
+                                app-hover-muted">
                             A
                         </button>
 
                         <!-- xxl -->
-                        <button
-                            id="size-xxl-menu"
-                            class="px-1.5 py-0.5 text-[1.1rem] font-bold
+                        <button id="size-xxl-menu" class="px-1.5 py-0.5 text-[1.1rem] font-bold
                                 app-text-strong
-                                app-hover-muted"
-                        >
+                                app-hover-muted">
                             A
                         </button>
                     </div>
@@ -668,23 +608,16 @@ if ($modeParam !== null) {
                         <span class="text-[0.7rem] app-text-muted uppercase tracking-wide">
                             Theme
                         </span>
-                        <button
-                            id="theme-toggle-menu"
-                            type="button"
-                            class="interactive-button button-ghost px-3 py-1 rounded-full border app-border-subtle text-[0.8rem] app-text-main transition-colors"
-                        >
+                        <button id="theme-toggle-menu" type="button"
+                            class="interactive-button button-ghost px-3 py-1 rounded-full border app-border-subtle text-[0.8rem] app-text-main transition-colors">
                             Dark / Light
                         </button>
                     </div>
 
-                    <button
-                        id="fullscreen-toggle-menu"
-                        type="button"
-                        class="interactive-button button-ghost px-3 py-1 rounded-full border app-border-subtle
+                    <button id="fullscreen-toggle-menu" type="button" class="interactive-button button-ghost px-3 py-1 rounded-full border app-border-subtle
                             text-[0.8rem]
                             app-text-main
-                            transition-colors"
-                    >
+                            transition-colors">
                         Full
                     </button>
                 </div>
@@ -702,19 +635,12 @@ if ($modeParam !== null) {
                         </div>
                         <div class="space-y-2">
                             <div class="flex gap-2">
-                                <input
-                                    id="entry-url-input"
-                                    type="url"
-                                    placeholder="https://example.com/quiz/entry.php"
-                                    class="flex-1 app-input rounded-xl px-3 py-2 text-xs app-text-strong"
-                                />
-                            <button
-                                id="entry-add-button"
-                                type="button"
-                                class="interactive-button px-3 py-2 rounded-xl text-xs font-semibold border app-border-subtle app-text-main transition-colors"
-                            >
-                                Add
-                            </button>
+                                <input id="entry-url-input" type="url" placeholder="https://example.com/quiz/entry.php"
+                                    class="flex-1 app-input rounded-xl px-3 py-2 text-xs app-text-strong" />
+                                <button id="entry-add-button" type="button"
+                                    class="interactive-button px-3 py-2 rounded-xl text-xs font-semibold border app-border-subtle app-text-main transition-colors">
+                                    Add
+                                </button>
                             </div>
                             <p class="text-[11px] app-text-muted">Entries are saved in this browser.</p>
                         </div>
@@ -733,15 +659,8 @@ if ($modeParam !== null) {
                         <label for="question-count" class="block text-xs app-text-muted">
                             Number of questions
                         </label>
-                        <input
-                            id="question-count"
-                            type="number"
-                            min="5"
-                            max="100"
-                            step="5"
-                            value="10"
-                            class="w-full app-input rounded-xl px-3 py-2 text-xs app-text-strong"
-                        />
+                        <input id="question-count" type="number" min="5" max="100" step="5" value="10"
+                            class="w-full app-input rounded-xl px-3 py-2 text-xs app-text-strong" />
                         <p class="text-xs app-text-muted">
                             You can change the number of questions between 5 and 100.
                         </p>
@@ -758,10 +677,7 @@ if ($modeParam !== null) {
                         <span class="text-xs uppercase tracking-wide font-semibold app-text-muted">
                             Mistakes
                         </span>
-                        <span
-                            id="mistake-count"
-                            class="hidden app-pill app-pill-danger app-pill-compact"
-                        >
+                        <span id="mistake-count" class="hidden app-pill app-pill-danger app-pill-compact">
                             0
                         </span>
                     </div>
@@ -770,10 +686,8 @@ if ($modeParam !== null) {
                 <!-- Mistakes コンテンツ（スクロール） -->
                 <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
                     <section id="mistakes-panel" class="space-y-2">
-                        <div
-                            id="review-empty"
-                            class="flex flex-col items-center justify-center app-text-muted text-xs py-6"
-                        >
+                        <div id="review-empty"
+                            class="flex flex-col items-center justify-center app-text-muted text-xs py-6">
                             No mistakes yet.
                         </div>
                         <ul id="review-list" class="space-y-2 hidden"></ul>
@@ -805,6 +719,34 @@ if ($modeParam !== null) {
 
     <script src="https://cdn.jsdelivr.net/npm/kekule/dist/kekule.min.js"></script>
     <script src="https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
+    <!-- QR Code generation library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+
+    <!-- Share modal (hidden by default) -->
+    <div id="share-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div id="share-modal-backdrop" class="absolute inset-0 modal-backdrop"></div>
+        <div class="modal-panel relative rounded-xl p-4 w-[320px] max-w-full mx-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold">Share</h3>
+                <button id="share-modal-close" class="text-sm px-2 py-1">×</button>
+            </div>
+            <div class="flex flex-col items-center gap-3">
+                <div id="share-qr-container" class="p-2 bg-white rounded-md">
+                    <img id="share-qr-image" alt="QR code" style="width:200px;height:200px;" />
+                </div>
+                <input id="share-url-input" class="w-full app-input text-xs px-3 py-2" readonly />
+                <div class="w-full flex gap-2">
+                    <button id="share-copy-button"
+                        class="interactive-button flex-1 px-3 py-2 rounded-xl text-sm font-semibold border app-border-subtle">Copy
+                        URL</button>
+                    <button id="share-open-button"
+                        class="interactive-button flex-1 px-3 py-2 rounded-xl text-sm font-semibold border app-border-subtle">Open</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="js/main.js"></script>
 </body>
+
 </html>
