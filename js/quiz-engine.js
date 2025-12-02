@@ -811,6 +811,37 @@ export class QuizEngine {
         });
     }
 
+    /**
+     * Set the engine to a special mode that only uses a single pattern.
+     * This is used for testing patterns individually in Draft mode.
+     * @param {string} patternId
+     */
+    setSinglePatternMode(patternId) {
+        const pattern = this.patterns.find((p) => p.id === patternId);
+        if (!pattern) {
+            console.warn(`[quiz] Pattern not found: ${patternId}`);
+            return;
+        }
+
+        // Create a synthetic mode for this pattern
+        this.currentMode = {
+            id: `__pattern__${patternId}`,
+            label: `Pattern: ${pattern.label || pattern.id}`,
+            patternWeights: [{ patternId: pattern.id, weight: 1 }]
+        };
+
+        // Set weights to 100% for this pattern
+        const list = [{
+            pattern,
+            patternId: pattern.id,
+            weight: 1,
+            cumulative: 1
+        }];
+
+        this.currentWeights = { list, total: 1 };
+        console.log(`[quiz] Set single pattern mode: ${patternId}`);
+    }
+
     choosePattern() {
         const w = this.currentWeights;
         if (!w || !w.list.length || !w.total) {

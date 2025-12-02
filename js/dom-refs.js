@@ -18,6 +18,13 @@ export const dom = {
     startButton: document.getElementById('start-button'),
     modeMessage: document.getElementById('mode-message'),
 
+    // Draft specific
+    draftSummaryPanel: document.getElementById('draft-summary-panel'),
+    draftSummaryContent: document.getElementById('draft-summary-content'),
+    draftSummaryUpdated: document.getElementById('draft-summary-updated'),
+    draftPatternPanel: document.getElementById('draft-pattern-panel'),
+    draftPatternList: document.getElementById('draft-pattern-list'),
+
     // メニュー側: テキストサイズ & テーマ
     menuSizeXXSmall: document.getElementById('size-xxs-menu'),
     menuSizeXSmall: document.getElementById('size-xs-menu'),

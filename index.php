@@ -374,6 +374,20 @@ if ($modeParam !== null) {
                     />
                 </section>
 
+                <!-- Draft summary (Draft のときだけ表示) -->
+                <section
+                    id="draft-summary-panel"
+                    class="mt-4 rounded-xl border app-border-subtle app-surface-muted px-3 py-2 text-xs hidden"
+                >
+                    <div class="flex items-center justify-between mb-1">
+                        <h3 class="font-semibold text-[11px] app-text-muted">
+                            Draft summary (read-only)
+                        </h3>
+                        <span id="draft-summary-updated" class="text-[10px] app-text-muted"></span>
+                    </div>
+                    <div id="draft-summary-content" class="space-y-1 text-[11px] app-text-muted"></div>
+                </section>
+
                 <section class="space-y-3">
                     <h2 class="text-base font-semibold app-text-strong">Mode</h2>
                     <div id="mode-message" class="text-xs app-text-danger hidden"></div>

@@ -820,7 +820,9 @@ function startQuiz() {
         quizDef.modes && quizDef.modes.length > 0 ? quizDef.modes[0].id : null;
     const modeId = currentModeId || fallbackModeId;
 
-    if (!modeId) {
+    const isPatternMode = modeId && modeId.startsWith('__pattern__');
+
+    if (!modeId && !isPatternMode) {
         console.error('No mode available.');
         return;
     }
@@ -851,7 +853,9 @@ function startQuiz() {
     questionHistory = [];
     quizFinishTime = null;
 
-    engine.setMode(modeId);
+    if (!isPatternMode) {
+        engine.setMode(modeId);
+    }
 
     // 使用するモードを URL に保存
     const entryUrl = currentEntry ? currentEntry.url : null;
@@ -1329,6 +1333,150 @@ function selectQuizFromEntry(entry, explicitQuizId) {
     return entry.quizzes[0];
 }
 
+/**
+ * Check if the entry is a local draft.
+ */
+function isDraftEntry(entry) {
+    return entry && entry.isLocal === true && entry.hasDraftData === true;
+}
+
+/**
+ * Render read-only summary of the draft definition.
+ */
+function renderDraftSummary(definition, entry, engineInstance) {
+    if (!dom.draftSummaryPanel || !dom.draftSummaryContent) return;
+
+    if (!isDraftEntry(entry)) {
+        dom.draftSummaryPanel.classList.add('hidden');
+        return;
+    }
+
+    dom.draftSummaryPanel.classList.remove('hidden');
+
+    // Updated At
+    if (dom.draftSummaryUpdated && entry.updatedAt) {
+        dom.draftSummaryUpdated.textContent = new Date(entry.updatedAt).toLocaleString();
+    }
+
+    const d = definition;
+    const lines = [];
+
+    // Meta
+    lines.push(`<strong>Meta:</strong> ID=${d.meta.id}, Title=${d.meta.title}`);
+
+    // DataSets
+    if (d.dataSets) {
+        const dsList = Object.values(d.dataSets).map(ds => {
+            let info = `${ds.id} (${ds.type})`;
+            if (ds.data) info += ` [${ds.data.length} rows]`;
+            if (ds.sentences) info += ` [${ds.sentences.length} sentences]`;
+            return info;
+        }).join(', ');
+        lines.push(`<strong>DataSets:</strong> ${dsList}`);
+    }
+
+    // Patterns
+    if (d.patterns) {
+        const pList = d.patterns.map(p => {
+            const cap = engineInstance ? engineInstance.getPatternCapacity(p.id) : '?';
+            return `${p.id} (fmt=${p.questionFormat}, cap=${cap})`;
+        }).join('<br>');
+        lines.push(`<strong>Patterns:</strong><div class="pl-2 text-xs text-gray-500">${pList}</div>`);
+    }
+
+    // Modes
+    if (d.modes) {
+        const mList = d.modes.map(m => {
+            return `${m.id} (${m.label || ''})`;
+        }).join(', ');
+        lines.push(`<strong>Modes:</strong> ${mList}`);
+    }
+
+    dom.draftSummaryContent.innerHTML = lines.join('<br>');
+}
+
+/**
+ * Render buttons to test individual patterns.
+ */
+function renderDraftPatternButtons(definition, engineInstance) {
+    if (!dom.draftPatternPanel || !dom.draftPatternList) return;
+
+    if (!isDraftEntry(currentEntry)) {
+        dom.draftPatternPanel.classList.add('hidden');
+        return;
+    }
+
+    dom.draftPatternPanel.classList.remove('hidden');
+    dom.draftPatternList.innerHTML = '';
+
+    if (!definition.patterns || definition.patterns.length === 0) {
+        dom.draftPatternList.textContent = 'No patterns found.';
+        return;
+    }
+
+    definition.patterns.forEach(pattern => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full text-left px-3 py-2 rounded-xl border text-xs transition-colors app-list-button';
+
+        const cap = engineInstance ? engineInstance.getPatternCapacity(pattern.id) : 0;
+        if (cap === 0) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        const title = document.createElement('div');
+        title.className = 'font-semibold';
+        title.textContent = pattern.label || pattern.id;
+        btn.appendChild(title);
+
+        const info = document.createElement('div');
+        info.className = 'mt-0.5 text-[0.7rem] app-text-muted';
+        info.textContent = `ID: ${pattern.id} | Cap: ${cap}`;
+        btn.appendChild(info);
+
+        btn.addEventListener('click', () => {
+            handleDraftPatternSelection(pattern.id);
+        });
+
+        dom.draftPatternList.appendChild(btn);
+    });
+}
+
+/**
+ * Handle selection of a single pattern for testing.
+ */
+function handleDraftPatternSelection(patternId) {
+    if (!engine) return;
+
+    // Reset current mode ID to indicate special mode
+    currentModeId = `__pattern__${patternId}`;
+
+    // Configure engine
+    engine.setSinglePatternMode(patternId);
+
+    // Update UI to show selection
+    const buttons = dom.draftPatternList.querySelectorAll('button');
+    buttons.forEach(b => {
+        if (b.textContent.includes(patternId)) {
+            b.classList.add('app-list-button-active');
+        } else {
+            b.classList.remove('app-list-button-active');
+        }
+    });
+
+    // Clear main mode selection
+    if (dom.modeList) {
+        const modeBtns = dom.modeList.querySelectorAll('button');
+        modeBtns.forEach(b => b.classList.remove('app-list-button-active'));
+    }
+
+    // Update URL
+    const entryUrl = currentEntry ? currentEntry.url : null;
+    const quizId = currentQuiz ? currentQuiz.id : null;
+    updateLocationParams(entryUrl, quizId, currentModeId);
+}
+
 async function loadCurrentQuizDefinition() {
     if (!currentQuiz) {
         quizDef = null;
@@ -1358,6 +1506,16 @@ async function loadCurrentQuizDefinition() {
         ) {
             // URL で指定されたモードがこのクイズに存在する場合
             currentModeId = requestedModeId;
+        } else if (requestedModeId && requestedModeId.startsWith('__pattern__')) {
+            // Draft pattern mode
+            const patternId = requestedModeId.replace('__pattern__', '');
+            const pattern = quizDef.patterns.find(p => p.id === patternId);
+            if (pattern) {
+                currentModeId = requestedModeId;
+                engine.setSinglePatternMode(patternId);
+            } else {
+                currentModeId = quizDef.modes[0].id;
+            }
         } else if (hasModeTree) {
             // 指定なし／存在しない場合は modeTree の最初の葉モードをデフォルトにする
             currentModeId =
@@ -1369,6 +1527,9 @@ async function loadCurrentQuizDefinition() {
 
         // 決定した currentModeId でモードボタンを描画
         populateModeButtons();
+
+        renderDraftSummary(quizDef, currentEntry, engine);
+        renderDraftPatternButtons(quizDef, engine);
 
         // 最終的に使う entry / quiz / mode を URL に反映して正規化
         const entryUrl = currentEntry ? currentEntry.url : null;
