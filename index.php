@@ -394,6 +394,10 @@ if ($modeParam !== null) {
                     <div id="mode-list" class="space-y-2">
                         <!-- JS でボタンを生成 -->
                     </div>
+                    <h2 class="hidden text-base font-semibold app-text-strong">Pattern</h2>
+                    <div id="pattern-mode-list" class="hidden space-y-2">
+                        <!-- Local Draft のときのみ -->
+                    </div>
                 </section>
 
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
