@@ -14,7 +14,8 @@ const ALLOWED_TOKEN_TYPES = new Set([
     'hide',
     'katex',
     'smiles',
-    'br'
+    'br',
+    'group'
 ]);
 
 function normalizeTokenArray(value) {
@@ -56,6 +57,11 @@ function validateToken(token, label) {
         if (!values.length) {
             throw new Error(`Hide token at ${label} must have a non-empty value array.`);
         }
+        values.forEach((child, idx) => validateToken(child, `${label}.value[${idx}]`));
+    }
+
+    if (token.type === 'group') {
+        const values = normalizeTokenArray(token.value);
         values.forEach((child, idx) => validateToken(child, `${label}.value[${idx}]`));
     }
 
@@ -455,7 +461,7 @@ function convertToV2(json, options = {}) {
         : convertEntitySetToDataSet(json.entitySet || {});
     const dataSetId = Object.keys(dataSets)[0];
     const patterns = normalizePatterns(patternsSource, dataSetId, convertOptions);
-    
+
     let modes = [];
     let modeTree = [];
 
@@ -596,17 +602,17 @@ async function loadDataBundle(mainJson, mainPath) {
                 importedJson.questionRules?.modes ||
                 importedJson.modes ||
                 [];
-            
+
             if (importedRawModes.length > 0) {
-                 // Simple concatenation of raw mode trees is tricky. 
-                 // For now, let's assume modes are primarily in the root or we just append them.
-                 // But wait, mergeModes expects normalized modes.
-                 // If we want to support modes in imports, we should collect them.
-                 // However, the current logic was merging *normalized* modes.
-                 // Let's stick to the plan: normalize at the end.
-                 if (Array.isArray(accumulatedRawModes)) {
-                     accumulatedRawModes = accumulatedRawModes.concat(importedRawModes);
-                 }
+                // Simple concatenation of raw mode trees is tricky. 
+                // For now, let's assume modes are primarily in the root or we just append them.
+                // But wait, mergeModes expects normalized modes.
+                // If we want to support modes in imports, we should collect them.
+                // However, the current logic was merging *normalized* modes.
+                // Let's stick to the plan: normalize at the end.
+                if (Array.isArray(accumulatedRawModes)) {
+                    accumulatedRawModes = accumulatedRawModes.concat(importedRawModes);
+                }
             }
 
             await processImports(importedJson, url);

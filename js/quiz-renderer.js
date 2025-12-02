@@ -56,6 +56,15 @@ function setChoiceState(btn, state) {
     addChoiceStateClasses(btn, state);
 }
 
+function applyStyles(element, styles = []) {
+    if (!styles || !styles.length) return;
+    if (styles.includes('bold')) element.classList.add('font-semibold');
+    if (styles.includes('italic')) element.classList.add('italic');
+    if (styles.includes('serif')) element.classList.add('font-serif');
+    if (styles.includes('sans')) element.classList.add('font-sans');
+    if (styles.includes('muted')) element.classList.add('app-text-muted');
+}
+
 function createStyledSpan(text, styles = []) {
     const span = document.createElement('span');
     if (styles.includes('katex') && window.katex) {
@@ -79,11 +88,7 @@ function createStyledSpan(text, styles = []) {
         }
     }
     span.textContent = text;
-    if (styles.includes('bold')) span.classList.add('font-semibold');
-    if (styles.includes('italic')) span.classList.add('italic');
-    if (styles.includes('serif')) span.classList.add('font-serif');
-    if (styles.includes('sans')) span.classList.add('font-sans');
-    if (styles.includes('muted')) span.classList.add('app-text-muted');
+    applyStyles(span, styles);
     return span;
 }
 
@@ -216,6 +221,13 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                 parent.appendChild(span);
             }
             answerIndexCounter += 1;
+            return;
+        }
+        if (token.type === 'group') {
+            const span = document.createElement('span');
+            appendTokens(span, token.value || [], row, placeholders, promises);
+            applyStyles(span, token.styles || []);
+            parent.appendChild(span);
             return;
         }
         if (token.type === 'br') {
