@@ -1315,15 +1315,9 @@ export function addReviewItem(question, dataSets, questionNumber) {
         'rounded-lg border px-3 py-2 text-xs app-card'
     ].join(' ');
 
-    const topRow = document.createElement('div');
-    topRow.className = 'flex items-start gap-3 justify-between';
-
-    // 左側: Q番号 + Incorrectバッジ
-    const headerBox = document.createElement('div');
-    headerBox.className = 'flex flex-col gap-1 min-w-[3.5rem]';
-
-    const headerLine = document.createElement('div');
-    headerLine.className = 'flex items-center gap-2';
+    // ヘッダー行: Q番号（左）と Incorrectバッジ（右）
+    const header = document.createElement('div');
+    header.className = 'flex items-center justify-between text-xs app-text-muted';
 
     const qLabel = document.createElement('span');
     qLabel.className = 'font-semibold app-text-strong';
@@ -1333,13 +1327,12 @@ export function addReviewItem(question, dataSets, questionNumber) {
     badge.className = 'text-[0.7rem] app-pill app-pill-danger app-pill-compact';
     badge.textContent = 'Incorrect';
 
-    headerLine.appendChild(qLabel);
-    headerLine.appendChild(badge);
-    headerBox.appendChild(headerLine);
+    header.appendChild(qLabel);
+    header.appendChild(badge);
 
-    // 右側: 問題文（穴埋め付き）
+    // 問題文（穴埋め付き）
     const qText = document.createElement('div');
-    qText.className = 'flex-1 app-text-main quiz-text-block';
+    qText.className = 'app-text-main quiz-text-block mt-1';
 
     const row = resolveQuestionContext(question, dataSets);
 
@@ -1351,9 +1344,8 @@ export function addReviewItem(question, dataSets, questionNumber) {
         updateInlineBlank(question, dataSets, idx, qText);
     });
 
-    topRow.appendChild(headerBox);
-    topRow.appendChild(qText);
-    li.appendChild(topRow);
+    li.appendChild(header);
+    li.appendChild(qText);
 
     dom.reviewList.appendChild(li);
 }
@@ -1495,6 +1487,7 @@ export function addResultItem(historyItem, dataSets) {
         'flex items-center justify-between text-xs app-text-muted';
 
     const orderSpan = document.createElement('span');
+    orderSpan.className = 'font-semibold app-text-strong';
     orderSpan.textContent = `Q${historyItem.index}`;
     header.appendChild(orderSpan);
 
@@ -1506,21 +1499,21 @@ export function addResultItem(historyItem, dataSets) {
     badge.textContent = historyItem.correct ? 'Correct' : 'Incorrect';
     header.appendChild(badge);
 
-    // 問題文：tokens をそのまま描画（ルビ・KaTeX 対応）
+    // 問題文（穴埋め付き）
     const text = document.createElement('div');
-    text.className = 'text-sm app-text-strong mt-1 leading-relaxed quiz-text-block';
+    text.className = 'app-text-main quiz-text-block mt-1';
 
     const rowContext = resolveQuestionContext(question, dataSets);
-    appendTokens(text, question.tokens || [], rowContext, false);
-    // ↑ hide トークンは値を出す
 
-    // ユーザ回答サマリ（文字列のまま）
-    const answer = document.createElement('div');
-    answer.className = 'text-xs app-text-muted mt-1';
-    answer.textContent = historyItem.userAnswerSummary;
+    // プレースホルダ付きで本文を描画
+    appendTokens(text, question.tokens || [], rowContext, true);
+
+    // 各パーツごとに正答 / 誤答を埋め込む
+    (question.answers || []).forEach((_, idx) => {
+        updateInlineBlank(question, dataSets, idx, text);
+    });
 
     item.appendChild(header);
     item.appendChild(text);
-    item.appendChild(answer);
     dom.resultList.appendChild(item);
 }
