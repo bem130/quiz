@@ -1478,9 +1478,10 @@ export function addResultItem(historyItem, dataSets) {
 
     const question = historyItem.question;
     const item = document.createElement('li');
-    item.className = historyItem.correct
-        ? 'p-2 rounded-lg border app-card app-card-status-success'
-        : 'p-2 rounded-lg border app-card app-card-status-danger';
+    // item.className = historyItem.correct
+    //     ? 'p-2 rounded-lg border app-card app-card-status-success'
+    //     : 'p-2 rounded-lg border app-card app-card-status-danger';
+    item.className = 'rounded-lg border px-3 py-2 text-xs app-card';
 
     const header = document.createElement('div');
     header.className =

@@ -173,3 +173,9 @@ ruby rt {
   image-rendering: smooth;
     /* Prevent blurring when scaled down */
 }
+
+/* 2024-05-18: Tips panel should be scrollable when content is long */
+#tips-panel {
+    max-height: 70%;
+    overflow-y: auto;
+}
