@@ -18,6 +18,12 @@ export const dom = {
     startButton: document.getElementById('start-button'),
     modeMessage: document.getElementById('mode-message'),
 
+    // Update notification banner
+    updateNotificationBanner: document.getElementById('update-notification-banner'),
+    updateNotificationClose: document.getElementById('update-notification-close'),
+    updateNotificationReload: document.getElementById('update-notification-reload'),
+    updateNotificationLater: document.getElementById('update-notification-later'),
+
     // Draft specific
     draftSummaryPanel: document.getElementById('draft-summary-panel'),
     draftSummaryContent: document.getElementById('draft-summary-content'),

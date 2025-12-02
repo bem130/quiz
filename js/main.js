@@ -2178,6 +2178,61 @@ function markAppReady() {
 }
 
 /**
+ * Check for application updates.
+ */
+async function checkForUpdate() {
+    if (currentScreen !== 'menu') return;
+
+    try {
+        // Bypass cache to get the latest manifest
+        const response = await fetch('manifest.php', { cache: 'no-store' });
+        if (!response.ok) return;
+        const json = await response.json();
+        const serverVersion = json.app_version;
+        const currentVersion = window.APP_VERSION;
+
+        if (serverVersion && currentVersion && serverVersion !== currentVersion) {
+            console.info('[update] new version available:', { serverVersion, currentVersion });
+            if (dom.updateNotificationBanner) {
+                dom.updateNotificationBanner.classList.remove('hidden');
+            }
+        }
+    } catch (e) {
+        console.warn('[update] check failed', e);
+    }
+}
+
+// Set up update notification handlers
+(function setupUpdateNotificationHandlers() {
+    if (!dom.updateNotificationBanner) return;
+
+    if (dom.updateNotificationClose) {
+        dom.updateNotificationClose.addEventListener('click', () => {
+            dom.updateNotificationBanner.classList.add('hidden');
+        });
+    }
+
+    if (dom.updateNotificationReload) {
+        dom.updateNotificationReload.addEventListener('click', () => {
+            window.location.reload();
+        });
+    }
+
+    if (dom.updateNotificationLater) {
+        dom.updateNotificationLater.addEventListener('click', () => {
+            dom.updateNotificationBanner.classList.add('hidden');
+        });
+    }
+})();
+
+// Check when tab becomes visible
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        checkForUpdate();
+    }
+});
+
+/**
  * アプリ起動時の初期化処理。データ読込、UI 初期化、イベント登録をまとめる。
  */
 async function bootstrap() {
@@ -2208,6 +2263,9 @@ async function bootstrap() {
         await applyEntrySelection(initialEntry, getQuizNameFromLocation(), {
             preserveModeFromUrl: true
         });
+
+        // Initial update check
+        checkForUpdate();
     } catch (e) {
         console.error('[bootstrap] failed to initialize app:', e);
         dom.appDescription.textContent =

@@ -8,6 +8,7 @@ header('Content-Type: application/manifest+json; charset=utf-8');
 $manifest = [
     'name' => '4-choice Quiz',
     'short_name' => '4-choice Quiz',
+    'app_version' => APP_VERSION,
     'description' => '4択クイズをWebで解くためのPWA版アプリ。',
     'start_url' => QUIZ_BASE_URL,
     'scope' => QUIZ_BASE_URL,
