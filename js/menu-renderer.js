@@ -74,7 +74,7 @@ export function renderEntryMenu(entrySources, currentEntry) {
         const labelSpan = document.createElement('span');
         labelSpan.className = 'font-semibold text-sm';
         labelSpan.textContent = isLocal
-            ? (hasDraftData ? (entry.label || 'Local draft') : '下書き（データなし）')
+            ? (hasDraftData ? (entry.label || 'Local draft') : 'Local draft (No data)')
             : (entry.label || entry.url);
 
         const status = document.createElement('span');
@@ -124,34 +124,12 @@ export function renderEntryMenu(entrySources, currentEntry) {
 
         wrapper.appendChild(button);
 
-        if (isLocal) {
-            const actionRow = document.createElement('div');
-            actionRow.className = 'mt-2 flex flex-wrap gap-2';
-
-            const updateButton = document.createElement('button');
-            updateButton.type = 'button';
-            updateButton.dataset.localDraftAction = 'update';
-            updateButton.className = 'text-[11px] font-semibold app-link-accent';
-            updateButton.textContent = 'クリップボードから更新';
-            actionRow.appendChild(updateButton);
-
-            if (hasDraftData) {
-                const deleteButton = document.createElement('button');
-                deleteButton.type = 'button';
-                deleteButton.dataset.localDraftAction = 'delete';
-                deleteButton.className = 'text-[11px] font-semibold app-link-danger';
-                deleteButton.textContent = '削除';
-                actionRow.appendChild(deleteButton);
-            }
-
-            if (!hasDraftData) {
-                const helper = document.createElement('div');
-                helper.className = 'text-[11px] app-text-muted';
-                helper.textContent = 'クリップボードのJSONを下書きとして取り込めます。';
-                actionRow.appendChild(helper);
-            }
-
-            wrapper.appendChild(actionRow);
+        // Helper message for empty local draft
+        if (isLocal && !hasDraftData) {
+            const helper = document.createElement('div');
+            helper.className = 'mt-2 text-[11px] app-text-muted px-1';
+            helper.textContent = 'You can try a quiz data by copying JSON to clipboard and clicking the update button.';
+            wrapper.appendChild(helper);
         }
 
         if (entry.temporary) {
@@ -167,32 +145,56 @@ export function renderEntryMenu(entrySources, currentEntry) {
         const actionContainer = document.createElement('div');
         actionContainer.className = 'absolute top-2 right-2 flex items-center gap-1';
 
-        // Share button
-        const shareButton = document.createElement('button');
-        shareButton.type = 'button';
-        shareButton.dataset.shareEntryUrl = entry.url;
-        shareButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-blue-500 transition-colors';
-        shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
-        shareButton.title = 'Share this entry';
-        actionContainer.appendChild(shareButton);
+        if (isLocal) {
+            // Local Draft: Update button (using Refresh icon)
+            const updateButton = document.createElement('button');
+            updateButton.type = 'button';
+            updateButton.dataset.localDraftAction = 'update';
+            updateButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-green-500 transition-colors';
+            updateButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>';
+            updateButton.title = 'Update from Clipboard';
+            // Stop propagation is handled in main.js delegation
+            actionContainer.appendChild(updateButton);
 
-        // Reload button
-        const reloadButton = document.createElement('button');
-        reloadButton.type = 'button';
-        reloadButton.dataset.reloadEntryUrl = entry.url;
-        reloadButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-green-500 transition-colors';
-        reloadButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>';
-        reloadButton.title = 'Reload this entry';
-        actionContainer.appendChild(reloadButton);
+            // Local Draft: Delete button (using Trash icon) - only if data exists
+            if (hasDraftData) {
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.dataset.localDraftAction = 'delete';
+                deleteButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-red-500 transition-colors';
+                deleteButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+                deleteButton.title = 'Delete Draft';
+                actionContainer.appendChild(deleteButton);
+            }
+        } else {
+            // Normal Entry: Share button
+            const shareButton = document.createElement('button');
+            shareButton.type = 'button';
+            shareButton.dataset.shareEntryUrl = entry.url;
+            shareButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-blue-500 transition-colors';
+            shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
+            shareButton.title = 'Share this entry';
+            actionContainer.appendChild(shareButton);
 
-        if (!entry.builtIn && !isLocal) {
-            const removeButton = document.createElement('button');
-            removeButton.type = 'button';
-            removeButton.dataset.removeUrl = entry.url;
-            removeButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-red-500 transition-colors';
-            removeButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
-            removeButton.title = 'Remove this entry';
-            actionContainer.appendChild(removeButton);
+            // Normal Entry: Reload button
+            const reloadButton = document.createElement('button');
+            reloadButton.type = 'button';
+            reloadButton.dataset.reloadEntryUrl = entry.url;
+            reloadButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-green-500 transition-colors';
+            reloadButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>';
+            reloadButton.title = 'Reload this entry';
+            actionContainer.appendChild(reloadButton);
+
+            // Normal Entry: Remove button (if not built-in)
+            if (!entry.builtIn) {
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.dataset.removeUrl = entry.url;
+                removeButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-red-500 transition-colors';
+                removeButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+                removeButton.title = 'Remove this entry';
+                actionContainer.appendChild(removeButton);
+            }
         }
 
         wrapper.appendChild(actionContainer);
