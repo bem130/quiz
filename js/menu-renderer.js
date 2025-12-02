@@ -163,30 +163,39 @@ export function renderEntryMenu(entrySources, currentEntry) {
             wrapper.appendChild(addButton);
         }
 
-        // Reload button (for all entries except maybe local draft if it doesn't make sense, but let's allow it for consistency or at least for remote/built-in)
-        // Actually, for local draft (isLocal), "reload" might not mean much if it's from storage, but if it has a URL it might.
-        // But the requirement emphasizes "Network First" for quiz data.
-        // Let's add it for everything.
+        // Action buttons container (Top Right)
+        const actionContainer = document.createElement('div');
+        actionContainer.className = 'absolute top-2 right-2 flex items-center gap-1';
+
+        // Share button
+        const shareButton = document.createElement('button');
+        shareButton.type = 'button';
+        shareButton.dataset.shareEntryUrl = entry.url;
+        shareButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-blue-500 transition-colors';
+        shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
+        shareButton.title = 'Share this entry';
+        actionContainer.appendChild(shareButton);
+
+        // Reload button
         const reloadButton = document.createElement('button');
         reloadButton.type = 'button';
         reloadButton.dataset.reloadEntryUrl = entry.url;
-        reloadButton.className = 'absolute top-2 right-12 text-[11px] app-link-accent'; // Positioned to the left of Remove (right-2)
-        reloadButton.innerHTML = '&#x21bb;'; // Clockwise Open Circle Arrow or similar. Or just "Reload" text if space permits.
+        reloadButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-green-500 transition-colors';
+        reloadButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>';
         reloadButton.title = 'Reload this entry';
-        // If there is no remove button (builtIn), we can move it to right-2
-        if (entry.builtIn || entry.isLocal) {
-            reloadButton.className = 'absolute top-2 right-2 text-[11px] app-link-accent';
-        }
-        wrapper.appendChild(reloadButton);
+        actionContainer.appendChild(reloadButton);
 
         if (!entry.builtIn && !isLocal) {
             const removeButton = document.createElement('button');
             removeButton.type = 'button';
             removeButton.dataset.removeUrl = entry.url;
-            removeButton.className = 'absolute top-2 right-2 text-[11px] app-link-danger';
-            removeButton.textContent = 'Remove';
-            wrapper.appendChild(removeButton);
+            removeButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-red-500 transition-colors';
+            removeButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+            removeButton.title = 'Remove this entry';
+            actionContainer.appendChild(removeButton);
         }
+
+        wrapper.appendChild(actionContainer);
 
         dom.entryList.appendChild(wrapper);
     });
@@ -373,18 +382,36 @@ function renderQuizTreeNodes(nodes, parentElement, currentQuiz) {
 
             const desc = document.createElement('div');
             desc.className =
-                'text-[11px] app-text-main';
+                'text-[11px] app-text-main pr-8'; // Add padding for share button
             desc.textContent = entry.description || '';
 
             button.appendChild(title);
             button.appendChild(desc);
 
+            // Share button for Quiz — place as absolute inside a relative wrapper
+            const shareButton = document.createElement('button');
+            shareButton.type = 'button';
+            shareButton.dataset.shareQuizId = entry.id;
+            shareButton.className = 'p-1.5 rounded-lg text-gray-400 hover:text-blue-500 transition-colors z-10';
+            shareButton.style.position = 'absolute';
+            shareButton.style.top = '8px';
+            shareButton.style.right = '8px';
+            shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
+            shareButton.title = 'Share this quiz';
+            shareButton.addEventListener('click', (e) => { e.stopPropagation(); });
+
             const capacity = createCapacityElement(entry._capacityStatus, entry._capacity, 'quiz');
+
+            // Wrapper keeps absolute positioning context
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative';
+            wrapper.appendChild(button);
+            wrapper.appendChild(shareButton);
             if (capacity) {
-                button.appendChild(capacity);
+                wrapper.appendChild(capacity);
             }
 
-            parentElement.appendChild(button);
+            parentElement.appendChild(wrapper);
         }
     });
 }

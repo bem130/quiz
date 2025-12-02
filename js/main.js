@@ -111,6 +111,47 @@ function syncQuizDataUrlsToServiceWorker() {
     });
 }
 
+// Modal button wiring (global)
+(function setupShareModalHandlers() {
+    const modal = document.getElementById('share-modal');
+    if (!modal) return;
+    const closeBtn = document.getElementById('share-modal-close');
+    const backdrop = document.getElementById('share-modal-backdrop');
+    const copyBtn = document.getElementById('share-copy-button');
+    const openBtn = document.getElementById('share-open-button');
+    const input = document.getElementById('share-url-input');
+
+    if (closeBtn) closeBtn.addEventListener('click', () => closeShareModal());
+    if (backdrop) backdrop.addEventListener('click', () => closeShareModal());
+
+    if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+            if (!input) return;
+            try {
+                await navigator.clipboard.writeText(input.value);
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy URL'; }, 1500);
+            } catch (e) {
+                console.warn('Copy failed', e);
+            }
+        });
+    }
+
+    if (openBtn) {
+        openBtn.addEventListener('click', () => {
+            if (!input) return;
+            window.open(input.value, '_blank');
+        });
+    }
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeShareModal();
+        }
+    });
+})();
+
 /**
  * Reload the application with Service Worker update check.
  */
@@ -730,7 +771,29 @@ function renderModeNodes(nodes, parentElement, modeById) {
             updateLocationParams(entryUrl, quizId, currentModeId);
         });
 
-        parentElement.appendChild(btn);
+        // Wrapper for relative positioning
+        const wrapper = document.createElement('div');
+        wrapper.className = 'relative';
+        wrapper.appendChild(btn);
+
+        // Share button
+        const shareButton = document.createElement('button');
+        shareButton.type = 'button';
+        shareButton.dataset.shareModeId = mode.id;
+        shareButton.className = 'absolute top-2 right-2 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-blue-500 transition-colors';
+        shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
+        shareButton.title = 'Share this mode';
+        shareButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const entryUrl = currentEntry ? currentEntry.url : null;
+            const quizId = currentQuiz ? currentQuiz.id : null;
+            // Build share URL including mode and optional entry/quiz params
+            const url = buildShareUrl({ entryUrl, quizId, modeId: mode.id });
+            openShareModal(url);
+        });
+        wrapper.appendChild(shareButton);
+
+        parentElement.appendChild(wrapper);
     });
 }
 
@@ -1236,6 +1299,49 @@ function updateLocationParams(entryUrl, quizId, modeId) {
 
     window.history.replaceState(null, '', newUrl);
 }
+
+/**
+ * Build a shareable absolute URL for given params.
+ * entryUrl may be omitted or null to use default entry.
+ */
+function buildShareUrl({ entryUrl = null, quizId = null, modeId = null } = {}) {
+    const params = new URLSearchParams();
+    if (quizId) params.set('quiz', quizId);
+    if (modeId) params.set('mode', modeId);
+    if (entryUrl && !isDefaultEntryUrl(entryUrl)) params.set('entry', entryUrl);
+    const newQuery = params.toString();
+    return window.location.origin + window.location.pathname + (newQuery ? `?${newQuery}` : '') + window.location.hash;
+}
+
+// Share modal helpers
+function openShareModal(url) {
+    const modal = document.getElementById('share-modal');
+    const input = document.getElementById('share-url-input');
+    const img = document.getElementById('share-qr-image');
+    if (!modal || !input || !img) return;
+    input.value = url;
+    // Generate QR code as data URL
+    if (window.QRCode && typeof window.QRCode.toDataURL === 'function') {
+        QRCode.toDataURL(url, { width: 300 })
+            .then((dataUrl) => {
+                img.src = dataUrl;
+            })
+            .catch((err) => {
+                console.warn('QR generation failed', err);
+                img.src = '';
+            });
+    } else {
+        img.src = '';
+    }
+    modal.classList.remove('hidden');
+}
+
+function closeShareModal() {
+    const modal = document.getElementById('share-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+}
+
 
 async function loadEntrySources() {
     const stored = loadEntrySourcesFromStorage();
@@ -1913,6 +2019,16 @@ function attachMenuHandlers() {
                 }
                 return;
             }
+            // Share entry
+            const shareEntryButton = target.closest('[data-share-entry-url]');
+            if (shareEntryButton && shareEntryButton instanceof HTMLElement) {
+                const shareEntryUrl = shareEntryButton.dataset.shareEntryUrl;
+                const quizParam = getQuizNameFromLocation();
+                // Build URL: entry only
+                const url = buildShareUrl({ entryUrl: shareEntryUrl });
+                openShareModal(url);
+                return;
+            }
             const addButton = target.closest('[data-add-url]');
             if (addButton && addButton instanceof HTMLElement) {
                 const addUrl = addButton.dataset.addUrl;
@@ -1952,6 +2068,16 @@ function attachMenuHandlers() {
         dom.quizList.addEventListener('click', async (event) => {
             const target = event.target;
             if (!(target instanceof HTMLElement)) return;
+            // Share quiz button
+            const shareQuizButton = target.closest('[data-share-quiz-id]');
+            if (shareQuizButton && shareQuizButton instanceof HTMLElement) {
+                const quizId = shareQuizButton.dataset.shareQuizId;
+                const entryUrl = currentEntry ? currentEntry.url : null;
+                const url = buildShareUrl({ entryUrl, quizId });
+                openShareModal(url);
+                return;
+            }
+
             const quizId = target.dataset.quizId;
             if (quizId) {
                 await handleQuizClick(quizId);

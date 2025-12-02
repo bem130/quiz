@@ -62,6 +62,30 @@
 </head>
 <body class="app-loading transition-colors duration-300">
 
+    <style>
+    /* Share modal theming using CSS variables so it follows data-theme */
+    #share-modal .modal-backdrop {
+        background: var(--color-surface-overlay);
+    }
+    #share-modal .modal-panel {
+        background: var(--color-surface-card);
+        color: var(--color-text-main);
+        border: 1px solid var(--color-border-subtle);
+    }
+    #share-modal #share-qr-container {
+        background: var(--color-input-bg);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 8px;
+        padding: 6px;
+    }
+    #share-modal #share-url-input {
+        background: var(--color-input-bg);
+        color: var(--color-input-text);
+        border-color: var(--color-input-border);
+    }
+    #share-modal button { color: var(--color-text-main); }
+    </style>
+
     <!-- 画面いっぱい 2 分割レイアウト -->
     <div id="app" class="layout-container">
         <!-- 左: メインエリア（メニュー or クイズ） -->
@@ -522,6 +546,30 @@
 
     <script src="https://cdn.jsdelivr.net/npm/kekule/dist/kekule.min.js"></script>
     <script src="https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
+    <!-- QR Code generation library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+
+    <!-- Share modal (hidden by default) -->
+    <div id="share-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div id="share-modal-backdrop" class="absolute inset-0 modal-backdrop"></div>
+        <div class="modal-panel relative rounded-xl p-4 w-[320px] max-w-full mx-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold">Share</h3>
+                <button id="share-modal-close" class="text-sm px-2 py-1">×</button>
+            </div>
+            <div class="flex flex-col items-center gap-3">
+                <div id="share-qr-container" class="p-2 bg-white rounded-md">
+                    <img id="share-qr-image" alt="QR code" style="width:200px;height:200px;" />
+                </div>
+                <input id="share-url-input" class="w-full app-input text-xs px-3 py-2" readonly />
+                <div class="w-full flex gap-2">
+                    <button id="share-copy-button" class="interactive-button flex-1 px-3 py-2 rounded-xl text-sm font-semibold border app-border-subtle">Copy URL</button>
+                    <button id="share-open-button" class="interactive-button flex-1 px-3 py-2 rounded-xl text-sm font-semibold border app-border-subtle">Open</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
