@@ -65,7 +65,7 @@ export function renderEntryMenu(entrySources, currentEntry) {
         button.type = 'button';
         button.dataset.entryUrl = entry.url;
         button.className = [
-            'w-full text-left rounded-xl border px-3 py-2 transition-colors app-list-button',
+            'w-full text-left rounded-xl border px-3 py-2 transition-colors app-list-button pr-[6em]',
             isCurrent ? 'app-list-button-active shadow-sm' : ''
         ].join(' ');
 
@@ -379,12 +379,12 @@ function renderQuizTreeNodes(nodes, parentElement, currentQuiz) {
             ].join(' ');
 
             const title = document.createElement('div');
-            title.className = 'font-semibold mb-0.5 pr-8';
+            title.className = 'font-semibold mb-0.5 pr-[3em]';
             title.textContent = entry.title || entry.id;
 
             const desc = document.createElement('div');
             desc.className =
-                'text-[11px] app-text-main pr-8'; // Add padding for share button
+                'text-[11px] app-text-main pr-[3em]'; // Add padding for share button
             desc.textContent = entry.description || '';
 
             button.appendChild(title);
@@ -394,11 +394,11 @@ function renderQuizTreeNodes(nodes, parentElement, currentQuiz) {
             const shareButton = document.createElement('button');
             shareButton.type = 'button';
             shareButton.dataset.shareQuizId = entry.id;
-            shareButton.className = 'p-1.5 rounded-lg text-gray-400 hover:text-blue-500 transition-colors z-10';
+            shareButton.className = 'p-[0.3em] rounded-lg text-gray-400 hover:text-blue-500 transition-colors z-10';
             shareButton.style.position = 'absolute';
             shareButton.style.top = '8px';
             shareButton.style.right = '8px';
-            shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
+            shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
             shareButton.title = 'Share this quiz';
 
             const capacity = createCapacityElement(entry._capacityStatus, entry._capacity, 'quiz');
