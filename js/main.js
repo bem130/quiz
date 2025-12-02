@@ -780,17 +780,9 @@ function renderModeNodes(nodes, parentElement, modeById) {
         const shareButton = document.createElement('button');
         shareButton.type = 'button';
         shareButton.dataset.shareModeId = mode.id;
-        shareButton.className = 'absolute top-2 right-2 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-blue-500 transition-colors';
+        shareButton.className = 'absolute top-2 right-2 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-blue-500 transition-colors z-10';
         shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
         shareButton.title = 'Share this mode';
-        shareButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const entryUrl = currentEntry ? currentEntry.url : null;
-            const quizId = currentQuiz ? currentQuiz.id : null;
-            // Build share URL including mode and optional entry/quiz params
-            const url = buildShareUrl({ entryUrl, quizId, modeId: mode.id });
-            openShareModal(url);
-        });
         wrapper.appendChild(shareButton);
 
         parentElement.appendChild(wrapper);
@@ -2007,10 +1999,16 @@ function attachMenuHandlers() {
 
     if (dom.entryList) {
         dom.entryList.addEventListener('click', async (event) => {
-            const target = event.target;
-            if (!(target instanceof HTMLElement)) return;
+            let target = event.target;
+            // Handle text nodes (e.g. clicking on label text)
+            while (target && !(target instanceof Element)) {
+                target = target.parentNode;
+            }
+            if (!target) return;
+
             const localDraftButton = target.closest('[data-local-draft-action]');
-            if (localDraftButton && localDraftButton instanceof HTMLElement) {
+            if (localDraftButton) {
+                event.stopPropagation();
                 const action = localDraftButton.dataset.localDraftAction;
                 if (action === 'update') {
                     await handleLocalDraftUpdate();
@@ -2021,16 +2019,17 @@ function attachMenuHandlers() {
             }
             // Share entry
             const shareEntryButton = target.closest('[data-share-entry-url]');
-            if (shareEntryButton && shareEntryButton instanceof HTMLElement) {
+            if (shareEntryButton) {
+                event.stopPropagation();
                 const shareEntryUrl = shareEntryButton.dataset.shareEntryUrl;
-                const quizParam = getQuizNameFromLocation();
                 // Build URL: entry only
                 const url = buildShareUrl({ entryUrl: shareEntryUrl });
                 openShareModal(url);
                 return;
             }
             const addButton = target.closest('[data-add-url]');
-            if (addButton && addButton instanceof HTMLElement) {
+            if (addButton) {
+                event.stopPropagation();
                 const addUrl = addButton.dataset.addUrl;
                 if (addUrl) {
                     await addEntryFromUrl(addUrl);
@@ -2038,7 +2037,8 @@ function attachMenuHandlers() {
                 return;
             }
             const removeButton = target.closest('[data-remove-url]');
-            if (removeButton && removeButton instanceof HTMLElement) {
+            if (removeButton) {
+                event.stopPropagation();
                 const removeUrl = removeButton.dataset.removeUrl;
                 if (removeUrl) {
                     await removeEntry(removeUrl);
@@ -2046,7 +2046,7 @@ function attachMenuHandlers() {
                 return;
             }
             const entryButton = target.closest('[data-entry-url]');
-            if (entryButton && entryButton instanceof HTMLElement) {
+            if (entryButton) {
                 const entryUrl = entryButton.dataset.entryUrl;
                 if (entryUrl) {
                     await handleEntryClick(entryUrl);
@@ -2054,7 +2054,8 @@ function attachMenuHandlers() {
                 return;
             }
             const reloadButton = target.closest('[data-reload-entry-url]');
-            if (reloadButton && reloadButton instanceof HTMLElement) {
+            if (reloadButton) {
+                event.stopPropagation();
                 const reloadUrl = reloadButton.dataset.reloadEntryUrl;
                 if (reloadUrl) {
                     await reloadEntry(reloadUrl);
@@ -2066,11 +2067,16 @@ function attachMenuHandlers() {
 
     if (dom.quizList) {
         dom.quizList.addEventListener('click', async (event) => {
-            const target = event.target;
-            if (!(target instanceof HTMLElement)) return;
+            let target = event.target;
+            while (target && !(target instanceof Element)) {
+                target = target.parentNode;
+            }
+            if (!target) return;
+
             // Share quiz button
             const shareQuizButton = target.closest('[data-share-quiz-id]');
-            if (shareQuizButton && shareQuizButton instanceof HTMLElement) {
+            if (shareQuizButton) {
+                event.stopPropagation();
                 const quizId = shareQuizButton.dataset.shareQuizId;
                 const entryUrl = currentEntry ? currentEntry.url : null;
                 const url = buildShareUrl({ entryUrl, quizId });
@@ -2086,6 +2092,28 @@ function attachMenuHandlers() {
                 if (button && button.dataset.quizId) {
                     await handleQuizClick(button.dataset.quizId);
                 }
+            }
+        });
+    }
+
+    if (dom.modeList) {
+        dom.modeList.addEventListener('click', (event) => {
+            let target = event.target;
+            while (target && !(target instanceof Element)) {
+                target = target.parentNode;
+            }
+            if (!target) return;
+
+            // Share mode button
+            const shareModeButton = target.closest('[data-share-mode-id]');
+            if (shareModeButton) {
+                event.stopPropagation();
+                const modeId = shareModeButton.dataset.shareModeId;
+                const entryUrl = currentEntry ? currentEntry.url : null;
+                const quizId = currentQuiz ? currentQuiz.id : null;
+                const url = buildShareUrl({ entryUrl, quizId, modeId });
+                openShareModal(url);
+                return;
             }
         });
     }
