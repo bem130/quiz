@@ -293,6 +293,12 @@ if ($modeParam !== null) {
     <meta name="twitter:site" content="@bem130" />
     <meta name="twitter:creator" content="@bem130" />
 
+    <!-- Google Fonts: Noto Sans JP & Noto Serif JP -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&family=Noto+Serif+JP:wght@200..900&display=swap" rel="stylesheet">
+
+
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -306,6 +312,10 @@ if ($modeParam !== null) {
                         slate: {
                             850: '#1e293b'
                         }
+                    },
+                fontFamily: {
+                        sans: ['Noto Sans JP', 'sans-serif'],
+                        serif: ['Noto Serif JP', 'serif']
                     }
                 }
             }
