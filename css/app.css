@@ -357,13 +357,11 @@ button:active {
 
 .term-alt {
     font-size: 0.5em;
-    margin-top: -0.8em;
+    margin-top: -0.5em;
 }
 
 ruby rt {
     font-size: 0.5em;
-    position: relative;
-    bottom: -0.5em;
 }
 
 .chem-inline-viewer {
