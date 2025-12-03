@@ -1,6 +1,7 @@
 // js/quiz-renderer.js
 import { dom } from './dom-refs.js';
 import { renderSmilesInline } from './chem-renderer.js';
+import { parseContentToSegments } from './ruby-parser.js';
 
 let renderedQuestion = null;
 
@@ -79,7 +80,8 @@ function createStyledSpan(text, styles = []) {
             window.katex.render(text, span, {
                 throwOnError: false,
                 strict: false,
-                errorColor: '#cc0000'
+                errorColor: '#cc0000',
+                displayMode: styles.includes('katex-block')
             });
             return span;
         } catch (e) {
@@ -139,6 +141,37 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
         if (!token || !token.type) return;
         if (token.type === 'text') {
             parent.appendChild(createStyledSpan(token.value ?? '', token.styles || []));
+            return;
+        }
+        if (token.type === 'content') {
+            const value = token.value != null ? String(token.value) : '';
+            const segments = parseContentToSegments(value);
+
+            const wrapper = document.createElement(token.block ? 'div' : 'span');
+            wrapper.classList.add('content-token');
+            applyStyles(wrapper, token.styles || []);
+
+            segments.forEach((seg) => {
+                if (seg.kind === 'Plain') {
+                    wrapper.appendChild(document.createTextNode(seg.text));
+                } else if (seg.kind === 'Annotated') {
+                    const rubyEl = document.createElement('ruby');
+                    const rb = document.createElement('rb');
+                    rb.textContent = seg.base;
+                    const rt = document.createElement('rt');
+                    rt.textContent = seg.reading;
+                    rubyEl.appendChild(rb);
+                    rubyEl.appendChild(rt);
+                    wrapper.appendChild(rubyEl);
+                } else if (seg.kind === 'Math') {
+                    const styles = ['katex'];
+                    if (seg.display) styles.push('katex-block');
+                    const mathSpan = createStyledSpan(seg.tex, styles);
+                    wrapper.appendChild(mathSpan);
+                }
+            });
+
+            parent.appendChild(wrapper);
             return;
         }
         if (token.type === 'katex') {

@@ -170,7 +170,202 @@ ruby rt {
 }
 
 .chem-inline-viewer-inner canvas {
-  image-rendering: smooth;
+    image-rendering: smooth;
+    /* Prevent blurring when scaled down */
+}
+
+/* 2024-05-18: Tips panel should be scrollable when content is long */
+#tips-panel {
+    max-height: 70%;
+    overflow-y: auto;
+}
+
+/* Share modal theming using CSS variables so it follows data-theme */
+#share-modal .modal-backdrop {
+    background: var(--color-surface-overlay);
+}
+
+#share-modal .modal-panel {
+    background: var(--color-surface-card);
+    color: var(--color-text-main);
+    border: 1px solid var(--color-border-subtle);
+}
+
+#share-modal #share-qr-container {
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 8px;
+    padding: 6px;
+}
+
+#share-modal #share-url-input {
+
+    /* 横長レイアウト時の main:sub 比率 */
+    --layout-main-weight-land: 3;
+    --layout-side-weight-land: 2;
+
+    /* 縦長レイアウト時の main:sub 比率 */
+    --layout-main-weight-port: 5;
+    --layout-side-weight-port: 2;
+}
+
+/* 画面サイズ + ユーザ設定スケールでフォントサイズを決める */
+html {
+    font-size: calc((1.5vw + 1vh)* 0.7 * var(--app-scale));
+}
+
+/* 全体設定 */
+body {
+    height: var(--app-height);
+    /* モバイルブラウザ対策 */
+    overflow: hidden;
+    /* 全体スクロールを防ぎ、中身だけスクロール */
+
+    /* テキスト選択禁止（ドラッグ選択でレイアウトが崩れないように） */
+    -webkit-user-select: none;
+    /* Safari / Chrome */
+    -moz-user-select: none;
+    /* Firefox */
+    -ms-user-select: none;
+    /* 旧 Edge / IE */
+    user-select: none;
+    /* 標準 */
+}
+
+body.app-loading .layout-container {
+    opacity: 0;
+    transform: translateY(0.25rem);
+}
+
+body.app-ready .layout-container {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+        opacity 0.2s ease-out,
+        transform 0.2s ease-out;
+}
+
+/* レイアウトコンテナ: 画面いっぱいのフレックス */
+.layout-container {
+    display: flex;
+    width: 100vw;
+    height: 100%;
+}
+
+/* =========================================================
+   横長（ランドスケープ）レイアウト
+   条件: aspect-ratio >= 3/4
+   → 左右 2 分割（main | side）
+   ====================================================== */
+@media (min-aspect-ratio: 1/1) {
+    .layout-container {
+        flex-direction: row;
+    }
+
+    .main-panel {
+        flex: var(--layout-main-weight-land);
+        height: 100%;
+        overflow-y: auto;
+    }
+
+    .side-panel {
+        flex: var(--layout-side-weight-land);
+        height: 100%;
+        border-left-width: 1px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+}
+
+/* =========================================================
+   縦長（ポートレート）レイアウト
+   条件: aspect-ratio <= 3/4
+   → 上下 2 分割（main ↑, side ↓）
+   ====================================================== */
+@media (max-aspect-ratio: 1/1) {
+    .layout-container {
+        flex-direction: column;
+    }
+
+    .main-panel {
+        flex: var(--layout-main-weight-port);
+        width: 100%;
+        overflow-y: auto;
+    }
+
+    .side-panel {
+        flex: var(--layout-side-weight-port);
+        width: 100%;
+        border-top-width: 1px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+}
+
+/* ちょっとしたフェードイン */
+.fade-in {
+    animation: fadeIn 0.25s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(0.25rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ボタンの押し込み表現用 */
+button {
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease,
+        transform 0.05s ease;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+/* Long text block used in Mistakes / Result question text */
+.quiz-text-block {
+    /* explicitly allow wrapping & keep manual line breaks */
+    white-space: pre-wrap;
+
+    /* make long words / formulas wrap instead of overflowing */
+    word-break: break-word;
+    overflow-wrap: break-word;
+
+    /* better behaviour for Japanese text */
+    line-break: strict;
+}
+
+ruby rt {
+    font-size: 0.5em;
+}
+
+.chem-inline-viewer {
+    display: inline-block;
+    vertical-align: baseline;
+    margin: 0 0.25rem;
+    background-color: transparent;
+}
+
+.chem-inline-viewer-inner {
+    display: block;
+    transform-origin: left bottom;
+    /* テキスト行のベースライン寄せ */
+}
+
+.chem-inline-viewer-inner canvas {
+    image-rendering: smooth;
     /* Prevent blurring when scaled down */
 }
 
@@ -206,4 +401,16 @@ ruby rt {
 
 #share-modal button {
     color: var(--color-text-main);
+}
+
+/* Content Token Styles */
+.content-token {
+    line-height: 1.8;
+}
+
+/* KaTeX Block Style */
+.katex-block {
+    display: block;
+    margin: 0.5rem 0;
+    text-align: center;
 }

@@ -15,7 +15,8 @@ const ALLOWED_TOKEN_TYPES = new Set([
     'katex',
     'smiles',
     'br',
-    'group'
+    'group',
+    'content'
 ]);
 
 function normalizeTokenArray(value) {
