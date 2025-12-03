@@ -568,6 +568,7 @@ function showScreen(name) {
     if (name === 'menu') {
         dom.mainMenu.classList.remove('hidden');
         dom.sideMenu.classList.remove('hidden');
+        checkForUpdate();
     } else if (name === 'quiz') {
         dom.mainQuiz.classList.remove('hidden');
         dom.sideQuiz.classList.remove('hidden');
