@@ -646,7 +646,7 @@ Mode と ModeGroup を混在させた例：
 
 ```jsonc
 {
-  "type": "text" | "key" | "ruby" | "katex" | "smiles" | "hide" | "br",
+  "type": "text" | "content" | "key" | "ruby" | "katex" | "smiles" | "hide" | "br",
   "styles": ["bold", "italic", "sans", "serif"] // 任意
 }
 ```
@@ -678,7 +678,37 @@ Mode と ModeGroup を混在させた例：
 
 ---
 
-### 8.3 `key`
+### 8.3 `content`（リッチテキスト）
+
+#### 記述
+
+```jsonc
+{
+  "type": "content",
+  "value": "(数学/すうがく)B：(等比数列/とうひすうれつ)の(漸化式/ぜんかしき)"
+}
+```
+
+* `value`: 特殊な記法を含む文字列
+
+#### 記法ルール
+
+1. **Ruby（ルビ）**: `(Base/Reading)` の形式で記述します。
+   * 例: `(漢字/かんじ)` → `<ruby><rb>漢字</rb><rt>かんじ</rt></ruby>`
+   * `(` `)` `/` を文字として使いたい場合は `\` でエスケープします（例: `\(`, `\)`, `\/`）。
+
+2. **KaTeX（数式）**: `$` で囲むとインライン数式、`$$` で囲むとブロック数式になります。
+   * 例: `$a_n = a_1 r^{n-1}$` → インライン数式
+   * 例: `$$ \sum_{k=1}^n k $$` → ブロック数式
+
+#### 処理
+
+* パーサーが `value` を解析し、Ruby タグや KaTeX レンダリングを適用して表示します。
+* `text` トークンよりも柔軟な表現が可能です。
+
+---
+
+### 8.4 `key`
 
 #### 記述
 
@@ -702,7 +732,7 @@ Mode と ModeGroup を混在させた例：
 
 ---
 
-### 8.4 `ruby`
+### 8.5 `ruby`
 
 #### 記述
 
@@ -732,10 +762,11 @@ Mode と ModeGroup を混在させた例：
 
   * 例：`value: [ { "type": "ruby", "base": ..., "ruby": ... } ]` のように、
     ruby 全体を 1 要素の Token として持たせることができます。
+* **推奨**: 新しいコンテンツでは `content` トークンの使用を推奨します。
 
 ---
 
-### 8.5 `katex`
+### 8.6 `katex`
 
 #### 記述
 
@@ -751,6 +782,7 @@ Mode と ModeGroup を混在させた例：
 #### 処理
 
 * `value` または `row[field]` を **KaTeX** でレンダリングして表示します。
+* `content` トークン内の `$` 記法でも代用可能です。
 
 ---
 
@@ -1119,5 +1151,4 @@ v2 で使用する `answer.mode` は次の 4 種類です：
 
 この Pattern では：
 
-* DataSet `proline-facts` の `sentences` から 1 文（`proline_structure`）を選び、その `tokens` 内の `hide` に対して `choice_from_group` で選択肢を構成します。
 * 解答後には、正解・不正解に応じて `tips` 内の TipBlock のどちらか 1 つが表示され、`desc` と `mnemonic` を使った小ネタが表示されます。
