@@ -168,6 +168,37 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                     if (seg.display) styles.push('katex-block');
                     const mathSpan = createStyledSpan(seg.tex, styles);
                     wrapper.appendChild(mathSpan);
+                } else if (seg.kind === 'Term') {
+                    const termSpan = document.createElement('span');
+                    termSpan.className = 'term';
+
+                    const rubyEl = document.createElement('ruby');
+                    seg.children.forEach(child => {
+                        if (child.kind === 'Annotated') {
+                            const rb = document.createElement('rb');
+                            rb.textContent = child.base;
+                            const rt = document.createElement('rt');
+                            rt.textContent = child.reading;
+                            rubyEl.appendChild(rb);
+                            rubyEl.appendChild(rt);
+                        } else if (child.kind === 'Plain') {
+                            const rb = document.createElement('rb');
+                            rb.textContent = child.text;
+                            const rt = document.createElement('rt');
+                            // Empty rt for alignment
+                            rubyEl.appendChild(rb);
+                            rubyEl.appendChild(rt);
+                        }
+                    });
+                    termSpan.appendChild(rubyEl);
+
+                    if (seg.english) {
+                        const altSpan = document.createElement('span');
+                        altSpan.className = 'term-alt';
+                        altSpan.textContent = seg.english;
+                        termSpan.appendChild(altSpan);
+                    }
+                    wrapper.appendChild(termSpan);
                 }
             });
 
