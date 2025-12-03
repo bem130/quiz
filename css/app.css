@@ -347,6 +347,19 @@ button:active {
     line-break: strict;
 }
 
+/* term and ruby */
+
+.term {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.term-alt {
+    font-size: 0.5em;
+    margin-top: -0.8em;
+}
+
 ruby rt {
     font-size: 0.5em;
     position: relative;
