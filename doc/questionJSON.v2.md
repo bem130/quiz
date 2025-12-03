@@ -690,6 +690,7 @@ Mode と ModeGroup を混在させた例：
 ```
 
 * `value`: 特殊な記法を含む文字列
+* `block`: `true` の場合、全体を `<div>` で囲み、ブロック要素として扱います（省略時は `false` = インライン）。
 
 #### 記法ルール
 
@@ -705,6 +706,7 @@ Mode と ModeGroup を混在させた例：
 
 * パーサーが `value` を解析し、Ruby タグや KaTeX レンダリングを適用して表示します。
 * `text` トークンよりも柔軟な表現が可能です。
+* `block: true` が指定された場合、生成される HTML 要素が `div` となり、スタイル適用時にブロックとして振る舞います。
 
 ---
 
@@ -791,18 +793,18 @@ Mode と ModeGroup を混在させた例：
 #### 記述
 
 ```jsonc
-{ "type": "smiles", "value": "CC(=O)O" }
-// または
-{ "type": "smiles", "field": "smiles" }
+{ "type": "smiles", "value": "CC(=O)O", "maxHeightEm": 3.0 }
 ```
 
 * `value`: SMILES 文字列を直接指定
 * `field`: 行のフィールドから SMILES 文字列を取得
+* `maxHeightEm`: 描画時の最大高さ（em 単位）。省略時はデフォルト値（例: 2.0）が使用されます。
 
 #### 処理
 
 1. **RDKit** を用いて SMILES 文字列を分子構造データに変換
 2. 変換結果を **Kekule.js** でレンダリングし、構造式として表示
+3. `maxHeightEm` 等の指定に従い、サイズを調整して描画します。
 
 ---
 
