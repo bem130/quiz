@@ -416,3 +416,7 @@ ruby rt {
     margin: 0.5rem 0;
     text-align: center;
 }
+
+.katex-display {
+    margin: 0.2em 0em;
+}
