@@ -423,6 +423,18 @@ if ($modeParam !== null) {
                     <div id="draft-summary-content" class="space-y-1 text-[11px] app-text-muted"></div>
                 </section>
 
+                <hr>
+
+                <!-- Available Quizzes -->
+                <section class="space-y-2">
+                    <h2 class="text-base font-semibold app-text-strong">Available Quizzes</h2>
+                    <div id="quiz-list" class="space-y-2">
+                        <!-- JS で埋め込み -->
+                    </div>
+                </section>
+
+                <hr>
+
                 <section class="space-y-3">
                     <h2 class="text-base font-semibold app-text-strong">Mode</h2>
                     <div id="mode-message" class="text-xs app-text-danger hidden"></div>
@@ -681,13 +693,6 @@ if ($modeParam !== null) {
                             <p class="text-[11px] app-text-muted">Entries are saved in this browser.</p>
                         </div>
                         <div id="entry-list" class="space-y-2"></div>
-                    </section>
-
-                    <section class="space-y-2">
-                        <h3 class="text-sm font-semibold app-text-strong">Available Quizzes</h3>
-                        <div id="quiz-list" class="space-y-2">
-                            <!-- JS で埋め込み -->
-                        </div>
                     </section>
 
                     <section class="space-y-2">
