@@ -50,6 +50,9 @@ function tokenTextFromToken(token, row) {
         }
         return row && token.field ? row[token.field] ?? '' : '';
     }
+    if (token.type === 'content') {
+        return token.value != null ? String(token.value) : '';
+    }
     if (token.type === 'key') {
         if (!row || !token.field) return '';
 
@@ -173,18 +176,66 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
     const correctKey = tokenDisplayKey(token, correctRow);
     const usedIds = new Set([correctRow.id]);
     const usedText = new Set([correctKey]);
+
+    // Debug: summary of choice config
+    try {
+        console.debug('[quiz][buildChoiceFromEntities] choiceCount:', choiceCount, 'avoidSameId:', avoidSameId, 'avoidSameText:', avoidSameText, 'correctKey:', JSON.stringify(correctKey), 'tokenType:', token && token.type);
+        if (token && token.answer && token.answer.choice && token.answer.choice.distractorSource) {
+            console.debug('[quiz][buildChoiceFromEntities] distractorSource:', token.answer.choice.distractorSource);
+        }
+    } catch (e) {}
     const distractors = [];
     let safety = 2000;
     while (distractors.length < choiceCount - 1 && safety > 0) {
         safety -= 1;
         const candidate = randomChoice(pool);
-        if (!candidate) break;
-        if (avoidSameId && usedIds.has(candidate.id)) continue;
-        const key = tokenDisplayKey(token, candidate);
-        if (avoidSameText && usedText.has(key)) continue;
+        if (!candidate) {
+            try {
+                console.debug('[quiz][buildChoiceFromEntities] candidate: null - pool exhausted or randomChoice returned falsy');
+            } catch (e) {}
+            break;
+        }
+
+        // compute key early for logging
+        let key = '';
+        try {
+            key = tokenDisplayKey(token, candidate);
+        } catch (e) {
+            key = '';
+        }
+
+        try {
+            console.debug('[quiz][buildChoiceFromEntities] trying candidate:', candidate && candidate.id, 'key:', JSON.stringify(key));
+        } catch (e) {}
+
+        if (avoidSameId && usedIds.has(candidate.id)) {
+            try {
+                console.debug('[quiz][buildChoiceFromEntities] skip candidate (same id):', candidate && candidate.id);
+            } catch (e) {}
+            continue;
+        }
+
+        if (avoidSameText && usedText.has(key)) {
+            try {
+                console.debug('[quiz][buildChoiceFromEntities] skip candidate (same text):', candidate && candidate.id, 'key:', JSON.stringify(key));
+            } catch (e) {}
+            continue;
+        }
+
         distractors.push(candidate);
         usedIds.add(candidate.id);
         usedText.add(key);
+        try {
+            console.debug('[quiz][buildChoiceFromEntities] accepted distractor:', candidate && candidate.id, 'currentDistractors:', distractors.map((d) => d && d.id));
+        } catch (e) {}
+    }
+
+    // Debug: log distractor discovery
+    try {
+        console.debug('[quiz][buildChoiceFromEntities] tokenId:', token && token.id, 'dataSetId:', dataSetId, 'correctRowId:', correctRow && correctRow.id, 'poolSize:', pool.length);
+        console.debug('[quiz][buildChoiceFromEntities] distractors count:', distractors.length, 'ids:', distractors.map((d) => d && d.id));
+    } catch (e) {
+        // ignore logging errors
     }
 
     const optionEntities = [
@@ -204,8 +255,21 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
         }))
     ];
 
+    // Debug: dump option entities (lightweight view)
+    try {
+        console.debug('[quiz][buildChoiceFromEntities] optionEntities (pre-shuffle):', optionEntities.map((o) => ({
+            entityId: o && o.entityId,
+            isCorrect: !!(o && o.isCorrect),
+            displayKey: o && o.displayKey
+        })));
+    } catch (e) {}
+
     const shuffledOptions = shuffled(optionEntities);
     const correctIndex = shuffledOptions.findIndex((o) => o.isCorrect);
+
+    try {
+        console.debug('[quiz][buildChoiceFromEntities] shuffledOptions:', shuffledOptions.map((o) => ({ entityId: o && o.entityId, isCorrect: !!(o && o.isCorrect), displayKey: o && o.displayKey })), 'correctIndex:', correctIndex);
+    } catch (e) {}
 
     return {
         id: token.id || `ans_${correctRow.id}`,
@@ -251,6 +315,11 @@ function buildChoiceUniqueProperty(token, correctRow, allRows, dataSetId) {
         }))
     ]);
     const correctIndex = options.findIndex((o) => o.isCorrect);
+    try {
+        console.debug('[quiz][buildChoiceUniqueProperty] tokenId:', token && token.id, 'dataSetId:', dataSetId, 'correctRowId:', correctRow && correctRow.id);
+        console.debug('[quiz][buildChoiceUniqueProperty] distractors count:', distractors.length, 'ids:', distractors.map((d) => d && d.id));
+        console.debug('[quiz][buildChoiceUniqueProperty] options:', options.map((o) => ({ entityId: o && o.entityId, isCorrect: !!(o && o.isCorrect), displayKey: o && o.displayKey })), 'correctIndex:', correctIndex);
+    } catch (e) {}
     return {
         id: token.id || `ans_${correctRow.id}`,
         mode: 'choice_unique_property',
