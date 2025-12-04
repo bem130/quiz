@@ -638,9 +638,35 @@ function updateAnswerNavigation(question, targetIndex) {
     const nextIndex = Math.min(Math.max(targetIndex, 0), maxIndex);
     question.currentAnswerIndex = nextIndex;
 
+    // Determine the first unanswered index to decide which groups are locked
+    const firstUnanswered = question.answers.findIndex(a => a && a.userSelectedIndex == null);
+
     question._answerGroups.forEach((group, idx) => {
         if (idx === nextIndex) {
             group.classList.remove('hidden');
+
+            // Lock if this group is before the first unanswered group (or if all are answered)
+            let isLocked = false;
+            if (firstUnanswered === -1) {
+                isLocked = true;
+            } else {
+                isLocked = idx < firstUnanswered;
+            }
+
+            const buttons = group.querySelectorAll('button.choice-button');
+            buttons.forEach(btn => {
+                btn.disabled = isLocked;
+                // Optional: Adjust styling for locked (read-only) state
+                if (isLocked) {
+                    // Ensure it remains readable
+                    btn.classList.add('opacity-100');
+                    btn.classList.remove('app-focus-ring');
+                } else {
+                    btn.classList.remove('opacity-100');
+                    btn.classList.add('app-focus-ring');
+                }
+            });
+
         } else {
             group.classList.add('hidden');
         }
@@ -737,8 +763,7 @@ export function renderQuestion(question, dataSets, onSelect) {
     );
     question._answerGroups = answerGroups;
 
-    const useNavigation =
-        question.format === 'sentence_fill_choice' && answerGroups.length > 1;
+    const useNavigation = answerGroups.length > 1;
     question.useNavigation = useNavigation;
 
     if (useNavigation) {
@@ -1247,6 +1272,41 @@ export function revealNextAnswerGroup() {
     if (firstUnanswered >= 0) {
         updateAnswerNavigation(renderedQuestion, firstUnanswered);
     }
+}
+
+export function revealCorrectAnswerInPreviews(question, dataSets, answerIndex) {
+    if (!question || !Array.isArray(question.answers)) return;
+    const answer = question.answers[answerIndex];
+    if (!answer) return;
+
+    // Only for sentence_fill_choice as per request context
+    if (question.format !== 'sentence_fill_choice') return;
+
+    // Iterate over all options for this answer group
+    (answer.options || []).forEach((opt, optIndex) => {
+        const btn = dom.optionsContainer.querySelector(
+            `button[data-answer-index="${answerIndex}"][data-option-index="${optIndex}"]`
+        );
+        if (!btn) return;
+
+        const preview = btn.querySelector('.option-preview');
+        if (!preview) return;
+
+        // We overwrite existing content
+        preview.innerHTML = '';
+        preview.dataset.filled = '1'; // Mark as filled so appendPatternPreviewToOptions skips it later
+
+        // Use correctIndex to show the "correct path"
+        const node = buildSentencePreview(
+            question,
+            dataSets,
+            answerIndex,
+            answer.correctIndex // Force correct answer
+        );
+        if (node) {
+            preview.appendChild(node);
+        }
+    });
 }
 
 export function appendPatternPreviewToOptions(question, dataSets) {

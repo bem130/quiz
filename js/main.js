@@ -31,6 +31,7 @@ import {
     showOptionFeedbackForAnswer,
     revealNextAnswerGroup,
     appendPatternPreviewToOptions,
+    revealCorrectAnswerInPreviews,
     summarizeQuestion,
     summarizeAnswers,
     resetResultList,
@@ -1001,12 +1002,22 @@ function handleSelectOption(answerIndex, optionIndex) {
     }
 
     // ここからは採点前（hasAnswered === false）の通常処理
+    // Check if the user is clicking the same option again
+    const currentAnswer = currentQuestion.answers[answerIndex];
+    if (currentAnswer && currentAnswer.userSelectedIndex === optionIndex) {
+        // If it's the correct answer, proceed to the next blank
+        if (optionIndex === currentAnswer.correctIndex) {
+            revealNextAnswerGroup(answerIndex);
+        }
+        return;
+    }
+
     const selectionState = selectAnswer(currentQuestion, answerIndex, optionIndex);
 
     // まずはこのパーツだけ本文の穴埋めとボタンを更新し、次のパーツを出す
     updateInlineBlank(currentQuestion, quizDef.dataSets, answerIndex);
     showOptionFeedbackForAnswer(currentQuestion, answerIndex);
-    revealNextAnswerGroup(answerIndex);
+    revealCorrectAnswerInPreviews(currentQuestion, quizDef.dataSets, answerIndex);
 
     // 未選択のパーツがある場合はスコア算出を保留する
     if (!selectionState.allSelected) {
