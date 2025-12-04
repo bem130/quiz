@@ -1,7 +1,7 @@
-// js/quiz-renderer.js
 import { dom } from './dom-refs.js';
 import { renderSmilesInline } from './chem-renderer.js';
 import { parseContentToSegments } from './ruby-parser.js';
+import { attachSourceInfo } from './text-source-registry.js';
 
 let renderedQuestion = null;
 
@@ -109,6 +109,9 @@ function resolveSubTokenValue(spec, row) {
 
 function renderRubyToken(token, row) {
     const rubyEl = document.createElement('ruby');
+    if (token._loc) {
+        attachSourceInfo(rubyEl, token._loc);
+    }
     const baseText = token.base ? resolveSubTokenValue(token.base, row) : '';
     const rubyText = token.ruby ? resolveSubTokenValue(token.ruby, row) : '';
     const rbSpan = document.createElement('span');
@@ -140,7 +143,11 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
     (tokens || []).forEach((token) => {
         if (!token || !token.type) return;
         if (token.type === 'text') {
-            parent.appendChild(createStyledSpan(token.value ?? '', token.styles || []));
+            const span = createStyledSpan(token.value ?? '', token.styles || []);
+            if (token._loc) {
+                attachSourceInfo(span, token._loc);
+            }
+            parent.appendChild(span);
             return;
         }
         if (token.type === 'content') {

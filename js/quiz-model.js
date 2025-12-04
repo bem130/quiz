@@ -549,90 +549,7 @@ function resolveImportUrl(mainPath, importPath) {
     return new URL(importPath, directoryUrl).toString();
 }
 
-async function fetchJson(path) {
-    const res = await fetch(path);
-    if (!res.ok) {
-        console.error('[quiz] fetch not OK for', path, res.status, res.statusText);
-        throw new Error(`Failed to load quiz JSON: ${path}`);
-    }
-    return res.json();
-}
 
-async function loadDataBundle(mainJson, mainPath) {
-    const visited = new Set();
-    // Pass skipModeNormalization: true to defer mode processing
-    const merged = convertToV2(mainJson, { skipValidation: true, isBundle: true, skipModeNormalization: true });
-    merged.dataSets = merged.dataSets || {};
-    merged.patterns = merged.patterns || [];
-    merged.modes = merged.modes || [];
-    // Store raw modes for later normalization
-    let accumulatedRawModes = mainJson.questionRules?.modeTree ||
-        mainJson.modeTree ||
-        mainJson.questionRules?.modes ||
-        mainJson.modes ||
-        [];
-
-    const mainUrl = new URL(mainPath, window.location.href).toString();
-    visited.add(mainUrl);
-
-    async function processImports(json, currentPath) {
-        const imports = Array.isArray(json.imports) ? json.imports : [];
-        for (const relPath of imports) {
-            const url = resolveImportUrl(currentPath, relPath);
-            if (visited.has(url)) {
-                throw new Error(`Circular import detected: ${url}`);
-            }
-            visited.add(url);
-
-            console.log('[quiz] loading import bundle:', url);
-            const importedJson = await fetchJson(url);
-            // Also skip mode normalization for imports
-            const importedDefinition = convertToV2(importedJson, { skipValidation: true, isBundle: true, skipModeNormalization: true });
-            if (!importedDefinition.dataSets || Object.keys(importedDefinition.dataSets).length === 0) {
-                throw new Error(`Import file must include at least one dataSet: ${url}`);
-            }
-
-            mergeDataSets(merged.dataSets, importedDefinition.dataSets, url);
-            mergePatterns(merged.patterns, importedDefinition.patterns, url);
-            // We don't merge normalized modes anymore, we collect raw modes if needed,
-            // but typically modes are defined in the main file.
-            // If imports HAVE modes, we might want to merge them, but 'modes' array is now empty/partial.
-            // Let's assume imports might contribute modes too.
-            const importedRawModes = importedJson.questionRules?.modeTree ||
-                importedJson.modeTree ||
-                importedJson.questionRules?.modes ||
-                importedJson.modes ||
-                [];
-
-            if (importedRawModes.length > 0) {
-                // Simple concatenation of raw mode trees is tricky. 
-                // For now, let's assume modes are primarily in the root or we just append them.
-                // But wait, mergeModes expects normalized modes.
-                // If we want to support modes in imports, we should collect them.
-                // However, the current logic was merging *normalized* modes.
-                // Let's stick to the plan: normalize at the end.
-                if (Array.isArray(accumulatedRawModes)) {
-                    accumulatedRawModes = accumulatedRawModes.concat(importedRawModes);
-                }
-            }
-
-            await processImports(importedJson, url);
-        }
-    }
-
-    await processImports(mainJson, mainUrl);
-
-    if (!merged.dataSets || Object.keys(merged.dataSets).length === 0) {
-        throw new Error('Quiz definition must include at least one dataSet.');
-    }
-
-    // NOW normalize modes with the full set of patterns
-    const { modes, modeTree } = normalizeModes(accumulatedRawModes, merged.patterns);
-    merged.modes = modes;
-    merged.modeTree = modeTree;
-
-    return validateDefinition(merged);
-}
 
 /**
  * URL の指定とエントリ一覧を突き合わせて使用するクイズ ID を決定する。
@@ -721,11 +638,303 @@ function resolvePathFromEntry(entry, quizId) {
     return resolved;
 }
 
+
+
+/**
+ * クイズエントリ配列からクイズ定義を読み込む（互換 API）。
+ * @param {Array<object>} entries - クイズエントリの配列。
+ * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
+ */
+
+
+/**
+ * 個別のクイズエントリからクイズ定義を読み込む。
+ * @param {object} quizEntry - 読み込むクイズエントリ。
+ * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
+ */
+
+
+export { convertToV2, validateDefinition, resolveImportUrl };
+
+// ─────────────────────────────────────────────────────────────
+// Source Map Generation Logic
+// ─────────────────────────────────────────────────────────────
+
+function escapeJsonString(value) {
+    const json = JSON.stringify(value);
+    return json.slice(1, -1);
+}
+
+function findValuePosition(rawText, key, value, fromIndex = 0) {
+    const escaped = escapeJsonString(value);
+    // Simple regex to find "key": "value"
+    // Note: This is a heuristic and might be fooled by similar strings in other contexts,
+    // but for a read-only source map it's usually sufficient.
+    const pattern = `"${key}"` + /: */.source + `"${escaped}"`;
+
+    const regex = new RegExp(pattern, 'g');
+    regex.lastIndex = fromIndex;
+
+    const match = regex.exec(rawText);
+    if (!match) {
+        return null;
+    }
+
+    const startOffset = match.index;
+    const endOffset = regex.lastIndex;
+    return { startOffset, endOffset };
+}
+
+function offsetToLineCol(text, startOffset, endOffset) {
+    const before = text.slice(0, startOffset);
+    const lines = before.split('\n');
+    const line = lines.length;
+    const lastNewlineIdx = before.lastIndexOf('\n');
+    const column = startOffset - (lastNewlineIdx + 1) + 1;
+
+    const beforeEnd = text.slice(0, endOffset);
+    const endLines = beforeEnd.split('\n');
+    const endLine = endLines.length;
+    const lastNlEnd = beforeEnd.lastIndexOf('\n');
+    const endColumn = endOffset - (lastNlEnd + 1) + 1;
+
+    return { line, column, endLine, endColumn };
+}
+
+function buildSourceIndex(definition, rawText, fileUrl) {
+    const index = {};
+    let cursor = 0;
+
+    // Scan dataSets
+    const dataSets = definition.dataSets || {};
+    for (const [dsId, ds] of Object.entries(dataSets)) {
+        // Table rows
+        if (ds.type === 'table' && Array.isArray(ds.data)) {
+            ds.data.forEach((row, rowIdx) => {
+                const rowId = row.id;
+                Object.entries(row).forEach(([key, val]) => {
+                    if (key === 'id') return; // ID is usually not what we want to correct
+                    if (typeof val === 'string') {
+                        const pos = findValuePosition(rawText, key, val, cursor);
+                        if (pos) {
+                            const path = `dataSets.${dsId}.data[${rowIdx}].${key}`;
+                            index[path] = {
+                                file: fileUrl,
+                                ...offsetToLineCol(rawText, pos.startOffset, pos.endOffset)
+                            };
+                            // We don't update cursor aggressively here because keys might be out of order in JSON vs Object iteration
+                            // But for a linear scan, we ideally should.
+                            // For now, let's NOT update cursor to be safe against out-of-order iteration,
+                            // OR we rely on the fact that we usually iterate in order.
+                            // To be safer with duplicates, we should track cursor.
+                            // Let's try to be stateless for now (searching from 0) or use a smarter approach?
+                            // Searching from 0 is bad for duplicates.
+                            // Let's try to search from `cursor` but only update it if we are sure.
+                            // Actually, `JSON.parse` order is usually consistent with file order.
+                            cursor = pos.endOffset;
+                        }
+                    }
+                });
+            });
+        }
+
+        // FactSentences
+        if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
+            ds.sentences.forEach((sentence, sIdx) => {
+                const rowId = sentence.id;
+                // Tokens
+                (sentence.tokens || []).forEach((token, tIdx) => {
+                    if (!token || typeof token.value !== 'string') return;
+                    const key = 'value';
+                    const val = token.value;
+                    const pos = findValuePosition(rawText, key, val, cursor);
+                    if (pos) {
+                        // We use a specific key format to look it up later
+                        // For tokens, we might need a more robust path or just attach directly if we were doing this inline.
+                        // But here we build an index first.
+                        const path = `dataSets.${dsId}.sentences[${sIdx}].tokens[${tIdx}].value`;
+                        index[path] = {
+                            file: fileUrl,
+                            ...offsetToLineCol(rawText, pos.startOffset, pos.endOffset)
+                        };
+                        cursor = pos.endOffset;
+                    }
+                });
+            });
+        }
+    }
+
+    return index;
+}
+
+function applySourceInfo(definition, sourceIndex, fileUrl) {
+    const dataSets = definition.dataSets || {};
+    for (const [dsId, ds] of Object.entries(dataSets)) {
+        if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
+            ds.sentences.forEach((sentence, sIdx) => {
+                const rowId = sentence.id;
+                (sentence.tokens || []).forEach((token, tIdx) => {
+                    if (!token) return;
+
+                    // Try to find exact match in index
+                    const path = `dataSets.${dsId}.sentences[${sIdx}].tokens[${tIdx}].value`;
+                    const loc = sourceIndex[path];
+
+                    if (loc) {
+                        token._loc = {
+                            file: loc.file,
+                            line: loc.line,
+                            column: loc.column,
+                            endLine: loc.endLine,
+                            endColumn: loc.endColumn,
+                            dataSetId: dsId,
+                            rowId,
+                            field: 'tokens',
+                            tokenIndex: tIdx
+                        };
+                    } else {
+                        // Fallback: just file info if we couldn't pinpoint line/col
+                        token._loc = {
+                            file: fileUrl,
+                            dataSetId: dsId,
+                            rowId,
+                            field: 'tokens',
+                            tokenIndex: tIdx
+                        };
+                    }
+                });
+            });
+        }
+        // Table data support could be added here if we treat table cells as tokens
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Modified Loading Logic
+// ─────────────────────────────────────────────────────────────
+
+async function fetchJsonWithRaw(path) {
+    const res = await fetch(path);
+    if (!res.ok) {
+        console.error('[quiz] fetch not OK for', path, res.status, res.statusText);
+        throw new Error(`Failed to load quiz JSON: ${path}`);
+    }
+    const rawText = await res.text();
+    const json = JSON.parse(rawText);
+    return { json, rawText };
+}
+
+
+async function loadDataBundle(mainJson, mainPath, mainRawText) {
+    const visited = new Set();
+    // Pass skipModeNormalization: true to defer mode processing
+    const merged = convertToV2(mainJson, { skipValidation: true, isBundle: true, skipModeNormalization: true });
+    merged.dataSets = merged.dataSets || {};
+    merged.patterns = merged.patterns || [];
+    merged.modes = merged.modes || [];
+
+    // Initial Source Map for Main File
+    if (mainRawText) {
+        try {
+            const mainUrl = new URL(mainPath, window.location.href).pathname; // Use pathname for cleaner display
+            const sourceIndex = buildSourceIndex(mainJson, mainRawText, mainUrl);
+            applySourceInfo(merged, sourceIndex, mainUrl);
+        } catch (e) {
+            console.warn('[quiz] Failed to build source map for main file', e);
+        }
+    }
+
+    // Store raw modes for later normalization
+    let accumulatedRawModes = mainJson.questionRules?.modeTree ||
+        mainJson.modeTree ||
+        mainJson.questionRules?.modes ||
+        mainJson.modes ||
+        [];
+
+    const mainUrl = new URL(mainPath, window.location.href).toString();
+    visited.add(mainUrl);
+
+    async function processImports(json, currentPath) {
+        const imports = Array.isArray(json.imports) ? json.imports : [];
+        for (const relPath of imports) {
+            const url = resolveImportUrl(currentPath, relPath);
+            if (visited.has(url)) {
+                throw new Error(`Circular import detected: ${url}`);
+            }
+            visited.add(url);
+
+            console.log('[quiz] loading import bundle:', url);
+            const { json: importedJson, rawText: importedRawText } = await fetchJsonWithRaw(url);
+
+            // Also skip mode normalization for imports
+            const importedDefinition = convertToV2(importedJson, { skipValidation: true, isBundle: true, skipModeNormalization: true });
+            if (!importedDefinition.dataSets || Object.keys(importedDefinition.dataSets).length === 0) {
+                throw new Error(`Import file must include at least one dataSet: ${url}`);
+            }
+
+            // Source Map for Imported File
+            if (importedRawText) {
+                try {
+                    const importFileUrl = new URL(url, window.location.href).pathname;
+                    const sourceIndex = buildSourceIndex(importedJson, importedRawText, importFileUrl);
+                    applySourceInfo(importedDefinition, sourceIndex, importFileUrl);
+                } catch (e) {
+                    console.warn('[quiz] Failed to build source map for import', url, e);
+                }
+            }
+
+            mergeDataSets(merged.dataSets, importedDefinition.dataSets, url);
+            mergePatterns(merged.patterns, importedDefinition.patterns, url);
+
+            const importedRawModes = importedJson.questionRules?.modeTree ||
+                importedJson.modeTree ||
+                importedJson.questionRules?.modes ||
+                importedJson.modes ||
+                [];
+
+            if (importedRawModes.length > 0) {
+                if (Array.isArray(accumulatedRawModes)) {
+                    accumulatedRawModes = accumulatedRawModes.concat(importedRawModes);
+                }
+            }
+
+            await processImports(importedJson, url);
+        }
+    }
+
+    await processImports(mainJson, mainUrl);
+
+    if (!merged.dataSets || Object.keys(merged.dataSets).length === 0) {
+        throw new Error('Quiz definition must include at least one dataSet.');
+    }
+
+    // NOW normalize modes with the full set of patterns
+    const { modes, modeTree } = normalizeModes(accumulatedRawModes, merged.patterns);
+    merged.modes = modes;
+    merged.modeTree = modeTree;
+
+    return validateDefinition(merged);
+}
+
 async function loadQuizDefinitionInternal(quizName, path) {
-    const json = await fetchJson(path);
+    const { json, rawText } = await fetchJsonWithRaw(path);
     const hasImports = Array.isArray(json?.imports) && json.imports.length > 0;
     const useBundle = json && json.version === 2 && hasImports;
-    const definition = useBundle ? await loadDataBundle(json, path) : convertToV2(json);
+
+    let definition;
+    if (useBundle) {
+        definition = await loadDataBundle(json, path, rawText);
+    } else {
+        definition = convertToV2(json);
+        // Apply source info for single file case
+        try {
+            const url = new URL(path, window.location.href).pathname;
+            const sourceIndex = buildSourceIndex(json, rawText, url);
+            applySourceInfo(definition, sourceIndex, url);
+        } catch (e) {
+            console.warn('[quiz] Failed to build source map', e);
+        }
+    }
 
     return {
         quizName,
@@ -775,5 +984,3 @@ export async function loadQuizDefinitionFromQuizEntry(quizEntry) {
     }
     return loadQuizDefinitionInternal(quizEntry.id, path);
 }
-
-export { convertToV2, validateDefinition, resolveImportUrl };

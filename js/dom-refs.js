@@ -106,5 +106,9 @@ export const dom = {
     copyResultButton: document.getElementById('copy-result-button'),
     backToMenuButton: document.getElementById('back-to-menu-button'),
     resultPwaHint: document.getElementById('result-pwa-hint'),
-    resultPwaInstallButton: document.getElementById('result-pwa-install-button')
+    resultPwaInstallButton: document.getElementById('result-pwa-install-button'),
+
+    // Ruby Buffer
+    rubyBufferPanel: document.getElementById('ruby-buffer-panel'),
+    rubyBufferJson: document.getElementById('ruby-buffer-json')
 };

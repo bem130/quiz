@@ -45,6 +45,12 @@ import {
     setCapacityRenderCallback,
     CAPACITY_MANAGER_VERSION
 } from './capacity-manager.js';
+import {
+    findSourceInfo,
+    addRubyBufferItem,
+    buildRubyBufferItemFromDom,
+    getRubyBufferSnapshot
+} from './text-source-registry.js';
 
 let entrySources = [];
 let currentEntry = null;
@@ -150,6 +156,68 @@ function syncQuizDataUrlsToServiceWorker() {
         if (e.key === 'Escape') {
             closeShareModal();
         }
+    });
+})();
+
+// Context Menu for Source Info
+(function setupTextContextMenu() {
+    document.addEventListener('contextmenu', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        const info = findSourceInfo(target);
+        if (!info) {
+            return;
+        }
+
+        // Prevent default menu for our tracked elements
+        event.preventDefault();
+
+        const rubyItem = buildRubyBufferItemFromDom(target, info);
+        if (rubyItem) {
+            // Ruby element -> Add to buffer
+            addRubyBufferItem(rubyItem);
+            console.log('[ruby-buffer] added', rubyItem);
+
+            // Simple feedback
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded shadow-lg text-xs z-50 animate-fade-in-up';
+            toast.textContent = `Added to Ruby Buffer: ${rubyItem.baseText} (${rubyItem.rubyText})`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+            return;
+        }
+
+        // Normal text -> Copy info
+        const payload = {
+            file: info.file,
+            line: info.line,
+            column: info.column,
+            endLine: info.endLine,
+            endColumn: info.endColumn,
+            dataSetId: info.dataSetId,
+            rowId: info.rowId,
+            field: info.field,
+            tokenIndex: info.tokenIndex
+        };
+        console.log('[text-source]', payload);
+
+        // Copy to clipboard or show prompt
+        // For now, let's use prompt for easy copying
+        // window.prompt('Source info (JSON):', JSON.stringify(payload, null, 2));
+
+        // Or better, copy to clipboard silently and show toast
+        navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(() => {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded shadow-lg text-xs z-50 animate-fade-in-up';
+            toast.textContent = `Source info copied to clipboard`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }).catch(err => {
+            window.prompt('Source info (JSON):', JSON.stringify(payload, null, 2));
+        });
     });
 })();
 
@@ -598,7 +666,32 @@ function showScreen(name) {
             dom.resultListPanel.classList.remove('hidden');
         }
         // In result screen: Next and interrupt remain hidden
+
+        renderRubyBufferInResult();
     }
+}
+
+function renderRubyBufferInResult() {
+    if (!dom.rubyBufferPanel || !dom.rubyBufferJson) return;
+
+    const items = getRubyBufferSnapshot();
+    if (!items || items.length === 0) {
+        dom.rubyBufferPanel.classList.add('hidden');
+        dom.rubyBufferJson.value = '';
+        return;
+    }
+
+    dom.rubyBufferPanel.classList.remove('hidden');
+
+    // Simplify for display
+    const simplified = items.map((it) => ({
+        file: it.file,
+        range: it.range || null,
+        base: it.baseText,
+        ruby: it.rubyText
+    }));
+
+    dom.rubyBufferJson.value = JSON.stringify(simplified, null, 2);
 }
 
 function setStartButtonEnabled(enabled) {
