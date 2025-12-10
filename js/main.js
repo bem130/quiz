@@ -34,6 +34,7 @@ import {
     revealCorrectAnswerInPreviews,
     summarizeQuestion,
     summarizeAnswers,
+    optionToText,
     resetResultList,
     addResultItem
 } from './quiz-renderer.js';
@@ -1187,6 +1188,7 @@ function buildResultExportObject() {
     const elapsedSeconds = quizStartTime
         ? Math.round((finishTimestamp - quizStartTime) / 1000)
         : null;
+    const dataSets = quizDef ? quizDef.dataSets : null;
 
     const meta = {
         quizId: currentQuiz ? currentQuiz.id : null,
@@ -1204,15 +1206,44 @@ function buildResultExportObject() {
     const questions = questionHistory.map((item) => {
         const question = item.question || {};
         const answers = (question.answers || []).map((ans) => {
-            const selectedIndex = ans ? ans.userSelectedIndex : null;
-            const correctIndex = ans ? ans.correctIndex : null;
+            const hasAnswer = ans && typeof ans === 'object';
+            const selectedIndex = hasAnswer && typeof ans.userSelectedIndex === 'number'
+                ? ans.userSelectedIndex
+                : null;
+            const correctIndex = hasAnswer && typeof ans.correctIndex === 'number'
+                ? ans.correctIndex
+                : null;
+            const optionList = hasAnswer && Array.isArray(ans.options)
+                ? ans.options.map((opt, idx) => {
+                    const label = optionToText(opt, dataSets, question);
+                    const entityId = opt && Object.prototype.hasOwnProperty.call(opt, 'entityId')
+                        ? opt.entityId
+                        : null;
+                    const optionDataSetId = opt && opt.dataSetId
+                        ? opt.dataSetId
+                        : question.meta && question.meta.dataSetId
+                            ? question.meta.dataSetId
+                            : null;
+                    const hasCorrect = typeof correctIndex === 'number';
+                    const hasSelected = typeof selectedIndex === 'number';
+                    return {
+                        index: idx,
+                        label,
+                        entityId,
+                        dataSetId: optionDataSetId,
+                        isCorrect: hasCorrect ? idx === correctIndex : null,
+                        isSelected: hasSelected ? idx === selectedIndex : null
+                    };
+                })
+                : [];
+
             const selectedLabel =
-                ans && Array.isArray(ans.options) && ans.options[selectedIndex]
-                    ? ans.options[selectedIndex].label
+                typeof selectedIndex === 'number' && optionList[selectedIndex]
+                    ? optionList[selectedIndex].label
                     : null;
             const correctLabel =
-                ans && Array.isArray(ans.options) && ans.options[correctIndex]
-                    ? ans.options[correctIndex].label
+                typeof correctIndex === 'number' && optionList[correctIndex]
+                    ? optionList[correctIndex].label
                     : null;
 
             return {
@@ -1220,14 +1251,18 @@ function buildResultExportObject() {
                 selectedLabel,
                 correctIndex,
                 correctLabel,
-                isCorrect: ans ? selectedIndex === correctIndex : false
+                isCorrect:
+                    typeof selectedIndex === 'number' && typeof correctIndex === 'number'
+                        ? selectedIndex === correctIndex
+                        : false,
+                options: optionList
             };
         });
 
         return {
             index: item.index,
             correct: item.correct,
-            questionText: summarizeQuestion(question, quizDef ? quizDef.dataSets : null),
+            questionText: summarizeQuestion(question, dataSets),
             userAnswerSummary: item.userAnswerSummary,
             answers
         };

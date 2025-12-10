@@ -1504,12 +1504,45 @@ export function resetTips() {
     dom.tipContainer.innerHTML = '';
 }
 
+function contentSegmentsToPlainText(segments) {
+    let text = '';
+    (segments || []).forEach((segment) => {
+        if (!segment || !segment.kind) return;
+        if (segment.kind === 'Plain') {
+            text += segment.text || '';
+            return;
+        }
+        if (segment.kind === 'Annotated') {
+            text += segment.base || '';
+            return;
+        }
+        if (segment.kind === 'Term') {
+            text += contentSegmentsToPlainText(segment.children || []);
+            if (segment.english) {
+                text += ` (${segment.english})`;
+            }
+            return;
+        }
+        if (segment.kind === 'Math') {
+            if (segment.tex) {
+                text += segment.display ? `$$${segment.tex}$$` : `$${segment.tex}$`;
+            }
+        }
+    });
+    return text;
+}
+
 function tokensToPlainText(tokens, row) {
     let text = '';
     (tokens || []).forEach((token) => {
         if (!token || !token.type) return;
         if (token.type === 'text') {
             text += token.value ?? '';
+            return;
+        }
+        if (token.type === 'content') {
+            const raw = token.value != null ? String(token.value) : '';
+            text += contentSegmentsToPlainText(parseContentToSegments(raw));
             return;
         }
         if (token.type === 'katex') {
@@ -1555,15 +1588,22 @@ function tokensToPlainText(tokens, row) {
             }
             return;
         }
+        if (token.type === 'group') {
+            text += tokensToPlainText(token.value || [], row);
+            return;
+        }
+        if (token.type === 'br') {
+            text += '\n';
+        }
     });
     return text.trim();
 }
 
-function optionToText(option, dataSets, question) {
+export function optionToText(option, dataSets, question) {
     if (!option) return '';
     if (option.label) return String(option.label);
     const sourceDataSetId = option.dataSetId || (question.meta && question.meta.dataSetId);
-    const ds = sourceDataSetId ? dataSets[sourceDataSetId] : null;
+    const ds = sourceDataSetId && dataSets ? dataSets[sourceDataSetId] : null;
     const row = option.entityId && ds
         ? ds.type === 'table' && Array.isArray(ds.data)
             ? ds.data.find((r) => r.id === option.entityId)
