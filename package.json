@@ -2,6 +2,7 @@
     "name": "quiz",
     "type": "module",
     "scripts": {
-        "test": "node --test tests/*.mjs"
+        "test": "node --test tests/*.mjs",
+        "cli": "node cli.mjs"
     }
 }

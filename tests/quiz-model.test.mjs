@@ -4,7 +4,8 @@ import {
     convertToV2,
     resolveImportUrl,
     resolveQuizJsonFromEntry,
-    validateDefinition
+    validateDefinition,
+    loadQuizDefinitionFromPath
 } from '../js/quiz-model.js';
 
 test('convertToV2 converts legacy hide.field to value for v2 data', () => {
@@ -163,6 +164,17 @@ test('convertToV2 normalizes nested modes into flat list and modeTree', () => {
         },
         { type: 'mode', modeId: 'm3' }
     ]);
+});
+
+test('loadQuizDefinitionFromPath loads local quiz files', async () => {
+    const { definition, quizName } = await loadQuizDefinitionFromPath(
+        'data/sample/amino-acid-quiz-ja-v2.json'
+    );
+
+    assert.equal(quizName, 'amino-acid-quiz-ja-v2');
+    assert.ok(Array.isArray(definition.patterns));
+    assert.ok(definition.patterns.length > 0);
+    assert.ok(definition.dataSets && definition.dataSets['alpha-amino-acids']);
 });
 
 test('convertToV2 generates default mode and modeTree when modes are missing', () => {

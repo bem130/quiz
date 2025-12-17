@@ -8,6 +8,7 @@ import {
     shuffled,
     findGroupDefinition
 } from './dataset-utils.js';
+import { resolveSubTokenValue, tokensToPlainText } from './text-utils.js';
 
 const DEFAULT_MAX_CONSECUTIVE_SKIPS = 20;
 /**
@@ -25,15 +26,6 @@ export class NoQuestionsAvailableError extends Error {
         super(message);
         this.name = 'NoQuestionsAvailableError';
     }
-}
-
-function resolveSubTokenValue(spec, row) {
-    if (!spec) return '';
-    const source = spec.source || spec.type || 'text';
-    if (source === 'key') {
-        return row && spec.field ? row[spec.field] ?? '' : '';
-    }
-    return spec.value ?? '';
 }
 
 function tokenTextFromToken(token, row) {
