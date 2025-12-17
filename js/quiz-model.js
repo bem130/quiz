@@ -19,6 +19,37 @@ const ALLOWED_TOKEN_TYPES = new Set([
     'content'
 ]);
 
+function resolveRuntimeUrl(path) {
+    return new URL(path, RUNTIME_BASE_URL);
+}
+
+function readablePathFromUrl(urlObj) {
+    if (!urlObj) return '';
+    return urlObj.protocol === 'file:' ? urlObj.pathname : urlObj.toString();
+}
+
+function deriveQuizNameFromPath(path) {
+    try {
+        const url = resolveRuntimeUrl(path);
+        const pathname = url.pathname || '';
+        const fileName = pathname.split('/').filter(Boolean).pop() || 'quiz';
+        return decodeURIComponent(fileName.replace(/\.json$/i, '')) || 'quiz';
+    } catch (e) {
+        return 'quiz';
+    }
+}
+
+const RUNTIME_BASE_URL = (() => {
+    if (typeof window !== 'undefined' && window.location && window.location.href) {
+        return window.location.href;
+    }
+    if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
+        const normalized = process.cwd().replace(/\\/g, '/');
+        return normalized.endsWith('/') ? `file://${normalized}` : `file://${normalized}/`;
+    }
+    return 'file:///';
+})();
+
 function normalizeTokenArray(value) {
     if (!value) {
         return [];
@@ -544,7 +575,7 @@ function mergeModes(target, source, label) {
 }
 
 function resolveImportUrl(mainPath, importPath) {
-    const absoluteMainUrl = new URL(mainPath, window.location.href);
+    const absoluteMainUrl = resolveRuntimeUrl(mainPath);
     const directoryUrl = new URL('.', absoluteMainUrl);
     return new URL(importPath, directoryUrl).toString();
 }
@@ -607,7 +638,7 @@ export function resolveQuizJsonFromEntry(entry) {
 
     const base = entry._entryBaseUrl
         ? new URL('.', entry._entryBaseUrl)
-        : new URL('.', window.location.href);
+        : new URL('.', RUNTIME_BASE_URL);
 
     if (typeof entry.file === 'string' && entry.file) {
         return new URL(entry.file, base).toString();
@@ -814,7 +845,19 @@ function applySourceInfo(definition, sourceIndex, fileUrl) {
 // ─────────────────────────────────────────────────────────────
 
 async function fetchJsonWithRaw(path) {
-    const res = await fetch(path);
+    const url = resolveRuntimeUrl(path);
+    if (url.protocol === 'file:') {
+        const [{ readFile }, { fileURLToPath }] = await Promise.all([
+            import('node:fs/promises'),
+            import('node:url')
+        ]);
+        const filePath = fileURLToPath(url);
+        const rawText = await readFile(filePath, 'utf8');
+        const json = JSON.parse(rawText);
+        return { json, rawText };
+    }
+
+    const res = await fetch(url);
     if (!res.ok) {
         console.error('[quiz] fetch not OK for', path, res.status, res.statusText);
         throw new Error(`Failed to load quiz JSON: ${path}`);
@@ -836,9 +879,10 @@ async function loadDataBundle(mainJson, mainPath, mainRawText) {
     // Initial Source Map for Main File
     if (mainRawText) {
         try {
-            const mainUrl = new URL(mainPath, window.location.href).pathname; // Use pathname for cleaner display
-            const sourceIndex = buildSourceIndex(mainJson, mainRawText, mainUrl);
-            applySourceInfo(merged, sourceIndex, mainUrl);
+            const mainUrlObj = resolveRuntimeUrl(mainPath);
+            const sourcePath = readablePathFromUrl(mainUrlObj);
+            const sourceIndex = buildSourceIndex(mainJson, mainRawText, sourcePath);
+            applySourceInfo(merged, sourceIndex, sourcePath);
         } catch (e) {
             console.warn('[quiz] Failed to build source map for main file', e);
         }
@@ -851,7 +895,7 @@ async function loadDataBundle(mainJson, mainPath, mainRawText) {
         mainJson.modes ||
         [];
 
-    const mainUrl = new URL(mainPath, window.location.href).toString();
+    const mainUrl = resolveRuntimeUrl(mainPath).toString();
     visited.add(mainUrl);
 
     async function processImports(json, currentPath) {
@@ -875,7 +919,8 @@ async function loadDataBundle(mainJson, mainPath, mainRawText) {
             // Source Map for Imported File
             if (importedRawText) {
                 try {
-                    const importFileUrl = new URL(url, window.location.href).pathname;
+                    const importUrlObj = resolveRuntimeUrl(url);
+                    const importFileUrl = readablePathFromUrl(importUrlObj);
                     const sourceIndex = buildSourceIndex(importedJson, importedRawText, importFileUrl);
                     applySourceInfo(importedDefinition, sourceIndex, importFileUrl);
                 } catch (e) {
@@ -928,9 +973,10 @@ async function loadQuizDefinitionInternal(quizName, path) {
         definition = convertToV2(json);
         // Apply source info for single file case
         try {
-            const url = new URL(path, window.location.href).pathname;
-            const sourceIndex = buildSourceIndex(json, rawText, url);
-            applySourceInfo(definition, sourceIndex, url);
+            const resolvedUrl = resolveRuntimeUrl(path);
+            const sourcePath = readablePathFromUrl(resolvedUrl);
+            const sourceIndex = buildSourceIndex(json, rawText, sourcePath);
+            applySourceInfo(definition, sourceIndex, sourcePath);
         } catch (e) {
             console.warn('[quiz] Failed to build source map', e);
         }
@@ -959,6 +1005,21 @@ export async function loadQuizDefinition(entries) {
     }
 
     return loadQuizDefinitionInternal(quizName, path);
+}
+
+/**
+ * ファイルパスから直接クイズ定義を読み込む。
+ * @param {string} path - クイズ定義 JSON へのパスまたは URL。
+ * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
+ */
+export async function loadQuizDefinitionFromPath(path) {
+    if (!path) {
+        throw new Error('Quiz path is required to load definition.');
+    }
+
+    const quizName = deriveQuizNameFromPath(path);
+    const resolvedPath = resolveRuntimeUrl(path).toString();
+    return loadQuizDefinitionInternal(quizName, resolvedPath);
 }
 
 /**
