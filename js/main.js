@@ -879,22 +879,60 @@ function extractOptionConceptId(option) {
     return null;
 }
 
+function extractOptionIdentifier(option, fallbackIndex = null) {
+    if (!option) return fallbackIndex == null ? null : `idx:${fallbackIndex}`;
+    if (Object.prototype.hasOwnProperty.call(option, 'optionId') && option.optionId != null) {
+        return option.optionId;
+    }
+    if (Object.prototype.hasOwnProperty.call(option, 'choiceId') && option.choiceId != null) {
+        return option.choiceId;
+    }
+    if (option.entityId != null) {
+        return option.entityId;
+    }
+    if (option.id != null) {
+        return option.id;
+    }
+    if (option.meta) {
+        if (option.meta.optionId != null) {
+            return option.meta.optionId;
+        }
+        if (option.meta.choiceId != null) {
+            return option.meta.choiceId;
+        }
+    }
+    if (fallbackIndex == null) {
+        return null;
+    }
+    return `idx:${fallbackIndex}`;
+}
+
 function buildAttemptSnapshot(question, meta) {
     const answers = Array.isArray(question && question.answers) ? question.answers : [];
     const firstAnswer = answers[0] || {};
     const options = Array.isArray(firstAnswer.options) ? firstAnswer.options : [];
     const dataSets = quizDef ? quizDef.dataSets : null;
+    const resultType = meta && typeof meta.resultType === 'string' ? meta.resultType : null;
 
-    const optionSnapshots = options.map((option, index) => ({
-        index,
-        label: optionToText(option, dataSets, question),
-        entityId: option && (option.entityId || option.id || null),
-        conceptId: extractOptionConceptId(option),
-        isCorrect:
-            typeof firstAnswer.correctIndex === 'number'
-                ? index === firstAnswer.correctIndex
-                : null
-    }));
+    const optionSnapshots = options.map((option, index) => {
+        const conceptId = extractOptionConceptId(option);
+        const normalizedConceptId = conceptId != null ? String(conceptId) : null;
+        const optionId = extractOptionIdentifier(option, index);
+        return {
+            index,
+            label: optionToText(option, dataSets, question),
+            entityId:
+                option && Object.prototype.hasOwnProperty.call(option, 'entityId')
+                    ? option.entityId
+                    : optionId,
+            optionId,
+            conceptId: normalizedConceptId,
+            isCorrect:
+                typeof firstAnswer.correctIndex === 'number'
+                    ? index === firstAnswer.correctIndex
+                    : null
+        };
+    });
 
     const selectedIndex =
         typeof firstAnswer.userSelectedIndex === 'number'
@@ -912,6 +950,34 @@ function buildAttemptSnapshot(question, meta) {
         typeof selectedIndex === 'number' ? optionSnapshots[selectedIndex] : null;
     const nearestOption =
         typeof nearestIndex === 'number' ? optionSnapshots[nearestIndex] : null;
+    const selectedOptionId =
+        selectedOption && selectedOption.optionId != null
+            ? String(selectedOption.optionId)
+            : selectedOption && selectedOption.entityId != null
+                ? String(selectedOption.entityId)
+                : null;
+    const correctOptionId =
+        correctOption && correctOption.optionId != null
+            ? String(correctOption.optionId)
+            : correctOption && correctOption.entityId != null
+                ? String(correctOption.entityId)
+                : null;
+    const nearestOptionId =
+        nearestOption && nearestOption.optionId != null
+            ? String(nearestOption.optionId)
+            : nearestOption && nearestOption.entityId != null
+                ? String(nearestOption.entityId)
+                : null;
+    const optionsOrder = optionSnapshots.map((opt) =>
+        opt && opt.optionId != null
+            ? String(opt.optionId)
+            : opt && opt.entityId != null
+                ? String(opt.entityId)
+                : `idx:${opt ? opt.index : 'na'}`
+    );
+    const optionConcepts = optionSnapshots.map((opt) =>
+        opt && opt.conceptId != null ? String(opt.conceptId) : null
+    );
 
     const quizIdentifier = getActiveQuizIdentifier();
     const resolvedQuestionId =
@@ -936,9 +1002,18 @@ function buildAttemptSnapshot(question, meta) {
         correctConceptId: correctOption ? correctOption.conceptId : null,
         selectedConceptId: selectedOption ? selectedOption.conceptId : null,
         nearestConceptId: nearestOption ? nearestOption.conceptId : null,
-        resultType: meta.resultType,
+        resultType,
+        isWeakCorrect: resultType === 'weak',
         correct: Boolean(meta.correct),
         answerMs: typeof meta.answerMs === 'number' ? meta.answerMs : null,
+        chosenOptionId: selectedOptionId,
+        correctOptionId,
+        nearestOptionId,
+        idkNearestOptionId: resultType === 'idk' ? nearestOptionId : null,
+        idkNearestConceptId:
+            resultType === 'idk' && nearestOption ? nearestOption.conceptId : null,
+        optionsOrder,
+        optionConcepts,
         timestamp: Date.now()
     };
 }

@@ -17,6 +17,13 @@ function randomInt(min, max) {
     return Math.floor(Math.random() * (upper - lower + 1)) + lower;
 }
 
+function resolveSessionModeLabel(modeBehavior) {
+    if (modeBehavior === 'test') {
+        return 'test';
+    }
+    return 'learn';
+}
+
 function defaultResolveQuestionId(question) {
     if (!question) return null;
     if (question.id) return question.id;
@@ -72,12 +79,14 @@ class SessionCore {
             await this.finishSession();
         }
         this._clearRuntimeState();
+        const sessionModeLabel = resolveSessionModeLabel(modeBehavior);
         const record = await createSessionRecord({
             userId,
             userName,
             quizId,
             quizTitle,
-            mode,
+            mode: sessionModeLabel,
+            modeId: mode,
             config,
             seed
         });
@@ -87,7 +96,8 @@ class SessionCore {
             userName,
             quizId,
             quizTitle,
-            mode,
+            mode: sessionModeLabel,
+            modeId: mode,
             config,
             modeBehavior
         };
@@ -209,7 +219,8 @@ class SessionCore {
             ...attempt,
             sessionId: this.currentSession.sessionId,
             userId: this.currentSession.userId,
-            mode: this.currentSession.mode,
+            mode: this.currentSession.mode || resolveSessionModeLabel(this.currentSession.modeBehavior),
+            modeId: this.currentSession.modeId || null,
             quizId: this.currentSession.quizId
         };
         if (!payload.userId || !payload.sessionId) {

@@ -2,7 +2,7 @@
 import {
     ensureScheduleEntry,
     updateScheduleAfterResult,
-    listScheduleEntriesForQuiz,
+    listDueScheduleEntries,
     makeQuestionKey,
     deleteScheduleEntryByKey
 } from './storage/schedule-store.js';
@@ -22,6 +22,8 @@ const LARGE_BACKLOG_THRESHOLD = 80;
 const NEW_RATIO = 0.1;
 const TARGETED_MIN_SCORE = 0.6;
 const TARGETED_QUEUE_LIMIT = 12;
+const DUE_FETCH_LIMIT = 120;
+const DUE_REFRESH_INTERVAL_MS = 4000;
 
 function shuffleList(list) {
     const arr = Array.isArray(list) ? [...list] : [];
@@ -58,6 +60,7 @@ export class StudySessionRunner {
         };
         this.targetedQueue = [];
         this.targetedPairUsage = new Map();
+        this.lastDueRefreshAt = 0;
     }
 
     async start(config) {
@@ -79,21 +82,8 @@ export class StudySessionRunner {
         } else {
             this.targetedPairUsage = new Map();
         }
-
-        const scheduleOverview = await listScheduleEntriesForQuiz(
-            this.userId,
-            this.quizId
-        );
-        const now = Date.now();
-        const pushDue = (entries, set) => {
-            (entries || [])
-                .filter((entry) => entry && entry.dueAt <= now && entry.qid)
-                .forEach((entry) => set.add(entry.qid));
-        };
-        pushDue(scheduleOverview.learning, this.learningDue);
-        pushDue(scheduleOverview.relearning, this.relearningDue);
-        pushDue(scheduleOverview.review, this.reviewDue);
-        this._updateBacklogCounts();
+        this.lastDueRefreshAt = 0;
+        await this._refreshDueBuckets({ force: true });
 
         const backlogHeavy = this.backlogSize >= LARGE_BACKLOG_THRESHOLD;
         const plannedNew = Math.max(
@@ -138,6 +128,49 @@ export class StudySessionRunner {
         if (bucket === 'relearning') return this.relearningDue;
         if (bucket === 'review') return this.reviewDue;
         return null;
+    }
+
+    _addDueEntries(entries, bucketSet) {
+        if (!Array.isArray(entries) || !bucketSet) {
+            return;
+        }
+        entries.forEach((entry) => {
+            if (!entry || !entry.qid) {
+                return;
+            }
+            if (this.seenQuestionKeys.has(entry.qid)) {
+                return;
+            }
+            bucketSet.add(entry.qid);
+        });
+    }
+
+    async _refreshDueBuckets({ force = false } = {}) {
+        if (!this.userId) {
+            return;
+        }
+        const now = Date.now();
+        if (!force && this.lastDueRefreshAt && now - this.lastDueRefreshAt < DUE_REFRESH_INTERVAL_MS) {
+            return;
+        }
+        let dueOverview;
+        try {
+            dueOverview = await listDueScheduleEntries(this.userId, this.quizId, {
+                now,
+                perStateLimit: DUE_FETCH_LIMIT
+            });
+        } catch (error) {
+            console.warn('[study-engine] failed to refresh due buckets', error);
+            return;
+        }
+
+        this.lastDueRefreshAt = now;
+        if (dueOverview) {
+            this._addDueEntries(dueOverview.learning, this.learningDue);
+            this._addDueEntries(dueOverview.relearning, this.relearningDue);
+            this._addDueEntries(dueOverview.review, this.reviewDue);
+            this._updateBacklogCounts();
+        }
     }
 
     _setQuestionStage(question, stage) {
@@ -439,6 +472,7 @@ export class StudySessionRunner {
     }
 
     async nextQuestion() {
+        await this._refreshDueBuckets();
         const urgentBuckets = [];
         if (this.learningDue.size > 0) {
             urgentBuckets.push('learning');

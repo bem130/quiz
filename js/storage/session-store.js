@@ -14,6 +14,7 @@ export async function createSessionRecord({
     quizId,
     quizTitle,
     mode,
+    modeId = null,
     config,
     seed = null
 }) {
@@ -24,7 +25,8 @@ export async function createSessionRecord({
         userName,
         quizId,
         quizTitle,
-        mode,
+        mode: mode || 'learn',
+        modeId: modeId || null,
         config: config || {},
         seed,
         startedAt: Date.now(),

@@ -21,17 +21,29 @@ export async function updateConfusionFromAttempt(userId, snapshot) {
     if (!options.length) return;
     const correctConceptId = snapshot.correctConceptId;
     if (!correctConceptId) return;
+    let nearestConceptId = null;
+    if (snapshot.resultType === 'idk') {
+        if (snapshot.idkNearestConceptId != null) {
+            nearestConceptId = snapshot.idkNearestConceptId;
+        } else if (
+            typeof snapshot.nearestConceptId !== 'undefined' &&
+            snapshot.nearestConceptId !== null
+        ) {
+            nearestConceptId = snapshot.nearestConceptId;
+        } else if (
+            typeof snapshot.nearestOptionIndex === 'number' &&
+            options[snapshot.nearestOptionIndex]
+        ) {
+            nearestConceptId = options[snapshot.nearestOptionIndex].conceptId;
+        }
+    }
     const selectedConceptId =
-        typeof snapshot.selectedIndex === 'number' &&
-        snapshot.options[snapshot.selectedIndex]
-            ? snapshot.options[snapshot.selectedIndex].conceptId
-            : null;
-    const nearestConceptId =
-        snapshot.resultType === 'idk' &&
-        typeof snapshot.nearestOptionIndex === 'number' &&
-        snapshot.options[snapshot.nearestOptionIndex]
-            ? snapshot.options[snapshot.nearestOptionIndex].conceptId
-            : null;
+        snapshot.selectedConceptId != null
+            ? snapshot.selectedConceptId
+            : typeof snapshot.selectedIndex === 'number' &&
+                snapshot.options[snapshot.selectedIndex]
+                ? snapshot.options[snapshot.selectedIndex].conceptId
+                : null;
 
     const db = await getDatabase();
 
