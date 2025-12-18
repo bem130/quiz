@@ -150,3 +150,158 @@ export async function getConfusionStatsForConcept(userId, conceptId, options = {
         return [];
     }
 }
+
+export async function getTopConfusionPairs(userId, options = {}) {
+    if (!userId) {
+        return [];
+    }
+    const minScore =
+        typeof options.minScore === 'number' ? options.minScore : 0.6;
+    const limit =
+        typeof options.limit === 'number' && options.limit > 0
+            ? Math.floor(options.limit)
+            : 5;
+    const maxRecentSessions =
+        typeof options.maxRecentSessions === 'number'
+            ? options.maxRecentSessions
+            : 2;
+    const db = await getDatabase();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('confusion', 'readonly');
+        let index;
+        try {
+            index = tx.objectStore('confusion').index('byUser');
+        } catch (error) {
+            resolve([]);
+            tx.abort();
+            return;
+        }
+        const keyRangeFactory =
+            typeof IDBKeyRange !== 'undefined'
+                ? IDBKeyRange
+                : typeof window !== 'undefined' && window.IDBKeyRange
+                    ? window.IDBKeyRange
+                    : typeof self !== 'undefined' && self.IDBKeyRange
+                        ? self.IDBKeyRange
+                        : null;
+        if (!keyRangeFactory) {
+            resolve([]);
+            tx.abort();
+            return;
+        }
+        const range = keyRangeFactory.only(userId);
+        const results = [];
+        const request = index.openCursor(range);
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) {
+                return;
+            }
+            const value = cursor.value;
+            const score =
+                typeof value.scoreCache === 'number'
+                    ? value.scoreCache
+                    : computeScore(value);
+            const recent = Number(value.recentSessions || 0);
+            if (
+                score >= minScore &&
+                recent < maxRecentSessions &&
+                typeof value.conceptId !== 'undefined' &&
+                typeof value.wrongConceptId !== 'undefined'
+            ) {
+                results.push({
+                    ...value,
+                    scoreCache: score
+                });
+            }
+            cursor.continue();
+        };
+        request.onerror = () => reject(request.error);
+        tx.oncomplete = () => {
+            results.sort((a, b) => (b.scoreCache || 0) - (a.scoreCache || 0));
+            resolve(results.slice(0, limit));
+        };
+        tx.onabort = () => resolve([]);
+    });
+}
+
+export async function markConfusionPairScheduled(userId, conceptId, wrongConceptId) {
+    if (!userId || conceptId == null || wrongConceptId == null) {
+        return;
+    }
+    const db = await getDatabase();
+    await new Promise((resolve, reject) => {
+        const tx = db.transaction('confusion', 'readwrite');
+        const store = tx.objectStore('confusion');
+        const key = [userId, conceptId, wrongConceptId];
+        const request = store.get(key);
+        request.onsuccess = () => {
+            const record = request.result;
+            if (!record) {
+                return;
+            }
+            const currentScore =
+                typeof record.scoreCache === 'number'
+                    ? record.scoreCache
+                    : computeScore(record);
+            record.scoreCache = Number((currentScore * 0.9).toFixed(4));
+            record.recentSessions = (record.recentSessions || 0) + 1;
+            store.put(record);
+        };
+        request.onerror = () => reject(request.error);
+        tx.oncomplete = resolve;
+        tx.onabort = () => reject(tx.error);
+    });
+}
+
+export async function decayConfusionRecentSessions(userId, factor = 0.8) {
+    if (!userId) {
+        return;
+    }
+    const clampedFactor =
+        typeof factor === 'number' && factor >= 0 && factor <= 1
+            ? factor
+            : 0.8;
+    const db = await getDatabase();
+    await new Promise((resolve, reject) => {
+        const tx = db.transaction('confusion', 'readwrite');
+        let index;
+        try {
+            index = tx.objectStore('confusion').index('byUser');
+        } catch (error) {
+            tx.abort();
+            resolve();
+            return;
+        }
+        const keyRangeFactory =
+            typeof IDBKeyRange !== 'undefined'
+                ? IDBKeyRange
+                : typeof window !== 'undefined' && window.IDBKeyRange
+                    ? window.IDBKeyRange
+                    : typeof self !== 'undefined' && self.IDBKeyRange
+                        ? self.IDBKeyRange
+                        : null;
+        if (!keyRangeFactory) {
+            resolve();
+            tx.abort();
+            return;
+        }
+        const range = keyRangeFactory.only(userId);
+        const request = index.openCursor(range);
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) {
+                return;
+            }
+            const value = cursor.value;
+            value.recentSessions = Number(
+                ((value.recentSessions || 0) * clampedFactor).toFixed(4)
+            );
+            cursor.update(value);
+            cursor.continue();
+        };
+        request.onerror = () => reject(request.error);
+        tx.oncomplete = resolve;
+        tx.onabort = () => reject(tx.error);
+    });
+}

@@ -283,6 +283,16 @@
                         </div>
                         <div class="grid gap-4 sm:grid-cols-2">
                             <div class="p-4 rounded-xl app-card border app-border-subtle">
+                                <div class="text-xs app-text-muted">Known Accuracy</div>
+                                <div class="text-2xl font-bold app-text-strong" id="result-known-accuracy">--%</div>
+                            </div>
+                            <div class="p-4 rounded-xl app-card border app-border-subtle">
+                                <div class="text-xs app-text-muted">IDK Rate</div>
+                                <div class="text-2xl font-bold app-text-main" id="result-idk-rate">0%</div>
+                            </div>
+                        </div>
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div class="p-4 rounded-xl app-card border app-border-subtle">
                                 <div class="text-xs app-text-muted">Lifetime Accuracy</div>
                                 <div class="text-2xl font-bold app-text-main" id="result-lifetime-accuracy">--%</div>
                             </div>
@@ -370,6 +380,15 @@
                             </span>
                             <span class="text-sm sm:text-base font-semibold app-text-success" id="current-score">
                                 0
+                            </span>
+                        </div>
+
+                        <div class="flex items-baseline gap-1">
+                            <span class="uppercase tracking-wide app-text-muted">
+                                Stage
+                            </span>
+                            <span class="text-sm sm:text-base font-semibold app-text-main" id="question-stage-label">
+                                --
                             </span>
                         </div>
 

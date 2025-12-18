@@ -44,8 +44,12 @@ function applyFuzz(intervalSec) {
         return { dueAt: nowMs() + intervalSec * 1000, fuzz: 1 };
     }
     const range = 0.05;
-    const random = Math.random(); // eslint-disable-line no-restricted-globals
-    const fuzz = 1 + (random * 2 * range - range);
+    const epsilon = 0.05;
+    let fuzz = 1;
+    if (Math.random() >= epsilon) {
+        const random = Math.random(); // eslint-disable-line no-restricted-globals
+        fuzz = 1 + (random * 2 * range - range);
+    }
     return {
         dueAt: nowMs() + intervalSec * 1000 * fuzz,
         fuzz
@@ -86,8 +90,9 @@ function clampEase(value) {
 }
 
 function scheduleInterval(entry, intervalSec) {
-    const { dueAt, fuzz } = applyFuzz(intervalSec);
-    entry.intervalSec = Math.max(30, Math.round(intervalSec));
+    const normalized = Math.max(30, Number(intervalSec) || 0);
+    const { dueAt, fuzz } = applyFuzz(normalized);
+    entry.intervalSec = Math.max(30, Math.round(normalized));
     entry.dueAt = dueAt;
     entry.dueAtFuzzed = fuzz;
     entry.lastSeenAt = nowMs();
@@ -113,8 +118,11 @@ function handleStrong(entry) {
 
     entry.ease = clampEase(entry.ease + 0.02);
     entry.streak = (entry.streak || 0) + 1;
-    const nextInterval =
+    let nextInterval =
         entry.intervalSec > 0 ? entry.intervalSec * entry.ease : 86400;
+    if (entry.streak < 2) {
+        nextInterval = Math.min(nextInterval, 86400);
+    }
     scheduleInterval(entry, nextInterval);
 }
 
@@ -122,9 +130,14 @@ function handleWeak(entry) {
     entry.ease = clampEase(entry.ease - 0.02);
     entry.state = 'REVIEW';
     entry.stepIndex = 0;
+    entry.streak = (entry.streak || 0) + 1;
     const multiplier = Math.max(1.2, 0.7 * entry.ease);
     const base = entry.intervalSec > 0 ? entry.intervalSec : 3600;
-    scheduleInterval(entry, base * multiplier);
+    let interval = base * multiplier;
+    if (entry.streak < 2) {
+        interval = Math.min(interval, 86400);
+    }
+    scheduleInterval(entry, interval);
 }
 
 function handleWrong(entry) {
@@ -144,6 +157,19 @@ function handleIdk(entry) {
     entry.streak = 0;
     const base = entry.intervalSec > 0 ? entry.intervalSec * 0.35 : RELEARNING_STEPS[0];
     scheduleInterval(entry, Math.max(60, base));
+}
+
+export async function deleteScheduleEntryByKey(userId, questionKey) {
+    if (!userId || !questionKey) return;
+    const db = await getDatabase();
+    await new Promise((resolve, reject) => {
+        const tx = db.transaction('schedule', 'readwrite');
+        const store = tx.objectStore('schedule');
+        store.delete([userId, questionKey]);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+    });
 }
 
 export async function updateScheduleAfterResult({

@@ -648,6 +648,15 @@ if ($modeParam !== null) {
                             </span>
                         </div>
 
+                        <div class="flex items-baseline gap-1">
+                            <span class="uppercase tracking-wide app-text-muted">
+                                Stage
+                            </span>
+                            <span class="text-sm sm:text-base font-semibold app-text-main" id="question-stage-label">
+                                --
+                            </span>
+                        </div>
+
                         <!-- Timer -->
                         <div class="flex items-baseline gap-1">
                             <span class="uppercase tracking-wide app-text-muted">

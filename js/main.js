@@ -55,11 +55,16 @@ import {
 import { initUserManager } from './user-manager.js';
 import { sessionCore } from './session-core.js';
 import { getUserStats } from './storage/session-store.js';
-import { StudySessionRunner } from './study-engine.js';
-import { TestSessionRunner } from './test-engine.js';
+import { makeQuestionKey } from './storage/schedule-store.js';
 import { applyDistractorStrategy } from './distractor-strategy.js';
-import { updateConfusionFromAttempt } from './storage/confusion-store.js';
-import { updateConceptStatsFromAttempt } from './storage/concept-stats.js';
+import {
+    updateConfusionFromAttempt,
+    getConfusionStatsForConcept
+} from './storage/confusion-store.js';
+import {
+    updateConceptStatsFromAttempt,
+    getConceptStatsMap
+} from './storage/concept-stats.js';
 
 let entrySources = [];
 let currentEntry = null;
@@ -71,6 +76,7 @@ let totalQuestions = 10;
 let currentIndex = 0;
 let currentScore = 0;
 let currentQuestion = null;
+let currentQuestionStage = null;
 let hasAnswered = false;
 let questionHistory = [];
 let customQuestionSequence = null;
@@ -92,7 +98,6 @@ let currentUserStats = {
     weakAttempts: 0,
     idkCount: 0
 };
-let activeRunner = null;
 let currentModeBehavior = 'study';
 
 // Timer state
@@ -107,6 +112,49 @@ let hasPwaInstallPromptSupport = false;
 const CACHE_PREFIX = 'quiz-app-shell-';
 const CACHE_RECOVERY_FLAG_KEY = 'quiz-app-cache-recovery-attempted';
 const WEAK_CORRECT_THRESHOLD_MS = 8000;
+const CONFUSION_WEAK_THRESHOLD = 0.6;
+const MAX_RECENT_RESPONSE_TIMES = 40;
+let recentAnswerDurations = [];
+
+function generateSessionSeed() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    const randomPart = Math.floor(Math.random() * 1e6)
+        .toString(36)
+        .padStart(4, '0');
+    return `${Date.now().toString(36)}-${randomPart}`;
+}
+
+function updateQuestionStageLabel(stage) {
+    currentQuestionStage = stage || null;
+    if (!dom.questionStageLabel) {
+        return;
+    }
+    if (!stage) {
+        dom.questionStageLabel.textContent = '--';
+        dom.questionStageLabel.dataset.stage = '';
+        return;
+    }
+    dom.questionStageLabel.textContent = stage;
+    dom.questionStageLabel.dataset.stage = stage.toLowerCase();
+}
+
+function resolveQuestionStage(question) {
+    if (question && typeof question.__sessionStage === 'string') {
+        return String(question.__sessionStage).toUpperCase();
+    }
+    if (currentModeBehavior === 'test') {
+        return 'TEST';
+    }
+    if (useCustomQuestionSequence) {
+        return 'CUSTOM';
+    }
+    if (!sessionCore.hasActiveRunner()) {
+        return null;
+    }
+    return 'STUDY';
+}
 
 /**
  * Collect all quiz data URLs and send them to the Service Worker.
@@ -865,14 +913,17 @@ function buildAttemptSnapshot(question, meta) {
     const nearestOption =
         typeof nearestIndex === 'number' ? optionSnapshots[nearestIndex] : null;
 
+    const quizIdentifier = getActiveQuizIdentifier();
     const resolvedQuestionId =
         resolveQuestionIdentifier(question) ||
         (question && question.id ? question.id : 'unknown');
     const questionKey = String(resolvedQuestionId);
+    const compositeQid = makeQuestionKey(quizIdentifier, questionKey);
 
     return {
         questionId: questionKey,
-        qid: questionKey,
+        qid: compositeQid,
+        packageId: quizIdentifier,
         patternId:
             (question && (question.patternId || (question.meta && question.meta.patternId))) ||
             null,
@@ -904,6 +955,8 @@ async function persistAttemptRecord(question, meta) {
             : activeUser
                 ? activeUser.userId || 'guest'
                 : 'guest';
+        const questionIndex =
+            typeof meta.questionIndex === 'number' ? meta.questionIndex : null;
         if (session) {
             await sessionCore.recordAttempt({
                 ...snapshot,
@@ -915,24 +968,155 @@ async function persistAttemptRecord(question, meta) {
             updateConfusionFromAttempt(userId, snapshot),
             updateConceptStatsFromAttempt(userId, snapshot)
         ]);
-        if (activeRunner && snapshot.questionId) {
-            await activeRunner.recordResult({
-                questionId: snapshot.questionId,
-                resultType: snapshot.resultType,
-                answerMs: snapshot.answerMs
-            });
-        }
+        await sessionCore.submitAnswer({
+            questionId: snapshot.questionId,
+            resultType: snapshot.resultType,
+            answerMs: snapshot.answerMs,
+            questionIndex
+        });
         await refreshCurrentUserStats();
     } catch (error) {
         console.error('[session] failed to log attempt', error);
     }
 }
 
-function classifyResult(selectionState, answerMs) {
+function recordAnswerDuration(answerMs) {
+    if (
+        typeof answerMs !== 'number' ||
+        !Number.isFinite(answerMs) ||
+        answerMs <= 0
+    ) {
+        return;
+    }
+    recentAnswerDurations.push(answerMs);
+    if (recentAnswerDurations.length > MAX_RECENT_RESPONSE_TIMES) {
+        recentAnswerDurations.shift();
+    }
+}
+
+function getMedianAnswerDuration() {
+    if (!recentAnswerDurations.length) {
+        return null;
+    }
+    const sorted = [...recentAnswerDurations].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+        return (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+    return sorted[mid];
+}
+
+function isSlowAnswer(answerMs) {
+    if (
+        typeof answerMs !== 'number' ||
+        !Number.isFinite(answerMs) ||
+        answerMs <= 0
+    ) {
+        return false;
+    }
+    const median = getMedianAnswerDuration();
+    if (!median) {
+        return answerMs > WEAK_CORRECT_THRESHOLD_MS;
+    }
+    return answerMs > median * 1.5;
+}
+
+async function isConceptUncertain(question) {
+    if (!question || !Array.isArray(question.answers)) {
+        return false;
+    }
+    const answers = question.answers;
+    const firstAnswer = answers[0];
+    if (!firstAnswer || !Array.isArray(firstAnswer.options)) {
+        return false;
+    }
+    const correctIndex =
+        typeof firstAnswer.correctIndex === 'number'
+            ? firstAnswer.correctIndex
+            : null;
+    if (correctIndex == null || !firstAnswer.options[correctIndex]) {
+        return false;
+    }
+    const conceptId = extractOptionConceptId(
+        firstAnswer.options[correctIndex]
+    );
+    if (conceptId == null) {
+        return false;
+    }
+    const userId = activeUser ? activeUser.userId || 'guest' : 'guest';
+    try {
+        const statsMap = await getConceptStatsMap(userId, [conceptId]);
+        const stats = statsMap.get(String(conceptId));
+        return Boolean(
+            stats &&
+                typeof stats.uncertaintyEma === 'number' &&
+                stats.uncertaintyEma >= 0.6
+        );
+    } catch (error) {
+        console.warn('[quiz] failed to read concept stats for classify', error);
+        return false;
+    }
+}
+
+async function hasOnScreenConfusionRisk(question) {
+    if (!question || !Array.isArray(question.answers)) {
+        return false;
+    }
+    const answers = question.answers;
+    const firstAnswer = answers[0];
+    if (!firstAnswer || !Array.isArray(firstAnswer.options)) {
+        return false;
+    }
+    const correctIndex =
+        typeof firstAnswer.correctIndex === 'number'
+            ? firstAnswer.correctIndex
+            : null;
+    if (correctIndex == null || !firstAnswer.options[correctIndex]) {
+        return false;
+    }
+    const correctOption = firstAnswer.options[correctIndex];
+    const correctConceptId = extractOptionConceptId(correctOption);
+    if (correctConceptId == null) {
+        return false;
+    }
+    const optionConcepts = firstAnswer.options
+        .map((opt) => extractOptionConceptId(opt))
+        .filter((cid) => cid != null)
+        .map((cid) => String(cid));
+    if (!optionConcepts.length) {
+        return false;
+    }
+    const optionConceptSet = new Set(optionConcepts);
+    const userId = activeUser ? activeUser.userId || 'guest' : 'guest';
+    try {
+        const confusions = await getConfusionStatsForConcept(
+            userId,
+            correctConceptId,
+            { limit: 5 }
+        );
+        if (!confusions || !confusions.length) {
+            return false;
+        }
+        return confusions.some(
+            (entry) =>
+                optionConceptSet.has(String(entry.wrongConceptId)) &&
+                typeof entry.scoreCache === 'number' &&
+                entry.scoreCache >= CONFUSION_WEAK_THRESHOLD
+        );
+    } catch (error) {
+        console.warn('[quiz] failed to read confusion stats for classify', error);
+        return false;
+    }
+}
+
+async function classifyResult(selectionState, answerMs, question) {
     if (!selectionState || !selectionState.fullyCorrect) {
         return 'wrong';
     }
-    if (typeof answerMs === 'number' && answerMs > WEAK_CORRECT_THRESHOLD_MS) {
+    const slow = isSlowAnswer(answerMs);
+    const conceptUncertain = await isConceptUncertain(question);
+    const confusionRisk = await hasOnScreenConfusionRisk(question);
+    if (slow || conceptUncertain || confusionRisk) {
         return 'weak';
     }
     return 'strong';
@@ -1035,7 +1219,8 @@ async function finalizeIdkResult(nearestOptionIndex) {
         resultType: 'idk',
         correct: false,
         nearestOptionIndex,
-        answerMs
+        answerMs,
+        questionIndex: currentIndex
     });
 }
 
@@ -1060,6 +1245,12 @@ function resolveRowForQuestion(question) {
 function showScreen(name) {
     const previousScreen = currentScreen;
     currentScreen = name;
+
+    if (name !== 'quiz') {
+        updateQuestionStageLabel(null);
+    } else if (currentQuestion) {
+        updateQuestionStageLabel(resolveQuestionStage(currentQuestion));
+    }
 
     if (name !== 'quiz') {
         resetIdkState();
@@ -1488,6 +1679,7 @@ async function startQuiz() {
     questionHistory = [];
     quizFinishTime = null;
     questionStartTime = null;
+    recentAnswerDurations = [];
 
     if (!isPatternMode) {
         engine.setMode(modeId);
@@ -1499,29 +1691,7 @@ async function startQuiz() {
         ? quizDef.modes.find((m) => m && m.id === modeId)
         : null;
     currentModeBehavior = resolveModeBehavior(modeDef);
-    if (currentModeBehavior === 'test') {
-        activeRunner = new TestSessionRunner({
-            engine,
-            resolveQuestionId: resolveQuestionIdentifier
-        });
-    } else {
-        activeRunner = new StudySessionRunner({
-            engine,
-            resolveQuestionId: resolveQuestionIdentifier,
-            quizDefinition: quizDef
-        });
-    }
-    try {
-        await activeRunner.start({
-            userId: sessionUser.userId || 'guest',
-            quizId: quizIdentifier,
-            modeId,
-            questionCount: n
-        });
-    } catch (runnerError) {
-        console.error('[runner] failed to start session runner', runnerError);
-        activeRunner = null;
-    }
+    const sessionSeed = generateSessionSeed();
 
     const entryUrl = currentEntry ? currentEntry.url : null;
     updateLocationParams(entryUrl, quizIdValue, modeId);
@@ -1536,7 +1706,13 @@ async function startQuiz() {
             config: {
                 totalQuestions: n,
                 questionCount: n
-            }
+            },
+            seed: sessionSeed,
+            engine,
+            quizDefinition: quizDef,
+            modeBehavior: currentModeBehavior,
+            questionCount: n,
+            resolveQuestionId: resolveQuestionIdentifier
         });
     } catch (error) {
         console.error('[session] failed to start session', error);
@@ -1550,6 +1726,7 @@ async function startQuiz() {
         dom.resultListPanel.classList.add('hidden');
     }
 
+    updateQuestionStageLabel(null);
     showScreen('quiz');
     startQuizTimer();
     await loadNextQuestion();
@@ -1565,6 +1742,7 @@ async function loadNextQuestion() {
         return;
     }
 
+    updateQuestionStageLabel(null);
     hasAnswered = false;
     dom.nextButton.disabled = true;
 
@@ -1575,11 +1753,15 @@ async function loadNextQuestion() {
         if (useCustomQuestionSequence && Array.isArray(customQuestionSequence)) {
             currentQuestion = customQuestionSequence[currentIndex];
             if (!currentQuestion) {
+                updateQuestionStageLabel(null);
                 showResult();
                 return;
             }
-        } else if (activeRunner && typeof activeRunner.nextQuestion === 'function') {
-            currentQuestion = await activeRunner.nextQuestion(currentIndex);
+        } else if (sessionCore.hasActiveRunner()) {
+            currentQuestion = await sessionCore.nextQuestion({
+                currentIndex,
+                totalQuestions
+            });
             if (!currentQuestion) {
                 throw new NoQuestionsAvailableError();
             }
@@ -1592,20 +1774,24 @@ async function loadNextQuestion() {
             dom.questionText.textContent = 'No questions available. Please change the mode or filters.';
             dom.optionsContainer.innerHTML = '';
             dom.nextButton.disabled = true;
+            updateQuestionStageLabel(null);
             return;
         }
         console.error('[quiz] Failed to generate question:', e);
         dom.questionText.textContent = 'Failed to generate question.';
         dom.optionsContainer.innerHTML = '';
         dom.nextButton.disabled = true;
+        updateQuestionStageLabel(null);
         return;
     }
     if (!currentQuestion) {
         dom.questionText.textContent = 'No questions available.';
         dom.optionsContainer.innerHTML = '';
         dom.nextButton.disabled = true;
+        updateQuestionStageLabel(null);
         return;
     }
+    updateQuestionStageLabel(resolveQuestionStage(currentQuestion));
     const strategyUserId = activeUser ? activeUser.userId : 'guest';
     try {
         await applyDistractorStrategy(currentQuestion, {
@@ -1707,7 +1893,12 @@ async function handleSelectOption(answerIndex, optionIndex) {
 
     const answerMs = questionStartTime ? Date.now() - questionStartTime : null;
     questionStartTime = null;
-    const resultKind = classifyResult(selectionState, answerMs);
+    const resultKind = await classifyResult(
+        selectionState,
+        answerMs,
+        currentQuestion
+    );
+    recordAnswerDuration(answerMs);
     const historyItem = {
         index: currentIndex + 1,
         question: currentQuestion, // question オブジェクトへの参照
@@ -1723,7 +1914,8 @@ async function handleSelectOption(answerIndex, optionIndex) {
         resultType: resultKind === 'strong' ? 'correct' : resultKind,
         correct: selectionState.fullyCorrect,
         nearestOptionIndex: null,
-        answerMs
+        answerMs,
+        questionIndex: currentIndex
     });
 }
 
@@ -1735,6 +1927,7 @@ function showResult() {
     // Stop timer when quiz is finished or interrupted
     stopQuizTimer();
     quizFinishTime = quizFinishTime || Date.now();
+    updateQuestionStageLabel(null);
 
     dom.resultScore.textContent = `Score: ${currentScore} / ${totalQuestions}`;
     dom.resultTotal.textContent = `${totalQuestions}`;
@@ -1742,6 +1935,25 @@ function showResult() {
     const answeredCount = questionHistory.length;
     const accuracy = calculateAccuracy(currentScore, answeredCount);
     dom.resultAccuracy.textContent = `${accuracy}%`;
+    const idkCount = questionHistory.filter(
+        (item) => item && item.resultType === 'idk'
+    ).length;
+    const knownAttempts = answeredCount - idkCount;
+    const knownAccuracy =
+        knownAttempts > 0
+            ? Math.round((currentScore / knownAttempts) * 100)
+            : null;
+    const idkRate =
+        answeredCount > 0
+            ? Math.round((idkCount / answeredCount) * 100)
+            : 0;
+    if (dom.resultKnownAccuracy) {
+        dom.resultKnownAccuracy.textContent =
+            knownAccuracy == null ? '--%' : `${knownAccuracy}%`;
+    }
+    if (dom.resultIdkRate) {
+        dom.resultIdkRate.textContent = `${idkRate}%`;
+    }
 
     // 結果画面では Tips を消す
     resetTips();
@@ -1759,6 +1971,9 @@ function showResult() {
         answeredQuestions: answeredCount,
         correctAnswers: currentScore,
         accuracyPercent: accuracy,
+        knownAccuracyPercent: knownAccuracy,
+        idkCount,
+        idkRatePercent: idkRate,
         durationMs: quizStartTime ? quizFinishTime - quizStartTime : null,
         finishedAt: quizFinishTime
     };
@@ -1910,7 +2125,6 @@ async function retryMistakes() {
     questionHistory = [];
     quizFinishTime = null;
     questionStartTime = null;
-    activeRunner = null;
 
     renderProgress(currentIndex, totalQuestions, currentScore);
     resetReviewList();
@@ -2332,7 +2546,6 @@ async function loadCurrentQuizDefinition() {
         const def = await loadQuizDefinitionFromQuizEntry(currentQuiz);
         quizDef = def.definition;
         engine = new QuizEngine(quizDef);
-        activeRunner = null;
         currentModeBehavior = 'study';
 
         // URL から希望モードを取得し、このクイズで利用可能かチェック

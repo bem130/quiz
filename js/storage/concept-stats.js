@@ -77,3 +77,66 @@ export async function getConceptStatsMap(userId, conceptIds) {
         tx.onabort = () => reject(tx.error);
     });
 }
+
+export async function getUncertainConcepts(userId, options = {}) {
+    if (!userId) {
+        return [];
+    }
+    const minScore =
+        typeof options.minScore === 'number' ? options.minScore : 0.6;
+    const limit =
+        typeof options.limit === 'number' && options.limit > 0
+            ? Math.floor(options.limit)
+            : 5;
+    const db = await getDatabase();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('concept_stats', 'readonly');
+        let index;
+        try {
+            index = tx.objectStore('concept_stats').index('byUser');
+        } catch (error) {
+            resolve([]);
+            tx.abort();
+            return;
+        }
+        const keyRangeFactory =
+            typeof IDBKeyRange !== 'undefined'
+                ? IDBKeyRange
+                : typeof window !== 'undefined' && window.IDBKeyRange
+                    ? window.IDBKeyRange
+                    : typeof self !== 'undefined' && self.IDBKeyRange
+                        ? self.IDBKeyRange
+                        : null;
+        if (!keyRangeFactory) {
+            resolve([]);
+            tx.abort();
+            return;
+        }
+        const range = keyRangeFactory.only(userId);
+        const results = [];
+        const request = index.openCursor(range);
+        request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (!cursor) {
+                return;
+            }
+            const value = cursor.value;
+            if (
+                value &&
+                typeof value.uncertaintyEma === 'number' &&
+                value.uncertaintyEma >= minScore
+            ) {
+                results.push(value);
+            }
+            cursor.continue();
+        };
+        request.onerror = () => reject(request.error);
+        tx.oncomplete = () => {
+            results.sort(
+                (a, b) => (b.uncertaintyEma || 0) - (a.uncertaintyEma || 0)
+            );
+            resolve(results.slice(0, limit));
+        };
+        tx.onabort = () => resolve([]);
+    });
+}
