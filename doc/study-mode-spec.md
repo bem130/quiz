@@ -75,7 +75,11 @@ db.version(1).stores({
 
 ### 4.4 schedule（学習専用）
 - key: `[userId, qid]`
+  - `qid = packageId + "::" + patternId + "::" + questionId`
+  - `patternId` が存在しない問題は `patternId = "global"` として扱い、同一問題でもパターンごとに独立したキューを持つ
 - fields:
+  - `patternId`: このスケジュール行が属する `patternId`
+  - `questionKey`: 旧形式 `packageId + "::" + questionId`。スナップショット参照やマイグレーションに利用
   - `state`: `NEW | LEARNING | REVIEW | RELEARNING`
   - `dueAt`: `epochMs` number（UTC）
   - `dueAtFuzzed`: 直近に適用したゆらぎ係数
@@ -166,6 +170,9 @@ db.version(1).stores({
 
 抽出比率の初期値: `REVIEW : REPAIR : NEW = 6 : 3 : 1`。`REVIEW` の未消化が多い（例: due が 80 以上）場合は NEW を 0 に抑制。
 同一混同ペアは 1 セッションで最大 2 回まで投入し、投入時に `conf *= 0.9` してヒステリシスを持たせる。
+
+> **pattern 単位のモード管理**  
+> モードは「どの pattern が出題対象か」を定義する。`StudyEngine` はモードに紐づく pattern セットを先に算出し、`schedule` から due を取得する際も `patternId` でフィルタする。これにより、`RELEARNING` や `REVIEW` の出題は同一 pattern 内に閉じた形で維持され、別モードで共有されている問題でも pattern を跨いだ復習が起こらない。
 
 ### 5.5 遅延リトライ
 
