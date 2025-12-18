@@ -349,6 +349,45 @@ export class StudySessionRunner {
         }
     }
 
+    async _ensureScheduleRecordForStoredQuestion(record) {
+        if (
+            !this.userId ||
+            !this.quizId ||
+            !record ||
+            !record.questionId
+        ) {
+            return;
+        }
+        try {
+            await ensureScheduleEntry(
+                this.userId,
+                this.quizId,
+                record.questionId
+            );
+        } catch (error) {
+            console.warn('[study-engine] failed to ensure schedule for stored question', {
+                quizId: this.quizId,
+                questionId: record.questionId,
+                error
+            });
+        }
+    }
+
+    async _injectReviewQuestion(record) {
+        if (
+            !record ||
+            !record.questionKey ||
+            this.seenQuestionKeys.has(record.questionKey) ||
+            this.reviewDue.has(record.questionKey)
+        ) {
+            return false;
+        }
+        await this._ensureScheduleRecordForStoredQuestion(record);
+        this.reviewDue.add(record.questionKey);
+        this._updateBacklogCounts();
+        return true;
+    }
+
     async _prepareTargetedQueue() {
         if (!this.userId || !this.quizId) {
             this.targetedQueue = [];
@@ -363,17 +402,17 @@ export class StudySessionRunner {
                 limit: 5
             });
             for (const pair of confusionPairs) {
-                const records = await findQuestionsByConcept(
+                const wrongConceptQuestions = await findQuestionsByConcept(
                     this.quizId,
                     pair.wrongConceptId,
                     { limit: 2 }
                 );
-                records.forEach((record) => {
+                for (const record of wrongConceptQuestions) {
                     if (!record || !record.question || !record.questionKey) {
-                        return;
+                        continue;
                     }
                     if (seenKeys.has(record.questionKey)) {
-                        return;
+                        continue;
                     }
                     seenKeys.add(record.questionKey);
                     queue.push({
@@ -383,20 +422,20 @@ export class StudySessionRunner {
                         question: record.question,
                         questionKey: record.questionKey
                     });
-                });
+                }
                 const cooccurring = await findQuestionsByConcept(
                     this.quizId,
                     pair.conceptId,
                     { limit: 4 }
                 );
-                cooccurring.forEach((record) => {
+                for (const record of cooccurring) {
                     if (
                         !record ||
                         !record.question ||
                         !record.questionKey ||
                         seenKeys.has(record.questionKey)
                     ) {
-                        return;
+                        continue;
                     }
                     if (
                         !questionIncludesConcept(
@@ -404,7 +443,7 @@ export class StudySessionRunner {
                             pair.wrongConceptId
                         )
                     ) {
-                        return;
+                        continue;
                     }
                     seenKeys.add(record.questionKey);
                     queue.push({
@@ -414,7 +453,7 @@ export class StudySessionRunner {
                         question: record.question,
                         questionKey: record.questionKey
                     });
-                });
+                }
             }
         } catch (error) {
             console.warn('[study-engine] failed to collect confusion targets', error);
@@ -431,12 +470,13 @@ export class StudySessionRunner {
                     concept.conceptId,
                     { limit: 2 }
                 );
-                records.forEach((record) => {
+                let reviewInjected = 0;
+                for (const record of records) {
                     if (!record || !record.question || !record.questionKey) {
-                        return;
+                        continue;
                     }
                     if (seenKeys.has(record.questionKey)) {
-                        return;
+                        continue;
                     }
                     seenKeys.add(record.questionKey);
                     queue.push({
@@ -446,7 +486,13 @@ export class StudySessionRunner {
                         question: record.question,
                         questionKey: record.questionKey
                     });
-                });
+                    if (reviewInjected < 2) {
+                        const injected = await this._injectReviewQuestion(record);
+                        if (injected) {
+                            reviewInjected += 1;
+                        }
+                    }
+                }
             }
         } catch (error) {
             console.warn('[study-engine] failed to collect uncertainty targets', error);

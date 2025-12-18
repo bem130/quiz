@@ -194,6 +194,7 @@ export async function findQuestionsByConcept(quizId, conceptId, options = {}) {
                 seenKeys.add(value.qid);
                 results.push({
                     questionKey: value.qid,
+                    questionId: value.questionId || null,
                     question: clonePayload(value.payload)
                 });
             }
@@ -253,6 +254,7 @@ export async function listQuestionsForQuiz(quizId, options = {}) {
             if (value && value.payload) {
                 results.push({
                     questionKey: value.qid,
+                    questionId: value.questionId || null,
                     question: clonePayload(value.payload)
                 });
             }

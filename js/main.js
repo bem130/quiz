@@ -548,11 +548,11 @@ function formatIsoTimestamp(timestamp) {
     return new Date(timestamp).toISOString();
 }
 
-function calculateAccuracy(correctCount, answeredCount) {
-    if (answeredCount <= 0) {
+function calculateAccuracy(correctCount, totalCount) {
+    if (totalCount <= 0) {
         return 0;
     }
-    return Math.round((correctCount / answeredCount) * 100);
+    return Math.round((correctCount / totalCount) * 100);
 }
 
 function clampQuestionCount(value) {
@@ -2008,20 +2008,15 @@ function showResult() {
     dom.resultTotal.textContent = `${totalQuestions}`;
     dom.resultCorrect.textContent = `${currentScore}`;
     const answeredCount = questionHistory.length;
-    const accuracy = calculateAccuracy(currentScore, answeredCount);
-    dom.resultAccuracy.textContent = `${accuracy}%`;
+    const overallAccuracy = calculateAccuracy(currentScore, totalQuestions);
+    dom.resultAccuracy.textContent = `${overallAccuracy}%`;
     const idkCount = questionHistory.filter(
         (item) => item && item.resultType === 'idk'
     ).length;
-    const knownAttempts = answeredCount - idkCount;
+    const knownPool = Math.max(0, totalQuestions - idkCount);
     const knownAccuracy =
-        knownAttempts > 0
-            ? Math.round((currentScore / knownAttempts) * 100)
-            : null;
-    const idkRate =
-        answeredCount > 0
-            ? Math.round((idkCount / answeredCount) * 100)
-            : 0;
+        knownPool > 0 ? Math.round((currentScore / knownPool) * 100) : null;
+    const idkRate = calculateAccuracy(idkCount, totalQuestions);
     if (dom.resultKnownAccuracy) {
         dom.resultKnownAccuracy.textContent =
             knownAccuracy == null ? '--%' : `${knownAccuracy}%`;
@@ -2045,7 +2040,7 @@ function showResult() {
         totalQuestions,
         answeredQuestions: answeredCount,
         correctAnswers: currentScore,
-        accuracyPercent: accuracy,
+        accuracyPercent: overallAccuracy,
         knownAccuracyPercent: knownAccuracy,
         idkCount,
         idkRatePercent: idkRate,
@@ -2068,6 +2063,13 @@ function buildResultExportObject() {
         ? Math.round((finishTimestamp - quizStartTime) / 1000)
         : null;
     const dataSets = quizDef ? quizDef.dataSets : null;
+    const idkCount = questionHistory.filter(
+        (item) => item && item.resultType === 'idk'
+    ).length;
+    const knownPool = Math.max(0, totalQuestions - idkCount);
+    const knownAccuracy =
+        knownPool > 0 ? Math.round((currentScore / knownPool) * 100) : null;
+    const idkRate = calculateAccuracy(idkCount, totalQuestions);
 
     const meta = {
         quizId: currentQuiz ? currentQuiz.id : null,
@@ -2076,7 +2078,9 @@ function buildResultExportObject() {
         totalQuestions,
         answeredQuestions: answeredCount,
         correctAnswers: currentScore,
-        accuracyPercent: calculateAccuracy(currentScore, answeredCount),
+        accuracyPercent: calculateAccuracy(currentScore, totalQuestions),
+        knownAccuracyPercent: knownAccuracy,
+        idkRatePercent: idkRate,
         startedAt: formatIsoTimestamp(quizStartTime),
         finishedAt: formatIsoTimestamp(finishTimestamp),
         elapsedSeconds
