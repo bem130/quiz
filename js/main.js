@@ -52,6 +52,14 @@ import {
     buildRubyBufferItemFromDom,
     getRubyBufferSnapshot
 } from './text-source-registry.js';
+import { initUserManager } from './user-manager.js';
+import { sessionCore } from './session-core.js';
+import { getUserStats } from './storage/session-store.js';
+import { StudySessionRunner } from './study-engine.js';
+import { TestSessionRunner } from './test-engine.js';
+import { applyDistractorStrategy } from './distractor-strategy.js';
+import { updateConfusionFromAttempt } from './storage/confusion-store.js';
+import { updateConceptStatsFromAttempt } from './storage/concept-stats.js';
 
 let entrySources = [];
 let currentEntry = null;
@@ -67,6 +75,7 @@ let hasAnswered = false;
 let questionHistory = [];
 let customQuestionSequence = null;
 let useCustomQuestionSequence = false;
+let questionStartTime = null;
 
 // 現在選択中の modeId
 let currentModeId = null;
@@ -75,6 +84,16 @@ let currentModeId = null;
 let currentScreen = 'menu';
 const MENU_TABS = ['quizzes', 'mode', 'options'];
 let activeMenuTab = 'quizzes';
+let activeUser = null;
+let pendingIdkState = null;
+let currentUserStats = {
+    totalAttempts: 0,
+    correctAttempts: 0,
+    weakAttempts: 0,
+    idkCount: 0
+};
+let activeRunner = null;
+let currentModeBehavior = 'study';
 
 // Timer state
 let quizStartTime = null;
@@ -87,6 +106,7 @@ let hasPwaInstallPromptSupport = false;
 
 const CACHE_PREFIX = 'quiz-app-shell-';
 const CACHE_RECOVERY_FLAG_KEY = 'quiz-app-cache-recovery-attempted';
+const WEAK_CORRECT_THRESHOLD_MS = 8000;
 
 /**
  * Collect all quiz data URLs and send them to the Service Worker.
@@ -708,6 +728,317 @@ function updateSelectionSummary() {
     dom.selectedModeDesc.textContent = modeDesc;
 }
 
+function resolveModeBehavior(mode) {
+    if (!mode) return 'study';
+    const meta =
+        (mode.behavior || mode.modeType || mode.category || '').toString().toLowerCase();
+    if (meta.includes('test')) {
+        return 'test';
+    }
+    if (mode.id && mode.id.toLowerCase().includes('test')) {
+        return 'test';
+    }
+    return 'study';
+}
+
+function handleActiveUserChange(user) {
+    activeUser = user || null;
+    updateActiveUserDisplays();
+    refreshCurrentUserStats();
+}
+
+function updateActiveUserDisplays() {
+    const label = activeUser
+        ? activeUser.displayName || activeUser.userId
+        : 'Guest';
+    if (dom.sideUserLabel) {
+        dom.sideUserLabel.textContent = label;
+    }
+    if (dom.quizUserLabel) {
+        dom.quizUserLabel.textContent = label;
+    }
+    if (dom.resultUserLabel) {
+        dom.resultUserLabel.textContent = `User: ${label}`;
+    }
+}
+
+async function refreshCurrentUserStats() {
+    if (!activeUser) {
+        updateUserStatsDisplays(null);
+        return;
+    }
+    try {
+        const stats = await getUserStats(activeUser.userId);
+        currentUserStats = stats;
+        updateUserStatsDisplays(stats);
+    } catch (error) {
+        console.error('[stats] failed to load user stats', error);
+        updateUserStatsDisplays(null);
+    }
+}
+
+function updateUserStatsDisplays(statsInput) {
+    const stats = statsInput || currentUserStats || {
+        totalAttempts: 0,
+        correctAttempts: 0,
+        weakAttempts: 0,
+        idkCount: 0
+    };
+    const total = stats.totalAttempts || 0;
+    const correct = stats.correctAttempts || 0;
+    const accuracy =
+        total > 0 ? `${Math.round((correct / total) * 100)}%` : '--';
+    const attemptsText = total > 0 ? `${total}` : '0';
+
+    if (dom.quizLifetimeAccuracy) {
+        dom.quizLifetimeAccuracy.textContent = accuracy;
+    }
+    if (dom.quizLifetimeAttempts) {
+        dom.quizLifetimeAttempts.textContent = attemptsText;
+    }
+    if (dom.resultLifetimeAccuracy) {
+        dom.resultLifetimeAccuracy.textContent = accuracy;
+    }
+    if (dom.resultTotalAttempts) {
+        dom.resultTotalAttempts.textContent = attemptsText;
+    }
+}
+
+function resolveQuestionIdentifier(question) {
+    if (!question) return null;
+    if (question.id) return question.id;
+    if (question.meta && (question.meta.questionId || question.meta.id)) {
+        return question.meta.questionId || question.meta.id;
+    }
+    return null;
+}
+
+function getActiveQuizIdentifier() {
+    if (quizDef && quizDef.meta && quizDef.meta.id) {
+        return quizDef.meta.id;
+    }
+    if (currentQuiz && currentQuiz.id) {
+        return currentQuiz.id;
+    }
+    return 'quiz';
+}
+
+function extractOptionConceptId(option) {
+    if (!option) return null;
+    if (option.conceptId) return option.conceptId;
+    if (option.meta && option.meta.conceptId) return option.meta.conceptId;
+    if (option.entityId) return option.entityId;
+    return null;
+}
+
+function buildAttemptSnapshot(question, meta) {
+    const answers = Array.isArray(question && question.answers) ? question.answers : [];
+    const firstAnswer = answers[0] || {};
+    const options = Array.isArray(firstAnswer.options) ? firstAnswer.options : [];
+    const dataSets = quizDef ? quizDef.dataSets : null;
+
+    const optionSnapshots = options.map((option, index) => ({
+        index,
+        label: optionToText(option, dataSets, question),
+        entityId: option && (option.entityId || option.id || null),
+        conceptId: extractOptionConceptId(option),
+        isCorrect:
+            typeof firstAnswer.correctIndex === 'number'
+                ? index === firstAnswer.correctIndex
+                : null
+    }));
+
+    const selectedIndex =
+        typeof firstAnswer.userSelectedIndex === 'number'
+            ? firstAnswer.userSelectedIndex
+            : null;
+    const correctIndex =
+        typeof firstAnswer.correctIndex === 'number'
+            ? firstAnswer.correctIndex
+            : null;
+    const nearestIndex =
+        typeof meta.nearestOptionIndex === 'number' ? meta.nearestOptionIndex : null;
+    const correctOption =
+        typeof correctIndex === 'number' ? optionSnapshots[correctIndex] : null;
+    const selectedOption =
+        typeof selectedIndex === 'number' ? optionSnapshots[selectedIndex] : null;
+    const nearestOption =
+        typeof nearestIndex === 'number' ? optionSnapshots[nearestIndex] : null;
+
+    const resolvedQuestionId =
+        resolveQuestionIdentifier(question) ||
+        (question && question.id ? question.id : 'unknown');
+    const questionKey = String(resolvedQuestionId);
+
+    return {
+        questionId: questionKey,
+        qid: questionKey,
+        patternId:
+            (question && (question.patternId || (question.meta && question.meta.patternId))) ||
+            null,
+        dataSetId:
+            question && question.meta && question.meta.dataSetId ? question.meta.dataSetId : null,
+        options: optionSnapshots,
+        selectedIndex,
+        correctIndex,
+        nearestOptionIndex: nearestIndex,
+        correctConceptId: correctOption ? correctOption.conceptId : null,
+        selectedConceptId: selectedOption ? selectedOption.conceptId : null,
+        nearestConceptId: nearestOption ? nearestOption.conceptId : null,
+        resultType: meta.resultType,
+        correct: Boolean(meta.correct),
+        answerMs: typeof meta.answerMs === 'number' ? meta.answerMs : null,
+        timestamp: Date.now()
+    };
+}
+
+async function persistAttemptRecord(question, meta) {
+    if (!question) {
+        return;
+    }
+    try {
+        const snapshot = buildAttemptSnapshot(question, meta);
+        const session = sessionCore.getCurrentSession();
+        const userId = session
+            ? session.userId
+            : activeUser
+                ? activeUser.userId || 'guest'
+                : 'guest';
+        if (session) {
+            await sessionCore.recordAttempt({
+                ...snapshot,
+                userId,
+                sessionId: session.sessionId || sessionCore.getSessionId()
+            });
+        }
+        await Promise.all([
+            updateConfusionFromAttempt(userId, snapshot),
+            updateConceptStatsFromAttempt(userId, snapshot)
+        ]);
+        if (activeRunner && snapshot.questionId) {
+            await activeRunner.recordResult({
+                questionId: snapshot.questionId,
+                resultType: snapshot.resultType,
+                answerMs: snapshot.answerMs
+            });
+        }
+        await refreshCurrentUserStats();
+    } catch (error) {
+        console.error('[session] failed to log attempt', error);
+    }
+}
+
+function classifyResult(selectionState, answerMs) {
+    if (!selectionState || !selectionState.fullyCorrect) {
+        return 'wrong';
+    }
+    if (typeof answerMs === 'number' && answerMs > WEAK_CORRECT_THRESHOLD_MS) {
+        return 'weak';
+    }
+    return 'strong';
+}
+
+function resetIdkState() {
+    pendingIdkState = null;
+    if (dom.idkFollowupPanel) {
+        dom.idkFollowupPanel.classList.add('hidden');
+    }
+    if (dom.idkFollowupOptions) {
+        dom.idkFollowupOptions.innerHTML = '';
+    }
+    if (dom.idkButton) {
+        dom.idkButton.disabled = false;
+    }
+}
+
+function startIdkFlow() {
+    if (!currentQuestion || hasAnswered) return;
+    if (!dom.idkFollowupPanel || !dom.idkFollowupOptions) {
+        finalizeIdkResult(null).catch((error) => {
+            console.error('[quiz] finalize IDK failed', error);
+        });
+        return;
+    }
+    pendingIdkState = { questionIndex: currentIndex };
+    dom.idkFollowupOptions.innerHTML = '';
+    const answer = currentQuestion.answers && currentQuestion.answers[0];
+    const options = (answer && Array.isArray(answer.options)) ? answer.options : [];
+    if (!options.length) {
+        finalizeIdkResult(null).catch((error) => {
+            console.error('[quiz] finalize IDK failed', error);
+        });
+        return;
+    }
+    options.forEach((option, index) => {
+        const label = optionToText(option, quizDef ? quizDef.dataSets : null, currentQuestion);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.idkOptionIndex = String(index);
+        button.className = 'w-full text-left px-2 py-1 rounded-lg border app-border-subtle app-text-main hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors';
+        button.textContent = `${String.fromCharCode(65 + index)}. ${label}`;
+        dom.idkFollowupOptions.appendChild(button);
+    });
+    dom.idkFollowupPanel.classList.remove('hidden');
+    if (dom.idkButton) {
+        dom.idkButton.disabled = true;
+    }
+    if (dom.nextButton) {
+        dom.nextButton.disabled = true;
+    }
+}
+
+function completeIdk(nearestOptionIndex = null) {
+    if (!pendingIdkState) {
+        return;
+    }
+    finalizeIdkResult(
+        typeof nearestOptionIndex === 'number' ? nearestOptionIndex : null
+    ).catch((error) => {
+        console.error('[quiz] finalize IDK failed', error);
+    });
+}
+
+async function finalizeIdkResult(nearestOptionIndex) {
+    if (!currentQuestion || hasAnswered) {
+        resetIdkState();
+        if (dom.nextButton) dom.nextButton.disabled = false;
+        return;
+    }
+    hasAnswered = true;
+    const answerMs = questionStartTime ? Date.now() - questionStartTime : null;
+    questionStartTime = null;
+    addReviewItem(currentQuestion, quizDef ? quizDef.dataSets : null, currentIndex + 1);
+    const historyItem = {
+        index: currentIndex + 1,
+        question: currentQuestion,
+        userAnswerSummary: 'Skipped (IDK)',
+        correct: false,
+        resultType: 'idk',
+        nearestOptionIndex,
+        answerMs
+    };
+    questionHistory.push(historyItem);
+
+    showOptionFeedback(currentQuestion);
+    appendPatternPreviewToOptions(currentQuestion, quizDef ? quizDef.dataSets : null);
+    renderProgress(currentIndex, totalQuestions, currentScore);
+    resetTips();
+
+    if (dom.nextButton) {
+        dom.nextButton.disabled = false;
+    }
+    resetIdkState();
+    if (dom.idkButton) {
+        dom.idkButton.disabled = true;
+    }
+    await persistAttemptRecord(currentQuestion, {
+        resultType: 'idk',
+        correct: false,
+        nearestOptionIndex,
+        answerMs
+    });
+}
+
 
 function resolveRowForQuestion(question) {
     if (!question || !question.meta || !question.meta.dataSetId) return null;
@@ -729,6 +1060,10 @@ function resolveRowForQuestion(question) {
 function showScreen(name) {
     const previousScreen = currentScreen;
     currentScreen = name;
+
+    if (name !== 'quiz') {
+        resetIdkState();
+    }
 
     // Main
     dom.mainMenu.classList.add('hidden');
@@ -763,6 +1098,13 @@ function showScreen(name) {
     if (dom.interruptButton) {
         dom.interruptButton.classList.add('hidden');
     }
+    if (dom.idkButton) {
+        dom.idkButton.classList.add('hidden');
+        dom.idkButton.disabled = true;
+    }
+    if (dom.idkFollowupPanel) {
+        dom.idkFollowupPanel.classList.add('hidden');
+    }
 
     if (name === 'menu') {
         dom.mainMenu.classList.remove('hidden');
@@ -788,6 +1130,10 @@ function showScreen(name) {
         }
         if (dom.interruptButton) {
             dom.interruptButton.classList.remove('hidden');
+        }
+        if (dom.idkButton) {
+            dom.idkButton.classList.remove('hidden');
+            dom.idkButton.disabled = false;
         }
     } else if (name === 'result') {
         dom.mainQuiz.classList.remove('hidden');
@@ -860,10 +1206,10 @@ function clearModeMessage() {
 /**
  * ボタンやキーボード操作から呼ばれる次の問題への遷移処理。
  */
-function goToNextQuestion() {
+async function goToNextQuestion() {
     if (!hasAnswered) return;
     currentIndex += 1;
-    loadNextQuestion();
+    await loadNextQuestion();
 }
 
 /**
@@ -1097,7 +1443,7 @@ function toggleFullscreen() {
 /**
  * 選択中のモードと出題数を基にクイズを初期化し、最初の問題を表示する。
  */
-function startQuiz() {
+async function startQuiz() {
     if (!quizDef || !engine) {
         showModeMessage('クイズ定義を読み込めませんでした。');
         return;
@@ -1106,6 +1452,8 @@ function startQuiz() {
     const fallbackModeId =
         quizDef.modes && quizDef.modes.length > 0 ? quizDef.modes[0].id : null;
     const modeId = currentModeId || fallbackModeId;
+    const quizIdValue = currentQuiz ? currentQuiz.id : null;
+    const quizIdentifier = getActiveQuizIdentifier();
 
     const isPatternMode = modeId && modeId.startsWith('__pattern__');
 
@@ -1139,15 +1487,60 @@ function startQuiz() {
     dom.nextButton.disabled = true;
     questionHistory = [];
     quizFinishTime = null;
+    questionStartTime = null;
 
     if (!isPatternMode) {
         engine.setMode(modeId);
     }
 
-    // 使用するモードを URL に保存
+    const sessionUser = activeUser || { userId: 'guest', displayName: 'Guest' };
+
+    const modeDef = Array.isArray(quizDef.modes)
+        ? quizDef.modes.find((m) => m && m.id === modeId)
+        : null;
+    currentModeBehavior = resolveModeBehavior(modeDef);
+    if (currentModeBehavior === 'test') {
+        activeRunner = new TestSessionRunner({
+            engine,
+            resolveQuestionId: resolveQuestionIdentifier
+        });
+    } else {
+        activeRunner = new StudySessionRunner({
+            engine,
+            resolveQuestionId: resolveQuestionIdentifier,
+            quizDefinition: quizDef
+        });
+    }
+    try {
+        await activeRunner.start({
+            userId: sessionUser.userId || 'guest',
+            quizId: quizIdentifier,
+            modeId,
+            questionCount: n
+        });
+    } catch (runnerError) {
+        console.error('[runner] failed to start session runner', runnerError);
+        activeRunner = null;
+    }
+
     const entryUrl = currentEntry ? currentEntry.url : null;
-    const quizId = currentQuiz ? currentQuiz.id : null;
-    updateLocationParams(entryUrl, quizId, modeId);
+    updateLocationParams(entryUrl, quizIdValue, modeId);
+
+    try {
+        await sessionCore.startSession({
+            userId: sessionUser.userId || 'guest',
+            userName: sessionUser.displayName || sessionUser.userId || 'Guest',
+            quizId: quizIdentifier,
+            quizTitle: quizDef.meta && quizDef.meta.title ? quizDef.meta.title : (currentQuiz ? currentQuiz.title : null),
+            mode: modeId,
+            config: {
+                totalQuestions: n,
+                questionCount: n
+            }
+        });
+    } catch (error) {
+        console.error('[session] failed to start session', error);
+    }
 
     renderProgress(currentIndex, totalQuestions, currentScore);
     resetReviewList();
@@ -1159,13 +1552,14 @@ function startQuiz() {
 
     showScreen('quiz');
     startQuizTimer();
-    loadNextQuestion();
+    await loadNextQuestion();
 }
 
 /**
  * 現在の進行状況に応じて次の問題を生成し、画面を更新する。
  */
-function loadNextQuestion() {
+async function loadNextQuestion() {
+    resetIdkState();
     if (currentIndex >= totalQuestions) {
         showResult();
         return;
@@ -1184,6 +1578,11 @@ function loadNextQuestion() {
                 showResult();
                 return;
             }
+        } else if (activeRunner && typeof activeRunner.nextQuestion === 'function') {
+            currentQuestion = await activeRunner.nextQuestion(currentIndex);
+            if (!currentQuestion) {
+                throw new NoQuestionsAvailableError();
+            }
         } else {
             currentQuestion = engine.generateQuestion();
         }
@@ -1201,10 +1600,29 @@ function loadNextQuestion() {
         dom.nextButton.disabled = true;
         return;
     }
+    if (!currentQuestion) {
+        dom.questionText.textContent = 'No questions available.';
+        dom.optionsContainer.innerHTML = '';
+        dom.nextButton.disabled = true;
+        return;
+    }
+    const strategyUserId = activeUser ? activeUser.userId : 'guest';
+    try {
+        await applyDistractorStrategy(currentQuestion, {
+            userId: strategyUserId,
+            quizId: getActiveQuizIdentifier()
+        });
+    } catch (error) {
+        console.warn('[distractor] strategy failed', error);
+    }
     resetSelections(currentQuestion);
+    questionStartTime = Date.now();
 
     renderQuestion(currentQuestion, quizDef.dataSets, handleSelectOption);
     renderProgress(currentIndex, totalQuestions, currentScore);
+    if (dom.idkButton) {
+        dom.idkButton.disabled = false;
+    }
 }
 
 /**
@@ -1212,7 +1630,8 @@ function loadNextQuestion() {
  * @param {number} answerIndex - 回答対象のパーツのインデックス。
  * @param {number} optionIndex - 選択された選択肢のインデックス。
  */
-function handleSelectOption(answerIndex, optionIndex) {
+async function handleSelectOption(answerIndex, optionIndex) {
+    resetIdkState();
     if (!currentQuestion || !Array.isArray(currentQuestion.answers)) return;
 
     // すでに採点済み（hasAnswered === true）の場合の挙動をここで制御
@@ -1226,7 +1645,9 @@ function handleSelectOption(answerIndex, optionIndex) {
         // 採点済みの状態では、正解ボタンを押したときだけ次の問題へ進める
         if (lastSelectionIsCorrect) {
             console.log('[quiz] correct option clicked after answered; goToNextQuestion');
-            goToNextQuestion();
+            goToNextQuestion().catch((error) => {
+                console.error('[quiz] failed to advance after correct click', error);
+            });
         }
         return;
     }
@@ -1263,14 +1684,6 @@ function handleSelectOption(answerIndex, optionIndex) {
         addReviewItem(currentQuestion, quizDef.dataSets, currentIndex + 1);
     }
 
-    const historyItem = {
-        index: currentIndex + 1,
-        question: currentQuestion, // question オブジェクトへの参照
-        userAnswerSummary: summarizeAnswers(currentQuestion, quizDef.dataSets),
-        correct: selectionState.fullyCorrect
-    };
-    questionHistory.push(historyItem);
-
     // 全パーツのボタンに最終的なフィードバックを適用（枠・背景の緑/赤など）
     showOptionFeedback(currentQuestion);
 
@@ -1288,12 +1701,37 @@ function handleSelectOption(answerIndex, optionIndex) {
     }
 
     dom.nextButton.disabled = false;
+    if (dom.idkButton) {
+        dom.idkButton.disabled = true;
+    }
+
+    const answerMs = questionStartTime ? Date.now() - questionStartTime : null;
+    questionStartTime = null;
+    const resultKind = classifyResult(selectionState, answerMs);
+    const historyItem = {
+        index: currentIndex + 1,
+        question: currentQuestion, // question オブジェクトへの参照
+        userAnswerSummary: summarizeAnswers(currentQuestion, quizDef.dataSets),
+        correct: selectionState.fullyCorrect,
+        resultType: resultKind === 'strong' ? 'correct' : resultKind,
+        nearestOptionIndex: null,
+        answerMs
+    };
+    questionHistory.push(historyItem);
+
+    await persistAttemptRecord(currentQuestion, {
+        resultType: resultKind === 'strong' ? 'correct' : resultKind,
+        correct: selectionState.fullyCorrect,
+        nearestOptionIndex: null,
+        answerMs
+    });
 }
 
 /**
  * クイズ結果を表示し、スコアの概要と画面状態を更新する。
  */
 function showResult() {
+    questionStartTime = null;
     // Stop timer when quiz is finished or interrupted
     stopQuizTimer();
     quizFinishTime = quizFinishTime || Date.now();
@@ -1313,7 +1751,22 @@ function showResult() {
         addResultItem(item, quizDef.dataSets)
     );
 
+    updateUserStatsDisplays(currentUserStats);
     showScreen('result');
+
+    const summary = {
+        totalQuestions,
+        answeredQuestions: answeredCount,
+        correctAnswers: currentScore,
+        accuracyPercent: accuracy,
+        durationMs: quizStartTime ? quizFinishTime - quizStartTime : null,
+        finishedAt: quizFinishTime
+    };
+    if (sessionCore.getSessionId()) {
+        sessionCore.finishSession(summary).catch((error) => {
+            console.error('[session] failed to finish session', error);
+        });
+    }
 
     tryUpdatePwaHintVisibility();
 }
@@ -1398,6 +1851,9 @@ function buildResultExportObject() {
         return {
             index: item.index,
             correct: item.correct,
+            resultType: item.resultType || (item.correct ? 'correct' : 'incorrect'),
+            idkNearestOptionIndex: typeof item.nearestOptionIndex === 'number' ? item.nearestOptionIndex : null,
+            answerMs: typeof item.answerMs === 'number' ? item.answerMs : null,
             questionText: summarizeQuestion(question, dataSets),
             userAnswerSummary: item.userAnswerSummary,
             answers
@@ -1422,7 +1878,7 @@ async function copyResultToClipboard() {
     }
 }
 
-function retryMistakes() {
+async function retryMistakes() {
     if (!engine) {
         return;
     }
@@ -1453,6 +1909,8 @@ function retryMistakes() {
     dom.nextButton.disabled = true;
     questionHistory = [];
     quizFinishTime = null;
+    questionStartTime = null;
+    activeRunner = null;
 
     renderProgress(currentIndex, totalQuestions, currentScore);
     resetReviewList();
@@ -1464,7 +1922,7 @@ function retryMistakes() {
 
     showScreen('quiz');
     startQuizTimer();
-    loadNextQuestion();
+    await loadNextQuestion();
 }
 
 /**
@@ -1509,7 +1967,9 @@ function setupKeyboardShortcuts() {
         ) {
             if (!hasAnswered) return;
             e.preventDefault();
-            goToNextQuestion();
+            goToNextQuestion().catch((error) => {
+                console.error('[quiz] failed to advance from keyboard', error);
+            });
         }
     });
 }
@@ -1872,6 +2332,8 @@ async function loadCurrentQuizDefinition() {
         const def = await loadQuizDefinitionFromQuizEntry(currentQuiz);
         quizDef = def.definition;
         engine = new QuizEngine(quizDef);
+        activeRunner = null;
+        currentModeBehavior = 'study';
 
         // URL から希望モードを取得し、このクイズで利用可能かチェック
         let requestedModeId = getModeIdFromLocation();
@@ -2224,10 +2686,16 @@ function attachMenuHandlers() {
         });
     }
 
-    dom.startButton.addEventListener('click', startQuiz);
+    dom.startButton.addEventListener('click', () => {
+        startQuiz().catch((error) => {
+            console.error('[quiz] failed to start quiz', error);
+        });
+    });
 
     dom.nextButton.addEventListener('click', () => {
-        goToNextQuestion();
+        goToNextQuestion().catch((error) => {
+            console.error('[quiz] failed to load next question', error);
+        });
     });
 
     if (dom.interruptButton) {
@@ -2242,14 +2710,18 @@ function attachMenuHandlers() {
     if (dom.retryButton) {
         dom.retryButton.addEventListener('click', () => {
             console.log('[result] Retry button clicked');
-            startQuiz();
+            startQuiz().catch((error) => {
+                console.error('[result] failed to restart quiz', error);
+            });
         });
     }
 
     if (dom.retryMistakesButton) {
         dom.retryMistakesButton.addEventListener('click', () => {
             console.log('[result] Retry mistakes button clicked');
-            retryMistakes();
+            retryMistakes().catch((error) => {
+                console.error('[result] failed to retry mistakes', error);
+            });
         });
     }
 
@@ -2267,6 +2739,31 @@ function attachMenuHandlers() {
             resetTips();
             resetQuizTimer();
             showScreen('menu');
+        });
+    }
+
+    if (dom.idkButton) {
+        dom.idkButton.addEventListener('click', () => {
+            startIdkFlow();
+        });
+    }
+
+    if (dom.idkFollowupOptions) {
+        dom.idkFollowupOptions.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) return;
+            const btn = target.closest('[data-idk-option-index]');
+            if (!btn) return;
+            const index = Number(btn.getAttribute('data-idk-option-index'));
+            if (!Number.isNaN(index)) {
+                completeIdk(index);
+            }
+        });
+    }
+
+    if (dom.idkFollowupSkip) {
+        dom.idkFollowupSkip.addEventListener('click', () => {
+            completeIdk(null);
         });
     }
 
@@ -2545,6 +3042,10 @@ async function bootstrap() {
     initAppHeightObserver();
     syncQuestionCountInputs(dom.questionCountInput ? dom.questionCountInput.value : 10);
     registerServiceWorker();
+    await initUserManager({
+        onActiveUserChange: handleActiveUserChange
+    });
+    updateActiveUserDisplays();
 
     try {
         entrySources = await loadEntrySources();

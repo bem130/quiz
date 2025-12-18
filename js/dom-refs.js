@@ -6,6 +6,8 @@ export const dom = {
     appDescription: document.getElementById('app-description'),
     quizHeaderScore: document.getElementById('quiz-header-score'),
     currentScore: document.getElementById('current-score'),
+    quizLifetimeAccuracy: document.getElementById('quiz-lifetime-accuracy'),
+    quizLifetimeAttempts: document.getElementById('quiz-lifetime-attempts'),
 
     // メイン側（左パネル）
     mainMenu: document.getElementById('main-menu'),
@@ -27,6 +29,11 @@ export const dom = {
     selectedQuizDesc: document.getElementById('selected-quiz-desc'),
     selectedModeTitle: document.getElementById('selected-mode-title'),
     selectedModeDesc: document.getElementById('selected-mode-desc'),
+    sideUserLabel: document.getElementById('side-user-label'),
+    userList: document.getElementById('user-list'),
+    userCreateForm: document.getElementById('user-create-form'),
+    userCreateInput: document.getElementById('user-create-input'),
+    userCreateButton: document.getElementById('user-create-button'),
 
     // Update notification banner
     updateNotificationBanner: document.getElementById('update-notification-banner'),
@@ -70,9 +77,7 @@ export const dom = {
     // クイズ画面: Tips コンテナ
     tipContainer: document.getElementById('tip-container'),
 
-    // Quiz screen: progress
-    currentQNum: document.getElementById('current-q-num'),
-    totalQNum: document.getElementById('total-q-num'),
+    quizUserLabel: document.getElementById('quiz-user-label'),
 
     // Quiz screen: timer
     quizTimer: document.getElementById('quiz-timer'),
@@ -86,6 +91,10 @@ export const dom = {
 
     // Quiz screen: Next button
     nextButton: document.getElementById('next-button'),
+    idkButton: document.getElementById('idk-button'),
+    idkFollowupPanel: document.getElementById('idk-followup-panel'),
+    idkFollowupOptions: document.getElementById('idk-followup-options'),
+    idkFollowupSkip: document.getElementById('idk-followup-skip'),
 
     // Quiz screen: Interrupt button
     interruptButton: document.getElementById('interrupt-button'),
@@ -111,12 +120,15 @@ export const dom = {
     resultTotal: document.getElementById('result-total'),
     resultCorrect: document.getElementById('result-correct'),
     resultAccuracy: document.getElementById('result-accuracy'),
+    resultLifetimeAccuracy: document.getElementById('result-lifetime-accuracy'),
+    resultTotalAttempts: document.getElementById('result-total-attempts'),
     retryButton: document.getElementById('retry-button'),
     retryMistakesButton: document.getElementById('retry-mistakes-button'),
     copyResultButton: document.getElementById('copy-result-button'),
     backToMenuButton: document.getElementById('back-to-menu-button'),
     resultPwaHint: document.getElementById('result-pwa-hint'),
     resultPwaInstallButton: document.getElementById('result-pwa-install-button'),
+    resultUserLabel: document.getElementById('result-user-label'),
 
     // Ruby Buffer
     rubyBufferPanel: document.getElementById('ruby-buffer-panel'),

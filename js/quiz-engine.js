@@ -150,6 +150,15 @@ function normalizeGroupChoice(rawChoice, row) {
     };
 }
 
+function resolveConceptIdFromRow(row) {
+    if (!row) return null;
+    if (row.conceptId != null) return row.conceptId;
+    if (row.meta && row.meta.conceptId != null) return row.meta.conceptId;
+    if (row.entityId != null) return row.entityId;
+    if (row.id != null) return row.id;
+    return null;
+}
+
 function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
     const choiceCfg = (token.answer && token.answer.choice) || {};
     const ds = choiceCfg.distractorSource || {};
@@ -233,6 +242,7 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
     const optionEntities = [
         {
             entityId: correctRow.id,
+            conceptId: resolveConceptIdFromRow(correctRow),
             isCorrect: true,
             displayKey: correctKey,
             labelTokens: optionLabelTokens(token),
@@ -240,6 +250,7 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
         },
         ...distractors.map((row) => ({
             entityId: row.id,
+            conceptId: resolveConceptIdFromRow(row),
             isCorrect: false,
             displayKey: tokenDisplayKey(token, row),
             labelTokens: optionLabelTokens(token),
@@ -293,6 +304,7 @@ function buildChoiceUniqueProperty(token, correctRow, allRows, dataSetId) {
     const options = shuffled([
         {
             entityId: correctRow.id,
+            conceptId: resolveConceptIdFromRow(correctRow),
             isCorrect: true,
             displayKey: tokenDisplayKey(token, correctRow),
             labelTokens: optionLabelTokens(token),
@@ -300,6 +312,7 @@ function buildChoiceUniqueProperty(token, correctRow, allRows, dataSetId) {
         },
         ...distractors.map((row) => ({
             entityId: row.id,
+            conceptId: resolveConceptIdFromRow(row),
             isCorrect: false,
             displayKey: tokenDisplayKey(token, row),
             labelTokens: optionLabelTokens(token),
@@ -394,6 +407,8 @@ function buildChoiceFromGroup(token, correctRow, dataSets, dataSetId, groupUsage
     const options = shuffled(
         choices.map((choice, idx) => ({
             isCorrect: idx === correctIndex,
+            entityId: idx === correctIndex ? correctRow.id : null,
+            conceptId: idx === correctIndex ? resolveConceptIdFromRow(correctRow) : null,
             label: choice.label,
             labelTokens: choice.labelTokens || null
         }))

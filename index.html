@@ -246,6 +246,14 @@
 
                         <!-- 選択肢領域：フル高さの 2x2 グリッド -->
                         <div id="options-container" class="flex-1"></div>
+                        <div id="idk-followup-panel" class="hidden border rounded-xl px-3 py-2 text-xs space-y-2 app-surface-muted">
+                            <div class="flex items-center justify-between gap-2">
+                                <p class="font-semibold app-text-strong">Not sure? Pick the closest option.</p>
+                                <button id="idk-followup-skip" type="button"
+                                    class="text-[11px] app-text-muted hover:underline">Skip</button>
+                            </div>
+                            <div id="idk-followup-options" class="space-y-1"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -256,6 +264,7 @@
                         <div>
                             <p class="text-xs uppercase tracking-wide app-text-muted">Result</p>
                             <h2 class="text-2xl font-semibold app-text-strong">Quiz Result</h2>
+                            <p class="text-sm app-text-muted" id="result-user-label">User: Guest</p>
                             <p id="result-score" class="text-sm app-text-main mt-1">Score: 0 / 0</p>
                         </div>
                         <div class="grid gap-4 sm:grid-cols-3">
@@ -270,6 +279,16 @@
                             <div class="p-4 rounded-xl app-card border app-border-subtle">
                                 <div class="text-xs app-text-muted">Accuracy</div>
                                 <div class="text-2xl font-bold app-text-strong" id="result-accuracy">0%</div>
+                            </div>
+                        </div>
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div class="p-4 rounded-xl app-card border app-border-subtle">
+                                <div class="text-xs app-text-muted">Lifetime Accuracy</div>
+                                <div class="text-2xl font-bold app-text-main" id="result-lifetime-accuracy">--%</div>
+                            </div>
+                            <div class="p-4 rounded-xl app-card border app-border-subtle">
+                                <div class="text-xs app-text-muted">Total Attempts</div>
+                                <div class="text-2xl font-bold app-text-main" id="result-total-attempts">0</div>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -323,7 +342,15 @@
 
                     <!-- Center status: Progress + Score + Timer -->
                     <div id="quiz-header-score"
-                        class="flex-1 flex items-center justify-center gap-6 text-[0.7rem] sm:text-xs hidden">
+                        class="flex-1 flex items-center justify-center gap-6 text-[0.7rem] sm:text-xs hidden flex-wrap">
+                        <div class="flex items-baseline gap-1">
+                            <span class="uppercase tracking-wide app-text-muted">
+                                User
+                            </span>
+                            <span class="text-sm sm:text-base font-semibold app-text-main" id="quiz-user-label">
+                                Guest
+                            </span>
+                        </div>
                         <!-- Progress -->
                         <div class="flex items-baseline gap-1">
                             <span class="uppercase tracking-wide app-text-muted">
@@ -355,7 +382,31 @@
                                 00:00
                             </span>
                         </div>
+                        <div class="flex items-baseline gap-1">
+                            <span class="uppercase tracking-wide app-text-muted">
+                                Lifetime
+                            </span>
+                            <span class="text-sm sm:text-base font-semibold app-text-main" id="quiz-lifetime-accuracy">
+                                --%
+                            </span>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span class="uppercase tracking-wide app-text-muted">
+                                Attempts
+                            </span>
+                            <span class="text-sm sm:text-base font-semibold app-text-main" id="quiz-lifetime-attempts">
+                                0
+                            </span>
+                        </div>
                     </div>
+
+                    <button id="idk-button" type="button" class="interactive-button button-ghost px-4 py-2 text-xs rounded-xl
+                            app-border-subtle
+                            app-text-main
+                            hidden
+                            transition-colors">
+                        I don't know
+                    </button>
 
                     <!-- Next button -->
                     <button id="next-button" class="interactive-button button-ghost px-4 py-2 text-xs rounded-xl
@@ -374,7 +425,7 @@
             <!-- ① 共通: Settings（コンパクト） -->
             <section id="side-settings"
                 class="border-b app-border-subtle app-surface-muted transition-colors duration-300">
-                <div class="px-3 py-2 flex items-center justify-between gap-3">
+                <div class="px-3 py-2 flex items-center justify-between gap-3 flex-wrap">
                     <!-- Text size -->
                     <div class="inline-flex rounded-full border app-border-subtle app-surface-card overflow-hidden">
                         <!-- xxs -->
@@ -444,6 +495,11 @@
                             transition-colors">
                         Full
                     </button>
+
+                    <div class="ml-auto text-[0.7rem] font-semibold app-text-main flex items-center gap-1">
+                        <span class="uppercase tracking-wide app-text-muted">User</span>
+                        <span id="side-user-label">Guest</span>
+                    </div>
                 </div>
             </section>
 
@@ -453,6 +509,24 @@
                     <h2 class="font-semibold app-text-strong text-sm">Entries &amp; Quizzes</h2>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-6">
+                    <section id="user-panel" class="space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                <h3 class="text-sm font-semibold app-text-strong">Profiles</h3>
+                                <p class="text-[11px] app-text-muted">Manage local users for this browser.</p>
+                            </div>
+                        </div>
+                        <div id="user-list" class="space-y-2"></div>
+                        <form id="user-create-form" class="flex items-center gap-2">
+                            <input id="user-create-input" type="text" placeholder="Add new user"
+                                class="flex-1 app-input rounded-xl px-3 py-2 text-xs app-text-strong" />
+                            <button id="user-create-button" type="submit"
+                                class="interactive-button px-3 py-2 rounded-xl text-xs font-semibold border app-border-subtle app-text-main transition-colors">
+                                Add
+                            </button>
+                        </form>
+                    </section>
+
                     <section class="space-y-2">
                         <div class="flex items-center justify-between">
                             <h3 class="text-sm font-semibold app-text-strong">Available Entries</h3>

@@ -1524,10 +1524,20 @@ export function addResultItem(historyItem, dataSets) {
 
     // 正解 / 不正解バッジ
     const badge = document.createElement('span');
-    badge.className = historyItem.correct
-        ? 'app-pill app-pill-success app-pill-compact'
-        : 'app-pill app-pill-danger app-pill-compact';
-    badge.textContent = historyItem.correct ? 'Correct' : 'Incorrect';
+    const resultType = historyItem.resultType || (historyItem.correct ? 'correct' : 'incorrect');
+    if (resultType === 'idk') {
+        badge.className = 'app-pill app-pill-compact border app-border-subtle app-text-muted';
+        badge.textContent = 'IDK';
+    } else if (resultType === 'weak') {
+        badge.className = 'app-pill app-pill-warning app-pill-compact';
+        badge.textContent = 'Weak';
+    } else if (historyItem.correct) {
+        badge.className = 'app-pill app-pill-success app-pill-compact';
+        badge.textContent = 'Correct';
+    } else {
+        badge.className = 'app-pill app-pill-danger app-pill-compact';
+        badge.textContent = 'Incorrect';
+    }
     header.appendChild(badge);
 
     // 問題文（穴埋め付き）
