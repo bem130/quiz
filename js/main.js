@@ -180,6 +180,57 @@ function resolveQuestionStage(question) {
     return 'STUDY';
 }
 
+function setQueueStatusDisplay(counts) {
+    if (
+        !dom.queueStatusGroup ||
+        !dom.queueLearningCount ||
+        !dom.queueRelearningCount ||
+        !dom.queueReviewCount
+    ) {
+        return;
+    }
+    if (!counts) {
+        dom.queueStatusGroup.classList.add('opacity-50');
+        dom.queueLearningCount.textContent = '--';
+        dom.queueRelearningCount.textContent = '--';
+        dom.queueReviewCount.textContent = '--';
+        return;
+    }
+    dom.queueStatusGroup.classList.remove('opacity-50');
+    dom.queueLearningCount.textContent = String(
+        typeof counts.learning === 'number' ? counts.learning : 0
+    );
+    dom.queueRelearningCount.textContent = String(
+        typeof counts.relearning === 'number' ? counts.relearning : 0
+    );
+    dom.queueReviewCount.textContent = String(
+        typeof counts.review === 'number' ? counts.review : 0
+    );
+}
+
+function updateQueueStatusDisplay() {
+    if (!dom.queueStatusGroup) {
+        return;
+    }
+    if (
+        currentModeBehavior !== 'study' ||
+        !sessionCore.hasActiveRunner()
+    ) {
+        setQueueStatusDisplay(null);
+        return;
+    }
+    const overview = sessionCore.getQueueOverview();
+    if (!overview) {
+        setQueueStatusDisplay(null);
+        return;
+    }
+    setQueueStatusDisplay({
+        learning: overview.learning || 0,
+        relearning: overview.relearning || 0,
+        review: overview.review || 0
+    });
+}
+
 /**
  * Collect all quiz data URLs and send them to the Service Worker.
  */
@@ -1613,6 +1664,7 @@ function showScreen(name) {
 
     if (name !== 'quiz') {
         resetIdkState();
+        setQueueStatusDisplay(null);
     }
 
     // Main
@@ -2087,6 +2139,7 @@ async function startQuiz() {
     }
 
     renderProgress(currentIndex, getProgressTotalDisplay(), currentScore);
+    updateQueueStatusDisplay();
     resetReviewList();
     resetTips();
     resetResultList();
@@ -2186,6 +2239,7 @@ async function loadNextQuestion() {
 
     renderQuestion(currentQuestion, quizDef.dataSets, handleSelectOption);
     renderProgress(currentIndex, getProgressTotalDisplay(), currentScore);
+    updateQueueStatusDisplay();
     if (dom.idkButton) {
         dom.idkButton.disabled = false;
     }

@@ -145,4 +145,8 @@ export class TestSessionRunner {
     async recordResult() {
         // Test mode does not alter schedules.
     }
+
+    getQueueOverview() {
+        return null;
+    }
 }

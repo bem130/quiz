@@ -691,4 +691,13 @@ export class StudySessionRunner {
             answerMs: result.answerMs
         });
     }
+
+    getQueueOverview() {
+        return {
+            learning: this.learningDue ? this.learningDue.size : 0,
+            relearning: this.relearningDue ? this.relearningDue.size : 0,
+            review: this.reviewDue ? this.reviewDue.size : 0,
+            backlog: this.backlogSize || 0
+        };
+    }
 }

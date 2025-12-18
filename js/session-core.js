@@ -330,6 +330,18 @@ class SessionCore {
     getCurrentSession() {
         return this.currentSession;
     }
+
+    getQueueOverview() {
+        if (!this.runner || typeof this.runner.getQueueOverview !== 'function') {
+            return null;
+        }
+        try {
+            return this.runner.getQueueOverview();
+        } catch (error) {
+            console.warn('[session] failed to read queue overview', error);
+            return null;
+        }
+    }
 }
 
 export const sessionCore = new SessionCore();

@@ -753,6 +753,16 @@ if ($modeParam !== null) {
                                 --
                             </span>
                         </div>
+                        <div class="flex items-baseline gap-1" id="queue-status-group">
+                            <span class="uppercase tracking-wide app-text-muted">
+                                Queue
+                            </span>
+                            <div class="flex items-center gap-2 text-[0.65rem] sm:text-xs font-mono app-text-muted" id="queue-status-values">
+                                <span class="uppercase">L:<span id="queue-learning-count">--</span></span>
+                                <span class="uppercase">RL:<span id="queue-relearning-count">--</span></span>
+                                <span class="uppercase">RV:<span id="queue-review-count">--</span></span>
+                            </div>
+                        </div>
 
                         <!-- Timer -->
                         <div class="flex items-baseline gap-1">
