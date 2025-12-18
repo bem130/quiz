@@ -12,7 +12,7 @@
 ## 2. 目標
 
 1. ブラウザ内 JavaScript で完結する出題戦略エンジンを構築する。
-2. IndexedDB にユーザーデータを保存し、複数ユーザー（`user1/user2/guest`）を同一端末で切り替えられるようにする。
+2. IndexedDB にユーザーデータを保存し、複数ユーザー（`guest` を初期ユーザーとし、必要に応じてユーザを追加）を同一端末で切り替えられるようにする。
 3. 同期機能を持たない代わりに、Import / Export で完全バックアップが可能な構造にする。
 4. **学習モード**は Spaced Repetition + 混同補修を行い、**テストモード**は完全ランダム出題だが履歴を残す。
 
@@ -20,7 +20,7 @@
 
 ```
 ┌──────────────────────────────┐
-│ Authed User (user1 / user2 / guest) │
+│ Authed User (guest, others added via UI) │
 └──────────────┬──────────────┘
                │
         ┌──────▼──────┐
@@ -60,7 +60,7 @@ db.version(1).stores({
 ```
 
 ### 4.1 users
-- key: `userId` (`"user1"`, `"user2"`, `"guest"`)
+- key: `userId` (`"guest"` by default; additional users created via UI)
 - fields: `displayName`, `type`, `createdAt`, `lastActiveAt`, `settings`（フォントサイズ・テーマ等を将来的に移行）
 
 ### 4.2 packages

@@ -78,6 +78,9 @@ export const dom = {
     menuFullscreenToggle: document.getElementById('fullscreen-toggle-menu'),
     cacheClearButton: document.getElementById('cache-clear-button'),
     cacheClearStatus: document.getElementById('cache-clear-status'),
+    // DB tools
+    dbDownloadButton: document.getElementById('db-download-button'),
+    dbDeleteButton: document.getElementById('db-delete-button'),
 
     // メニュー側: 問題数
     questionCountSlider: document.getElementById('question-count-slider'),

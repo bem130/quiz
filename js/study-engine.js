@@ -4,7 +4,8 @@ import {
     updateScheduleAfterResult,
     listDueScheduleEntries,
     makeQuestionKey,
-    deleteScheduleEntryByKey
+    deleteScheduleEntryByKey,
+    makeScheduleKey
 } from './storage/schedule-store.js';
 import {
     saveQuestionSnapshot,
@@ -16,6 +17,36 @@ import {
     markConfusionPairScheduled
 } from './storage/confusion-store.js';
 import { getUncertainConcepts } from './storage/concept-stats.js';
+
+function resolveQuestionPatternId(question) {
+    if (!question || typeof question !== 'object') {
+        return null;
+    }
+    if (question.patternId != null) {
+        try {
+            return String(question.patternId);
+        } catch (error) {
+            return null;
+        }
+    }
+    if (question.meta) {
+        if (question.meta.patternId != null) {
+            try {
+                return String(question.meta.patternId);
+            } catch (error) {
+                return null;
+            }
+        }
+        if (question.meta.pattern && question.meta.pattern.id != null) {
+            try {
+                return String(question.meta.pattern.id);
+            } catch (error) {
+                return null;
+            }
+        }
+    }
+    return null;
+}
 
 const MAX_GENERATOR_ATTEMPTS = 80;
 const LARGE_BACKLOG_THRESHOLD = 80;
@@ -92,6 +123,7 @@ export class StudySessionRunner {
         this.quizDefinition = options.quizDefinition || null;
         this.userId = null;
         this.quizId = null;
+        this.modeId = null;
         this.questionCount = 0;
         this.seenQuestionKeys = new Set();
         this.learningDue = new Set();
@@ -99,6 +131,8 @@ export class StudySessionRunner {
         this.reviewDue = new Set();
         this.newQuota = 0;
         this.drainDueMode = false;
+        this.allowedPatternIds = null;
+        this.questionPatternMap = new Map();
         this.backlogSize = 0;
         this.priorityServed = {
             review: 0,
@@ -108,11 +142,13 @@ export class StudySessionRunner {
         this.targetedQueue = [];
         this.targetedPairUsage = new Map();
         this.lastDueRefreshAt = 0;
+        this.scheduleKeyToQuestionKey = new Map();
     }
 
     async start(config) {
         this.userId = config.userId;
         this.quizId = config.quizId;
+        this.modeId = config.modeId || null;
         this.questionCount = config.questionCount || 10;
         this.drainDueMode = Boolean(config && config.drainDue);
         this.seenQuestionKeys.clear();
@@ -131,6 +167,17 @@ export class StudySessionRunner {
             this.targetedPairUsage = new Map();
         }
         this.lastDueRefreshAt = 0;
+        if (this.scheduleKeyToQuestionKey) {
+            this.scheduleKeyToQuestionKey.clear();
+        } else {
+            this.scheduleKeyToQuestionKey = new Map();
+        }
+        if (this.questionPatternMap) {
+            this.questionPatternMap.clear();
+        } else {
+            this.questionPatternMap = new Map();
+        }
+        this.allowedPatternIds = this._deriveAllowedPatternIds();
         await this._refreshDueBuckets({ force: true });
 
         const backlogHeavy = this.backlogSize >= LARGE_BACKLOG_THRESHOLD;
@@ -149,6 +196,97 @@ export class StudySessionRunner {
             this.reviewDue.size;
     }
 
+    _scheduleKeyForQuestion(questionId, patternId = null) {
+        const knownPattern =
+            patternId != null
+                ? patternId
+                : this.questionPatternMap.get(String(questionId)) || null;
+        return makeScheduleKey(this.quizId, questionId, knownPattern);
+    }
+
+    _rememberScheduleQuestionKey(scheduleKey, questionKey) {
+        if (!scheduleKey) {
+            return;
+        }
+        const baseKey = questionKey || scheduleKey;
+        this.scheduleKeyToQuestionKey.set(scheduleKey, baseKey);
+    }
+
+    _forgetScheduleQuestionKey(scheduleKey) {
+        if (!scheduleKey) {
+            return;
+        }
+        this.scheduleKeyToQuestionKey.delete(scheduleKey);
+    }
+
+    _patternIdFromScheduleKey(scheduleKey) {
+        if (!scheduleKey || typeof scheduleKey !== 'string') {
+            return null;
+        }
+        const parts = scheduleKey.split('::');
+        if (parts.length >= 3) {
+            return parts[1] === 'global' ? null : parts[1];
+        }
+        return null;
+    }
+
+    _deriveAllowedPatternIds() {
+        if (!this.quizDefinition) {
+            return null;
+        }
+        if (this.modeId && this.modeId.startsWith('__pattern__')) {
+            const patternId = this.modeId.replace('__pattern__', '');
+            return new Set([patternId]);
+        }
+        const modes = Array.isArray(this.quizDefinition.modes)
+            ? this.quizDefinition.modes
+            : [];
+        const mode =
+            modes.find((m) => m && m.id === this.modeId) || null;
+        if (mode && Array.isArray(mode.patternWeights) && mode.patternWeights.length) {
+            const ids = mode.patternWeights
+                .map((pw) => (pw && pw.patternId ? String(pw.patternId) : null))
+                .filter(Boolean);
+            return ids.length ? new Set(ids) : null;
+        }
+        if (Array.isArray(this.quizDefinition.patterns) && this.quizDefinition.patterns.length) {
+            const ids = this.quizDefinition.patterns
+                .map((pattern) => (pattern && pattern.id ? String(pattern.id) : null))
+                .filter(Boolean);
+            return ids.length ? new Set(ids) : null;
+        }
+        return null;
+    }
+
+    _allowedPatternsArray() {
+        if (!this.allowedPatternIds || !this.allowedPatternIds.size) {
+            return null;
+        }
+        return Array.from(this.allowedPatternIds);
+    }
+
+    _isPatternAllowed(patternId) {
+        if (!this.allowedPatternIds || !this.allowedPatternIds.size) {
+            return true;
+        }
+        if (patternId == null) {
+            return true;
+        }
+        try {
+            return this.allowedPatternIds.has(String(patternId));
+        } catch (error) {
+            return false;
+        }
+    }
+
+    _registerQuestionPattern(questionId, patternId) {
+        if (!questionId) {
+            return;
+        }
+        if (patternId != null) {
+            this.questionPatternMap.set(String(questionId), String(patternId));
+        }
+    }
     _classifyBucket(questionKey) {
         if (this.learningDue.has(questionKey)) return 'learning';
         if (this.relearningDue.has(questionKey)) return 'relearning';
@@ -190,6 +328,10 @@ export class StudySessionRunner {
                 return;
             }
             bucketSet.add(entry.qid);
+            this._rememberScheduleQuestionKey(
+                entry.qid,
+                entry.questionKey || entry.qid
+            );
         });
     }
 
@@ -205,7 +347,8 @@ export class StudySessionRunner {
         try {
             dueOverview = await listDueScheduleEntries(this.userId, this.quizId, {
                 now,
-                perStateLimit: DUE_FETCH_LIMIT
+                perStateLimit: DUE_FETCH_LIMIT,
+                patternIds: this._allowedPatternsArray()
             });
         } catch (error) {
             console.warn('[study-engine] failed to refresh due buckets', error);
@@ -264,6 +407,7 @@ export class StudySessionRunner {
         } else if (bucket === 'review') {
             this.reviewDue.delete(questionKey);
         }
+        this._forgetScheduleQuestionKey(questionKey);
         this._updateBacklogCounts();
     }
 
@@ -277,11 +421,15 @@ export class StudySessionRunner {
             if (!questionId) {
                 continue;
             }
-            const questionKey = makeQuestionKey(this.quizId, questionId);
-            if (this.seenQuestionKeys.has(questionKey)) {
+            const patternId = resolveQuestionPatternId(question);
+            if (!this._isPatternAllowed(patternId)) {
                 continue;
             }
-            const bucket = this._classifyBucket(questionKey);
+            let scheduleKey = this._scheduleKeyForQuestion(questionId, patternId);
+            if (this.seenQuestionKeys.has(scheduleKey)) {
+                continue;
+            }
+            const bucket = this._classifyBucket(scheduleKey);
             if (this.drainDueMode && bucket === 'new') {
                 continue;
             }
@@ -289,10 +437,22 @@ export class StudySessionRunner {
                 continue;
             }
 
-            await ensureScheduleEntry(this.userId, this.quizId, questionId);
+            const entry = await ensureScheduleEntry(this.userId, this.quizId, questionId, patternId);
             await saveQuestionSnapshot(this.quizId, questionId, question);
-            this.seenQuestionKeys.add(questionKey);
-            this._consumeBucket(questionKey, bucket);
+            if (entry && entry.qid) {
+                scheduleKey = entry.qid;
+                this._rememberScheduleQuestionKey(
+                    entry.qid,
+                    entry.questionKey || entry.qid
+                );
+            }
+            this.seenQuestionKeys.add(scheduleKey);
+            const effectivePattern =
+                (entry && entry.patternId) ||
+                patternId ||
+                this._patternIdFromScheduleKey(scheduleKey);
+            this._registerQuestionPattern(questionId, effectivePattern);
+            this._consumeBucket(scheduleKey, bucket);
             if (bucket === 'new' && this.newQuota > 0) {
                 this.newQuota -= 1;
             }
@@ -309,9 +469,17 @@ export class StudySessionRunner {
         }
         for (const questionKey of [...bucketSet]) {
             try {
-                const snapshot = await getQuestionSnapshotByKey(questionKey);
+                const baseKey =
+                    this.scheduleKeyToQuestionKey.get(questionKey) ||
+                    this._deriveBaseQuestionKey(questionKey);
+                const snapshot = await getQuestionSnapshotByKey(baseKey);
                 if (snapshot) {
                     this.seenQuestionKeys.add(questionKey);
+                    const questionId = this.resolveQuestionId(snapshot);
+                    const patternId = this._patternIdFromScheduleKey(questionKey);
+                    if (questionId && patternId) {
+                        this._registerQuestionPattern(questionId, patternId);
+                    }
                     this._consumeBucket(questionKey, bucket);
                     this._setQuestionStage(
                         snapshot,
@@ -353,8 +521,20 @@ export class StudySessionRunner {
             removed = true;
         }
         if (removed) {
+            this._forgetScheduleQuestionKey(questionKey);
             this._updateBacklogCounts();
         }
+    }
+
+    _deriveBaseQuestionKey(scheduleKey) {
+        if (!scheduleKey || typeof scheduleKey !== 'string') {
+            return scheduleKey;
+        }
+        const parts = scheduleKey.split('::');
+        if (parts.length >= 3) {
+            return `${parts[0]}::${parts.slice(2).join('::')}`;
+        }
+        return scheduleKey;
     }
 
     async _ensureScheduleRecordForStoredQuestion(record) {
@@ -364,34 +544,57 @@ export class StudySessionRunner {
             !record ||
             !record.questionId
         ) {
-            return;
+            return null;
+        }
+        const patternId =
+            record.patternId ||
+            resolveQuestionPatternId(record.question) ||
+            null;
+        if (!this._isPatternAllowed(patternId)) {
+            return null;
         }
         try {
-            await ensureScheduleEntry(
+            const entry = await ensureScheduleEntry(
                 this.userId,
                 this.quizId,
-                record.questionId
+                record.questionId,
+                patternId
             );
+            if (entry && entry.qid) {
+                this._rememberScheduleQuestionKey(
+                    entry.qid,
+                    entry.questionKey || entry.qid
+                );
+                const effectivePattern =
+                    entry.patternId || patternId || this._patternIdFromScheduleKey(entry.qid);
+                this._registerQuestionPattern(record.questionId, effectivePattern);
+            }
+            return entry;
         } catch (error) {
             console.warn('[study-engine] failed to ensure schedule for stored question', {
                 quizId: this.quizId,
                 questionId: record.questionId,
                 error
             });
+            return null;
         }
     }
 
     async _injectReviewQuestion(record) {
         if (
             !record ||
-            !record.questionKey ||
-            this.seenQuestionKeys.has(record.questionKey) ||
-            this.reviewDue.has(record.questionKey)
+            !record.questionKey
         ) {
             return false;
         }
-        await this._ensureScheduleRecordForStoredQuestion(record);
-        this.reviewDue.add(record.questionKey);
+        const entry = await this._ensureScheduleRecordForStoredQuestion(record);
+        if (!entry || !entry.qid) {
+            return false;
+        }
+        if (this.seenQuestionKeys.has(entry.qid) || this.reviewDue.has(entry.qid)) {
+            return false;
+        }
+        this.reviewDue.add(entry.qid);
         this._updateBacklogCounts();
         return true;
     }
@@ -419,6 +622,12 @@ export class StudySessionRunner {
                     if (!record || !record.question || !record.questionKey) {
                         continue;
                     }
+                    const recordPattern =
+                        record.patternId ||
+                        resolveQuestionPatternId(record.question);
+                    if (!this._isPatternAllowed(recordPattern)) {
+                        continue;
+                    }
                     if (seenKeys.has(record.questionKey)) {
                         continue;
                     }
@@ -428,7 +637,8 @@ export class StudySessionRunner {
                         key: `conf:${pair.conceptId}:${pair.wrongConceptId}`,
                         pair,
                         question: record.question,
-                        questionKey: record.questionKey
+                        questionKey: record.questionKey,
+                        patternId: recordPattern || null
                     });
                 }
                 const cooccurring = await findQuestionsByConcept(
@@ -453,13 +663,20 @@ export class StudySessionRunner {
                     ) {
                         continue;
                     }
+                    const recordPattern =
+                        record.patternId ||
+                        resolveQuestionPatternId(record.question);
+                    if (!this._isPatternAllowed(recordPattern)) {
+                        continue;
+                    }
                     seenKeys.add(record.questionKey);
                     queue.push({
                         type: 'confusion',
                         key: `conf:${pair.conceptId}:${pair.wrongConceptId}`,
                         pair,
                         question: record.question,
-                        questionKey: record.questionKey
+                        questionKey: record.questionKey,
+                        patternId: recordPattern || null
                     });
                 }
             }
@@ -483,6 +700,12 @@ export class StudySessionRunner {
                     if (!record || !record.question || !record.questionKey) {
                         continue;
                     }
+                    const recordPattern =
+                        record.patternId ||
+                        resolveQuestionPatternId(record.question);
+                    if (!this._isPatternAllowed(recordPattern)) {
+                        continue;
+                    }
                     if (seenKeys.has(record.questionKey)) {
                         continue;
                     }
@@ -492,7 +715,8 @@ export class StudySessionRunner {
                         key: `unc:${concept.conceptId}`,
                         conceptId: concept.conceptId,
                         question: record.question,
-                        questionKey: record.questionKey
+                        questionKey: record.questionKey,
+                        patternId: recordPattern || null
                     });
                     if (reviewInjected < 2) {
                         const injected = await this._injectReviewQuestion(record);
@@ -583,19 +807,41 @@ export class StudySessionRunner {
             if (!questionId) {
                 continue;
             }
-            const questionKey = makeQuestionKey(this.quizId, questionId);
-            if (this.seenQuestionKeys.has(questionKey)) {
+            const entryPattern =
+                entry.patternId || resolveQuestionPatternId(entry.question);
+            if (!this._isPatternAllowed(entryPattern)) {
+                continue;
+            }
+            let scheduleKey = this._scheduleKeyForQuestion(questionId, entryPattern);
+            if (this.seenQuestionKeys.has(scheduleKey)) {
                 continue;
             }
             try {
-                await ensureScheduleEntry(this.userId, this.quizId, questionId);
+                const scheduleEntry = await ensureScheduleEntry(
+                    this.userId,
+                    this.quizId,
+                    questionId,
+                    entryPattern
+                );
+                if (scheduleEntry && scheduleEntry.qid) {
+                    scheduleKey = scheduleEntry.qid;
+                    this._rememberScheduleQuestionKey(
+                        scheduleEntry.qid,
+                        scheduleEntry.questionKey || scheduleEntry.qid
+                    );
+                    const effectivePattern =
+                        scheduleEntry.patternId ||
+                        entryPattern ||
+                        this._patternIdFromScheduleKey(scheduleEntry.qid);
+                    this._registerQuestionPattern(questionId, effectivePattern);
+                }
             } catch (error) {
                 console.warn('[study-engine] failed to ensure schedule entry for targeted question', error);
                 continue;
             }
-            this.seenQuestionKeys.add(questionKey);
+            this.seenQuestionKeys.add(scheduleKey);
             this.priorityServed.repair = (this.priorityServed.repair || 0) + 1;
-            await this._registerTargetedUsage(entry, questionKey);
+            await this._registerTargetedUsage(entry, scheduleKey);
             this._setQuestionStage(entry.question, 'REPAIR');
             return entry.question;
         }
@@ -688,7 +934,9 @@ export class StudySessionRunner {
             quizId: this.quizId,
             questionId: result.questionId,
             resultType: result.resultType,
-            answerMs: result.answerMs
+            answerMs: result.answerMs,
+            patternId:
+                this.questionPatternMap.get(String(result.questionId)) || null
         });
     }
 

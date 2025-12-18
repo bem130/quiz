@@ -7,10 +7,28 @@ const MAX_EASE = 2.8;
 const LEARNING_STEPS = [120, 900, 86400]; // 2m -> 15m -> 1d
 const RELEARNING_STEPS = [600, 86400]; // 10m -> 1d
 
+function normalizePatternId(patternId) {
+    if (patternId == null) {
+        return null;
+    }
+    try {
+        return String(patternId);
+    } catch (error) {
+        return null;
+    }
+}
+
 export function makeQuestionKey(quizId, questionId) {
     const quizPart = quizId || 'default';
     const questionPart = questionId || 'unknown';
     return `${quizPart}::${questionPart}`;
+}
+
+export function makeScheduleKey(quizId, questionId, patternId) {
+    const quizPart = quizId || 'default';
+    const patternPart = normalizePatternId(patternId) || 'global';
+    const questionPart = questionId || 'unknown';
+    return `${quizPart}::${patternPart}::${questionPart}`;
 }
 
 function nowMs() {
@@ -22,14 +40,17 @@ async function getScheduleTable() {
     return db.table('schedule');
 }
 
-function defaultScheduleRecord(userId, quizId, questionId) {
-    const key = makeQuestionKey(quizId, questionId);
+function defaultScheduleRecord(userId, quizId, questionId, patternId = null) {
+    const scheduleKey = makeScheduleKey(quizId, questionId, patternId);
+    const questionKey = makeQuestionKey(quizId, questionId);
     const timestamp = nowMs();
+    const normalizedPattern = normalizePatternId(patternId);
     return {
         userId,
         quizId: quizId || null,
         questionId,
-        qid: key,
+        qid: scheduleKey,
+        questionKey,
         state: 'NEW',
         dueAt: timestamp,
         dueAtFuzzed: 1,
@@ -40,7 +61,8 @@ function defaultScheduleRecord(userId, quizId, questionId) {
         lapses: 0,
         lastAnswerMs: null,
         lastSeenAt: null,
-        createdAt: timestamp
+        createdAt: timestamp,
+        patternId: normalizedPattern
     };
 }
 
@@ -61,18 +83,64 @@ function applyFuzz(intervalSec) {
     };
 }
 
-export async function ensureScheduleEntry(userId, quizId, questionId) {
+function deriveQuestionKeyFromSchedule(entry, quizId, questionId) {
+    if (entry.questionKey) {
+        return entry.questionKey;
+    }
+    return makeQuestionKey(
+        entry.quizId || quizId,
+        entry.questionId || questionId
+    );
+}
+
+async function migrateLegacyScheduleEntry(scheduleTable, entry, userId, quizId, questionId, patternId) {
+    const normalizedPattern = normalizePatternId(patternId);
+    const scheduleKey = makeScheduleKey(quizId, questionId, normalizedPattern);
+    const legacyKey = [userId, entry.qid];
+    await scheduleTable.delete(legacyKey);
+    entry.qid = scheduleKey;
+    entry.questionKey = deriveQuestionKeyFromSchedule(entry, quizId, questionId);
+    if (normalizedPattern) {
+        entry.patternId = normalizedPattern;
+    }
+    await scheduleTable.put(entry);
+    return entry;
+}
+
+export async function ensureScheduleEntry(userId, quizId, questionId, patternId = null) {
     if (!userId || !questionId) return null;
     const db = await getDatabase();
     const scheduleTable = db.table('schedule');
     return db.transaction('rw', scheduleTable, async () => {
-        const qid = makeQuestionKey(quizId, questionId);
-        const key = [userId, qid];
+        const scheduleKey = makeScheduleKey(quizId, questionId, patternId);
+        const key = [userId, scheduleKey];
         const existing = await scheduleTable.get(key);
         if (existing) {
+            existing.questionKey =
+                existing.questionKey ||
+                deriveQuestionKeyFromSchedule(existing, quizId, questionId);
+            if (patternId && !existing.patternId) {
+                existing.patternId = normalizePatternId(patternId);
+                await scheduleTable.put(existing);
+            }
             return existing;
         }
-        const record = defaultScheduleRecord(userId, quizId, questionId);
+        const legacyKey = [userId, makeQuestionKey(quizId, questionId)];
+        const legacy = await scheduleTable.get(legacyKey);
+        if (legacy) {
+            const migrated = await migrateLegacyScheduleEntry(
+                scheduleTable,
+                legacy,
+                userId,
+                quizId,
+                questionId,
+                patternId
+            );
+            if (migrated) {
+                return migrated;
+            }
+        }
+        const record = defaultScheduleRecord(userId, quizId, questionId, patternId);
         await scheduleTable.put(record);
         return record;
     });
@@ -165,21 +233,41 @@ export async function updateScheduleAfterResult({
     quizId,
     questionId,
     resultType,
-    answerMs
+    answerMs,
+    patternId = null
 }) {
     if (!userId || !questionId) return;
     const db = await getDatabase();
     const scheduleTable = db.table('schedule');
     await db.transaction('rw', scheduleTable, async () => {
-        const key = [userId, makeQuestionKey(quizId, questionId)];
+        const normalizedPattern = normalizePatternId(patternId);
+        const scheduleKey = makeScheduleKey(quizId, questionId, normalizedPattern);
+        const key = [userId, scheduleKey];
         let entry = await scheduleTable.get(key);
         if (!entry) {
-            entry = defaultScheduleRecord(userId, quizId, questionId);
+            const legacyKey = [userId, makeQuestionKey(quizId, questionId)];
+            const legacy = await scheduleTable.get(legacyKey);
+            if (legacy) {
+                entry = await migrateLegacyScheduleEntry(
+                    scheduleTable,
+                    legacy,
+                    userId,
+                    quizId,
+                    questionId,
+                    normalizedPattern
+                );
+            }
+        }
+        if (!entry) {
+            entry = defaultScheduleRecord(userId, quizId, questionId, normalizedPattern);
         }
 
         entry.lastAnswerMs = typeof answerMs === 'number' ? answerMs : entry.lastAnswerMs;
         entry.quizId = quizId || entry.quizId || null;
         entry.questionId = questionId || entry.questionId;
+        if (normalizedPattern && !entry.patternId) {
+            entry.patternId = normalizedPattern;
+        }
 
         switch (resultType) {
             case 'correct':
@@ -200,6 +288,9 @@ export async function updateScheduleAfterResult({
                 break;
         }
 
+        entry.questionKey =
+            entry.questionKey ||
+            deriveQuestionKeyFromSchedule(entry, quizId, questionId);
         await scheduleTable.put(entry);
     });
 }
@@ -215,6 +306,24 @@ function normalizeStatesFilter(states) {
             )
             .filter(Boolean)
     );
+}
+
+function normalizePatternFilter(patternIds) {
+    if (!Array.isArray(patternIds) || !patternIds.length) {
+        return null;
+    }
+    const set = new Set();
+    patternIds.forEach((value) => {
+        if (value == null) {
+            return;
+        }
+        try {
+            set.add(String(value));
+        } catch (error) {
+            // ignore invalid values
+        }
+    });
+    return set.size ? set : null;
 }
 
 export async function listDueScheduleEntries(userId, quizId, options = {}) {
@@ -239,6 +348,7 @@ export async function listDueScheduleEntries(userId, quizId, options = {}) {
             ? Math.floor(options.perStateLimit)
             : 80;
     const statesFilter = normalizeStatesFilter(options.states);
+    const patternFilter = normalizePatternFilter(options.patternIds);
     const upperBound = now + lookaheadMs;
 
     const table = await getScheduleTable();
@@ -263,6 +373,20 @@ export async function listDueScheduleEntries(userId, quizId, options = {}) {
         }
         if (quizId && value.quizId && value.quizId !== quizId) {
             continue;
+        }
+        if (patternFilter) {
+            const patternId =
+                typeof value.patternId === 'string'
+                    ? value.patternId
+                    : value.patternId != null
+                        ? String(value.patternId)
+                        : null;
+            if (patternId && !patternFilter.has(patternId)) {
+                continue;
+            }
+        }
+        if (!value.questionKey) {
+            value.questionKey = deriveQuestionKeyFromSchedule(value, quizId, value.questionId);
         }
         const stateRaw = typeof value.state === 'string' ? value.state.toUpperCase() : '';
         if (statesFilter && !statesFilter.has(stateRaw)) {

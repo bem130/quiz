@@ -77,9 +77,9 @@ async function ensureSeedUsers() {
     }
 
     const seedUsers = [
-        { userId: 'guest', displayName: 'Guest', createdAt: Date.now(), lastActiveAt: Date.now(), isDefault: true },
-        { userId: 'user1', displayName: 'User 1', createdAt: Date.now(), lastActiveAt: Date.now(), isDefault: true },
-        { userId: 'user2', displayName: 'User 2', createdAt: Date.now(), lastActiveAt: Date.now(), isDefault: true }
+        // Only provide a single default user (Guest). Other users should be
+        // created by the UI via "Add new user".
+        { userId: 'guest', displayName: 'Guest', createdAt: Date.now(), lastActiveAt: Date.now(), isDefault: true }
     ];
 
     for (const user of seedUsers) {

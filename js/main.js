@@ -3434,6 +3434,53 @@ function attachMenuHandlers() {
         });
     }
 
+    // DB export / delete handlers
+    if (dom.dbDownloadButton) {
+        dom.dbDownloadButton.addEventListener('click', async () => {
+            try {
+                dom.dbDownloadButton.disabled = true;
+                const blob = await (await import('./storage/database.js')).exportDatabase();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const ts = new Date().toISOString().replace(/[:.]/g, '-');
+                a.href = url;
+                a.download = `quiz-db-backup-${ts}.json`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                alert('Database exported. Please save the downloaded file in a safe place.');
+            } catch (err) {
+                console.error('[storage] export failed', err);
+                alert('Failed to export database: ' + String(err));
+            } finally {
+                dom.dbDownloadButton.disabled = false;
+            }
+        });
+    }
+
+    if (dom.dbDeleteButton) {
+        dom.dbDeleteButton.addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to DELETE the local database? This will remove all app data.')) return;
+            try {
+                dom.dbDeleteButton.disabled = true;
+                const dbModule = await import('./storage/database.js');
+                await dbModule.deleteDatabase();
+                // Also clear app caches (service worker / caches) and reload to reinitialize fresh DB
+                if (typeof clearAppCachesAndReload === 'function') {
+                    await clearAppCachesAndReload('db-delete');
+                } else {
+                    location.reload(true);
+                }
+            } catch (err) {
+                console.error('[storage] delete failed', err);
+                alert('Failed to delete database: ' + String(err));
+            } finally {
+                dom.dbDeleteButton.disabled = false;
+            }
+        });
+    }
+
     dom.startButton.addEventListener('click', () => {
         startQuiz().catch((error) => {
             console.error('[quiz] failed to start quiz', error);

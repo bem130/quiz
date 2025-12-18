@@ -74,6 +74,14 @@ export async function saveQuestionSnapshot(quizId, questionId, question) {
     }
     const payload = clonePayload(question);
     const conceptMeta = deriveConceptMetadata(payload);
+    const patternId =
+        question && question.patternId
+            ? String(question.patternId)
+            : question &&
+                    question.meta &&
+                    (question.meta.patternId || question.meta.pattern)
+                ? String(question.meta.patternId || (question.meta.pattern && question.meta.pattern.id))
+                : null;
     const record = {
         qid: makeQuestionKey(quizId, questionId),
         quizId,
@@ -82,7 +90,8 @@ export async function saveQuestionSnapshot(quizId, questionId, question) {
         payload,
         conceptId: conceptMeta.conceptId || null,
         optionConceptIds: conceptMeta.optionConceptIds || [],
-        savedAt: Date.now()
+        savedAt: Date.now(),
+        patternId: patternId || null
     };
     const db = await getDatabase();
     await db.table('questions').put(record);
@@ -150,7 +159,8 @@ export async function findQuestionsByConcept(quizId, conceptId, options = {}) {
             results.push({
                 questionKey: value.qid,
                 questionId: value.questionId || null,
-                question: clonePayload(value.payload)
+                question: clonePayload(value.payload),
+                patternId: value.patternId || null
             });
         }
         if (results.length >= limit) {
@@ -176,6 +186,7 @@ export async function listQuestionsForQuiz(quizId, options = {}) {
         .map((value) => ({
             questionKey: value.qid,
             questionId: value.questionId || null,
-            question: clonePayload(value.payload)
+            question: clonePayload(value.payload),
+            patternId: value.patternId || null
         }));
 }

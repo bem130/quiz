@@ -163,3 +163,19 @@ export async function importDatabase(blob, options = {}) {
     });
     await setAppMeta('lastImportAt', Date.now());
 }
+
+export async function deleteDatabase() {
+    // Close and delete the IndexedDB database. Use Dexie's delete helper.
+    try {
+        await db.close();
+    } catch (e) {
+        console.warn('[storage][delete] failed to close db', e);
+    }
+    try {
+        await Dexie.delete(DB_NAME);
+        console.info('[storage][delete] database deleted:', DB_NAME);
+    } catch (e) {
+        console.error('[storage][delete] failed to delete database', e);
+        throw e;
+    }
+}
