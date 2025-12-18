@@ -36,6 +36,52 @@ function shuffleList(list) {
     return arr;
 }
 
+function normalizeConceptId(value) {
+    if (value == null) {
+        return null;
+    }
+    try {
+        return String(value);
+    } catch (error) {
+        return null;
+    }
+}
+
+function resolveOptionConceptId(option) {
+    if (!option || typeof option !== 'object') {
+        return null;
+    }
+    if (option.conceptId != null) {
+        return normalizeConceptId(option.conceptId);
+    }
+    if (option.meta && option.meta.conceptId != null) {
+        return normalizeConceptId(option.meta.conceptId);
+    }
+    if (option.entityId != null) {
+        return normalizeConceptId(option.entityId);
+    }
+    return null;
+}
+
+function questionIncludesConcept(question, conceptId) {
+    const normalized = normalizeConceptId(conceptId);
+    if (!question || normalized == null) {
+        return false;
+    }
+    const answers = Array.isArray(question.answers) ? question.answers : [];
+    for (const answer of answers) {
+        const options = Array.isArray(answer && answer.options)
+            ? answer.options
+            : [];
+        for (const option of options) {
+            if (resolveOptionConceptId(option) === normalized) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 export class StudySessionRunner {
     constructor(options) {
         this.baseEngine = options.engine;
@@ -327,6 +373,37 @@ export class StudySessionRunner {
                         return;
                     }
                     if (seenKeys.has(record.questionKey)) {
+                        return;
+                    }
+                    seenKeys.add(record.questionKey);
+                    queue.push({
+                        type: 'confusion',
+                        key: `conf:${pair.conceptId}:${pair.wrongConceptId}`,
+                        pair,
+                        question: record.question,
+                        questionKey: record.questionKey
+                    });
+                });
+                const cooccurring = await findQuestionsByConcept(
+                    this.quizId,
+                    pair.conceptId,
+                    { limit: 4 }
+                );
+                cooccurring.forEach((record) => {
+                    if (
+                        !record ||
+                        !record.question ||
+                        !record.questionKey ||
+                        seenKeys.has(record.questionKey)
+                    ) {
+                        return;
+                    }
+                    if (
+                        !questionIncludesConcept(
+                            record.question,
+                            pair.wrongConceptId
+                        )
+                    ) {
                         return;
                     }
                     seenKeys.add(record.questionKey);
