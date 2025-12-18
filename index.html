@@ -123,63 +123,114 @@
                     </div>
                 </div>
 
-                <section class="space-y-3">
-                    <div class="flex items-center justify-between flex-wrap gap-3">
-                        <h2 class="text-base font-semibold app-text-strong">
-                            Number of questions
-                        </h2>
-                        <span id="question-count-label" class="text-xs font-semibold app-text-main">
-                            10 問
-                        </span>
+                <div class="space-y-4">
+                    <div
+                        class="rounded-2xl border app-border-subtle app-surface-muted p-2 flex flex-col gap-2 sm:flex-row menu-tab-bar">
+                        <button id="menu-tab-button-quizzes" type="button" role="tab"
+                            aria-controls="menu-tab-panel-quizzes" aria-selected="true" data-menu-tab-target="quizzes"
+                            class="menu-tab-button menu-tab-button-active text-xs sm:text-sm">
+                            Quizzes
+                        </button>
+                        <button id="menu-tab-button-mode" type="button" role="tab"
+                            aria-controls="menu-tab-panel-mode" aria-selected="false" data-menu-tab-target="mode"
+                            class="menu-tab-button text-xs sm:text-sm">
+                            Mode
+                        </button>
+                        <button id="menu-tab-button-options" type="button" role="tab"
+                            aria-controls="menu-tab-panel-options" aria-selected="false" data-menu-tab-target="options"
+                            class="menu-tab-button text-xs sm:text-sm">
+                            Quiz options
+                        </button>
                     </div>
-                    <input id="question-count-slider" type="range" min="5" max="100" step="5" value="10"
-                        class="w-full app-range-accent" />
-                </section>
 
-                <!-- Draft summary (Draft のときだけ表示) -->
-                <section id="draft-summary-panel"
-                    class="mt-4 rounded-xl border app-border-subtle app-surface-muted px-3 py-2 text-xs hidden">
-                    <div class="flex items-center justify-between mb-1">
-                        <h3 class="font-semibold text-[11px] app-text-muted">
-                            Draft summary (read-only)
-                        </h3>
-                        <span id="draft-summary-updated" class="text-[10px] app-text-muted"></span>
+                    <div id="menu-tab-panel-quizzes" role="tabpanel" aria-labelledby="menu-tab-button-quizzes"
+                        class="menu-tab-panel space-y-4">
+                        <!-- Available Quizzes -->
+                        <section class="space-y-2">
+                            <h2 class="text-base font-semibold app-text-strong">Available Quizzes</h2>
+                            <div id="quiz-list" class="space-y-2">
+                                <!-- JS で埋め込み -->
+                            </div>
+                        </section>
+
+                        <!-- Draft summary (Draft のときだけ表示) -->
+                        <section id="draft-summary-panel"
+                            class="rounded-xl border app-border-subtle app-surface-muted px-3 py-2 text-xs hidden">
+                            <div class="flex items-center justify-between mb-1">
+                                <h3 class="font-semibold text-[11px] app-text-muted">
+                                    Draft summary (read-only)
+                                </h3>
+                                <span id="draft-summary-updated" class="text-[10px] app-text-muted"></span>
+                            </div>
+                            <div id="draft-summary-content" class="space-y-1 text-[11px] app-text-muted"></div>
+                        </section>
                     </div>
-                    <div id="draft-summary-content" class="space-y-1 text-[11px] app-text-muted"></div>
-                </section>
 
-                <hr>
-
-                <!-- Available Quizzes -->
-                <section class="space-y-2">
-                    <h2 class="text-base font-semibold app-text-strong">Available Quizzes</h2>
-                    <div id="quiz-list" class="space-y-2">
-                        <!-- JS で埋め込み -->
+                    <div id="menu-tab-panel-mode" role="tabpanel" aria-labelledby="menu-tab-button-mode"
+                        class="menu-tab-panel space-y-3 hidden">
+                        <section class="space-y-3">
+                            <h2 class="text-base font-semibold app-text-strong">Mode</h2>
+                            <div id="mode-message" class="text-xs app-text-danger hidden"></div>
+                            <div id="mode-list" class="space-y-2">
+                                <!-- JS でボタンを生成 -->
+                            </div>
+                            <h2 class="hidden text-base font-semibold app-text-strong">Pattern</h2>
+                            <div id="pattern-mode-list" class="hidden space-y-2">
+                                <!-- Local Draft のときのみ -->
+                            </div>
+                        </section>
                     </div>
-                </section>
 
-                <hr>
+                    <div id="menu-tab-panel-options" role="tabpanel" aria-labelledby="menu-tab-button-options"
+                        class="menu-tab-panel space-y-4 hidden">
+                        <section class="space-y-3">
+                            <div class="rounded-xl border app-border-subtle app-surface-muted px-4 py-3 space-y-3">
+                                <div>
+                                    <div class="text-[11px] uppercase tracking-wide app-text-muted">Selected Quiz</div>
+                                    <div id="selected-quiz-title"
+                                        class="text-sm font-semibold app-text-strong mt-0.5">
+                                        No quiz selected
+                                    </div>
+                                    <div id="selected-quiz-desc" class="text-[11px] app-text-muted">
+                                        Choose a quiz from the Quizzes tab.
+                                    </div>
+                                </div>
+                                <div class="pt-2 border-t app-border-subtle">
+                                    <div class="text-[11px] uppercase tracking-wide app-text-muted">Selected Mode</div>
+                                    <div id="selected-mode-title"
+                                        class="text-sm font-semibold app-text-strong mt-0.5">
+                                        No mode selected
+                                    </div>
+                                    <div id="selected-mode-desc" class="text-[11px] app-text-muted">
+                                        Choose a mode from the Mode tab.
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
 
-                <section class="space-y-3">
-                    <h2 class="text-base font-semibold app-text-strong">Mode</h2>
-                    <div id="mode-message" class="text-xs app-text-danger hidden"></div>
-                    <div id="mode-list" class="space-y-2">
-                        <!-- JS でボタンを生成 -->
+                        <section class="space-y-3">
+                            <div class="flex items-center justify-between flex-wrap gap-3">
+                                <h2 class="text-base font-semibold app-text-strong">
+                                    Number of questions
+                                </h2>
+                                <span id="question-count-label" class="text-xs font-semibold app-text-main">
+                                    10 問
+                                </span>
+                            </div>
+                            <input id="question-count-slider" type="range" min="5" max="100" step="5" value="10"
+                                class="w-full app-range-accent" />
+                        </section>
+
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+                            <p class="text-xs app-text-muted">
+                                Select a mode and click "Start Quiz" to begin.
+                            </p>
+                            <button id="start-button"
+                                class="interactive-button button-accent px-5 py-2 text-sm font-semibold rounded-xl transition-colors">
+                                Start Quiz
+                            </button>
+                        </div>
                     </div>
-                    <h2 class="hidden text-base font-semibold app-text-strong">Pattern</h2>
-                    <div id="pattern-mode-list" class="hidden space-y-2">
-                        <!-- Local Draft のときのみ -->
-                    </div>
-                </section>
-
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
-                    <p class="text-xs app-text-muted">
-                        Select a mode and click "Start Quiz" to begin.
-                    </p>
-                    <button id="start-button"
-                        class="interactive-button button-accent px-5 py-2 text-sm font-semibold rounded-xl transition-colors">
-                        Start Quiz
-                    </button>
                 </div>
             </section>
 

@@ -17,6 +17,16 @@ export const dom = {
     modeList: document.getElementById('mode-list'),
     startButton: document.getElementById('start-button'),
     modeMessage: document.getElementById('mode-message'),
+    menuTabQuizzesButton: document.getElementById('menu-tab-button-quizzes'),
+    menuTabModeButton: document.getElementById('menu-tab-button-mode'),
+    menuTabOptionsButton: document.getElementById('menu-tab-button-options'),
+    menuTabQuizzesPanel: document.getElementById('menu-tab-panel-quizzes'),
+    menuTabModePanel: document.getElementById('menu-tab-panel-mode'),
+    menuTabOptionsPanel: document.getElementById('menu-tab-panel-options'),
+    selectedQuizTitle: document.getElementById('selected-quiz-title'),
+    selectedQuizDesc: document.getElementById('selected-quiz-desc'),
+    selectedModeTitle: document.getElementById('selected-mode-title'),
+    selectedModeDesc: document.getElementById('selected-mode-desc'),
 
     // Update notification banner
     updateNotificationBanner: document.getElementById('update-notification-banner'),

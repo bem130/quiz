@@ -73,6 +73,8 @@ let currentModeId = null;
 
 // Current screen ("menu" | "quiz" | "result")
 let currentScreen = 'menu';
+const MENU_TABS = ['quizzes', 'mode', 'options'];
+let activeMenuTab = 'quizzes';
 
 // Timer state
 let quizStartTime = null;
@@ -580,6 +582,132 @@ function getConfiguredQuestionCount() {
     return clampQuestionCount(dom.questionCountInput.value);
 }
 
+function getMenuTabElements(name) {
+    switch (name) {
+        case 'mode':
+            return {
+                button: dom.menuTabModeButton,
+                panel: dom.menuTabModePanel
+            };
+        case 'options':
+            return {
+                button: dom.menuTabOptionsButton,
+                panel: dom.menuTabOptionsPanel
+            };
+        case 'quizzes':
+        default:
+            return {
+                button: dom.menuTabQuizzesButton,
+                panel: dom.menuTabQuizzesPanel
+            };
+    }
+}
+
+function setActiveMenuTab(name, options = {}) {
+    const tabName = MENU_TABS.includes(name) ? name : 'quizzes';
+    const shouldFocus = options.focus === true;
+    activeMenuTab = tabName;
+
+    MENU_TABS.forEach((candidate) => {
+        const { button, panel } = getMenuTabElements(candidate);
+        const isActive = candidate === tabName;
+
+        if (button) {
+            button.classList.toggle('menu-tab-button-active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            button.tabIndex = isActive ? 0 : -1;
+            if (isActive && shouldFocus) {
+                button.focus();
+            }
+        }
+
+        if (panel) {
+            if (isActive) {
+                panel.classList.remove('hidden');
+            } else {
+                panel.classList.add('hidden');
+            }
+        }
+    });
+}
+
+function updateSelectionSummary() {
+    if (
+        !dom.selectedQuizTitle ||
+        !dom.selectedQuizDesc ||
+        !dom.selectedModeTitle ||
+        !dom.selectedModeDesc
+    ) {
+        return;
+    }
+
+    // Quiz summary
+    let quizTitle = 'No quiz selected';
+    let quizDesc = currentEntry ? 'Choose a quiz from the Quizzes tab.' : 'Add or select an entry to begin.';
+
+    if (currentQuiz) {
+        quizTitle = currentQuiz.title || currentQuiz.id || 'Selected quiz';
+        if (currentQuiz.description) {
+            quizDesc = currentQuiz.description;
+        } else if (currentEntry) {
+            const entryLabel = currentEntry.label || currentEntry.url || 'Current entry';
+            quizDesc = `From ${entryLabel}`;
+        } else {
+            quizDesc = 'Ready to configure options.';
+        }
+    }
+
+    dom.selectedQuizTitle.textContent = quizTitle;
+    dom.selectedQuizDesc.textContent = quizDesc;
+
+    // Mode summary
+    let modeTitle = 'No mode selected';
+    let modeDesc = 'Choose a mode from the Mode tab.';
+
+    if (currentModeId) {
+        if (currentModeId.startsWith('__pattern__')) {
+            const patternId = currentModeId.replace('__pattern__', '');
+            const pattern = quizDef && Array.isArray(quizDef.patterns)
+                ? quizDef.patterns.find((p) => p.id === patternId)
+                : null;
+            modeTitle = pattern
+                ? (pattern.label || `Pattern: ${pattern.id}`)
+                : `Pattern: ${patternId}`;
+            if (pattern && pattern.description) {
+                modeDesc = pattern.description;
+            } else if (engine && typeof engine.getPatternCapacity === 'function') {
+                const cap = engine.getPatternCapacity(patternId);
+                modeDesc = cap > 0
+                    ? `~${cap} variations available.`
+                    : 'No questions available for this pattern.';
+            } else {
+                modeDesc = 'Single-pattern preview.';
+            }
+        } else if (quizDef && Array.isArray(quizDef.modes)) {
+            const mode = quizDef.modes.find((m) => m && m.id === currentModeId) || null;
+            modeTitle = mode ? (mode.label || mode.id) : currentModeId;
+            if (mode && mode.description) {
+                modeDesc = mode.description;
+            } else if (engine && typeof engine.estimateModeCapacity === 'function') {
+                const capacity = engine.estimateModeCapacity(currentModeId);
+                modeDesc = capacity > 0
+                    ? `~${capacity} variations available.`
+                    : 'No questions available for this mode.';
+            } else {
+                modeDesc = `Mode ID: ${currentModeId}`;
+            }
+        } else {
+            modeTitle = 'Mode selected';
+            modeDesc = 'Loading mode details...';
+        }
+    } else if (!currentQuiz) {
+        modeDesc = 'Select a quiz first.';
+    }
+
+    dom.selectedModeTitle.textContent = modeTitle;
+    dom.selectedModeDesc.textContent = modeDesc;
+}
+
 
 function resolveRowForQuestion(question) {
     if (!question || !question.meta || !question.meta.dataSetId) return null;
@@ -599,6 +727,7 @@ function resolveRowForQuestion(question) {
  * @param {'menu' | 'quiz' | 'result'} name - 表示する画面の名前。
  */
 function showScreen(name) {
+    const previousScreen = currentScreen;
     currentScreen = name;
 
     // Main
@@ -638,6 +767,11 @@ function showScreen(name) {
     if (name === 'menu') {
         dom.mainMenu.classList.remove('hidden');
         dom.sideMenu.classList.remove('hidden');
+        if (previousScreen !== 'menu') {
+            setActiveMenuTab('quizzes');
+        } else {
+            setActiveMenuTab(activeMenuTab || 'quizzes');
+        }
         checkForUpdate();
     } else if (name === 'quiz') {
         dom.mainQuiz.classList.remove('hidden');
@@ -860,11 +994,13 @@ function renderModeNodes(nodes, parentElement, modeById) {
         btn.addEventListener('click', () => {
             currentModeId = mode.id;
             populateModeButtons();
+            updateSelectionSummary();
 
             // モード変更を URL に反映
             const entryUrl = currentEntry ? currentEntry.url : null;
             const quizId = currentQuiz ? currentQuiz.id : null;
             updateLocationParams(entryUrl, quizId, currentModeId);
+            setActiveMenuTab('options', { focus: true });
         });
 
         // Wrapper for relative positioning
@@ -1719,6 +1855,8 @@ function handleDraftPatternSelection(patternId) {
     const entryUrl = currentEntry ? currentEntry.url : null;
     const quizId = currentQuiz ? currentQuiz.id : null;
     updateLocationParams(entryUrl, quizId, currentModeId);
+    updateSelectionSummary();
+    setActiveMenuTab('options', { focus: true });
 }
 
 async function loadCurrentQuizDefinition() {
@@ -1784,6 +1922,7 @@ async function loadCurrentQuizDefinition() {
         dom.appTitle.textContent = quizDef.meta.title || '4-choice Quiz';
         dom.appDescription.textContent = quizDef.meta.description || '';
         setStartButtonEnabled(true);
+        updateSelectionSummary();
         showScreen('menu');
     } catch (error) {
         quizDef = null;
@@ -1791,6 +1930,7 @@ async function loadCurrentQuizDefinition() {
         setStartButtonEnabled(false);
         dom.appDescription.textContent = 'Failed to load quiz definition.';
         showModeMessage('クイズ定義の読み込みに失敗しました。');
+        updateSelectionSummary();
         console.error('[quiz] Failed to load quiz definition:', error);
     }
 }
@@ -1824,6 +1964,7 @@ async function applyEntrySelection(entry, desiredQuizId, options = {}) {
 
     setStartButtonEnabled(false);
     renderMenus();
+    updateSelectionSummary();
 
     if (!entry) {
         setStartButtonEnabled(false);
@@ -1857,6 +1998,7 @@ async function applyEntrySelection(entry, desiredQuizId, options = {}) {
 
     const quiz = selectQuizFromEntry(entry, desiredQuizId);
     currentQuiz = quiz;
+    updateSelectionSummary();
 
     (entry.quizzes || []).forEach((quizEntry) => {
         enqueueQuizCapacityTask(entry, quizEntry);
@@ -1883,10 +2025,12 @@ async function handleQuizClick(quizId) {
     const target = currentEntry.quizzes.find((quiz) => quiz.id === quizId);
     if (!target) return;
     currentQuiz = target;
+    updateSelectionSummary();
     renderMenus();
     // クイズを変更したので、モードは一旦未確定(null)にしておく
     updateLocationParams(currentEntry.url, target.id, null);
     await loadCurrentQuizDefinition();
+    setActiveMenuTab('mode', { focus: true });
 }
 
 async function addEntryFromUrl(url) {
@@ -1993,6 +2137,20 @@ async function handleLocalDraftDelete() {
 }
 
 function attachMenuHandlers() {
+    const tabButtons = [
+        ['quizzes', dom.menuTabQuizzesButton],
+        ['mode', dom.menuTabModeButton],
+        ['options', dom.menuTabOptionsButton]
+    ];
+    tabButtons.forEach(([name, button]) => {
+        if (button) {
+            button.addEventListener('click', () => {
+                setActiveMenuTab(name);
+            });
+        }
+    });
+    setActiveMenuTab(activeMenuTab || 'quizzes');
+
     if (dom.menuThemeToggle) {
         dom.menuThemeToggle.addEventListener('click', () => {
             toggleTheme();

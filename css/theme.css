@@ -551,6 +551,52 @@ body.app-ready .layout-container {
     border-color: var(--color-accent-border);
 }
 
+.menu-tab-bar {
+    background-color: var(--color-surface-muted);
+    border-color: var(--color-border-subtle);
+}
+
+.menu-tab-button {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--color-border-subtle);
+    border-radius: 9999px;
+    padding: 0.65rem 1rem;
+    font-weight: 600;
+    background-color: var(--color-surface-card);
+    color: var(--color-text-muted);
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.menu-tab-button:hover,
+.menu-tab-button:focus-visible {
+    color: var(--color-text-main);
+    border-color: var(--color-border-strong);
+}
+
+.menu-tab-button.menu-tab-button-active {
+    background-color: var(--color-accent-quiet-bg);
+    border-color: var(--color-accent-border);
+    color: var(--color-text-strong);
+    box-shadow: var(--color-card-shadow);
+}
+
+.menu-tab-panel {
+    background-color: var(--color-surface-card);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    box-shadow: var(--color-card-shadow);
+}
+
 .app-callout {
     background-color: var(--color-pwa-hint-bg);
     border-color: var(--color-pwa-hint-border);
