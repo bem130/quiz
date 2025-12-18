@@ -480,6 +480,104 @@ if ($modeParam !== null) {
                                         Choose a mode from the Mode tab.
                                     </div>
                                 </div>
+                                <div class="pt-2 border-t app-border-subtle">
+                                    <div class="text-[11px] uppercase tracking-wide app-text-muted">Game mode</div>
+                                    <div id="selected-game-mode-title"
+                                        class="text-sm font-semibold app-text-strong mt-0.5">
+                                        Study
+                                    </div>
+                                    <div id="selected-game-mode-desc" class="text-[11px] app-text-muted">
+                                        Question count mode
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="space-y-4">
+                            <div class="flex items-center justify-between flex-wrap gap-3">
+                                <h2 class="text-base font-semibold app-text-strong">
+                                    Game mode
+                                </h2>
+                                <span class="text-xs app-text-muted">
+                                    Choose how questions are scheduled
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="game-mode-study-button" type="button"
+                                    class="w-full text-left px-3 py-2 rounded-xl border text-xs font-semibold transition-colors app-list-button app-list-button-active">
+                                    学習モード
+                                </button>
+                                <button id="game-mode-test-button" type="button"
+                                    class="w-full text-left px-3 py-2 rounded-xl border text-xs font-semibold transition-colors app-list-button">
+                                    テストモード
+                                </button>
+                            </div>
+                            <div id="study-mode-config"
+                                class="rounded-xl border app-border-subtle app-surface-muted px-4 py-3 space-y-3">
+                                <div>
+                                    <div class="text-sm font-semibold app-text-strong">学習モード</div>
+                                    <p class="text-xs app-text-muted">Spaced Repetition + 混同補修</p>
+                                </div>
+                                <div>
+                                    <div class="text-[11px] uppercase tracking-wide app-text-muted">
+                                        終了条件
+                                    </div>
+                                    <div id="study-completion-options"
+                                        class="flex flex-wrap gap-2 mt-2 text-xs font-semibold">
+                                        <button type="button" data-study-completion="questions"
+                                            class="px-3 py-1 rounded-full border app-list-button app-list-button-active">
+                                            問題数指定
+                                        </button>
+                                        <button type="button" data-study-completion="time"
+                                            class="px-3 py-1 rounded-full border app-list-button">
+                                            時間指定
+                                        </button>
+                                        <button type="button" data-study-completion="drain"
+                                            class="px-3 py-1 rounded-full border app-list-button">
+                                            復習ゼロまで
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="study-time-limit-group" class="space-y-1 hidden">
+                                    <label for="study-time-limit" class="text-xs app-text-muted">
+                                        タイマー（分）
+                                    </label>
+                                    <input id="study-time-limit" type="number" min="1" max="180" step="1" value="15"
+                                        class="w-24 text-sm rounded-lg border app-border-subtle px-2 py-1 app-surface-main app-text-main" />
+                                </div>
+                                <div id="study-drain-notice" class="text-xs app-text-muted hidden">
+                                    学習キュー（Learning / Relearning / Review）が空になるまで出題します。
+                                </div>
+                            </div>
+                            <div id="test-mode-config"
+                                class="rounded-xl border app-border-subtle app-surface-muted px-4 py-3 space-y-3 hidden">
+                                <div>
+                                    <div class="text-sm font-semibold app-text-strong">テストモード</div>
+                                    <p class="text-xs app-text-muted">履歴を残しつつランダム出題</p>
+                                </div>
+                                <div>
+                                    <div class="text-[11px] uppercase tracking-wide app-text-muted">
+                                        終了条件
+                                    </div>
+                                    <div id="test-completion-options"
+                                        class="flex flex-wrap gap-2 mt-2 text-xs font-semibold">
+                                        <button type="button" data-test-completion="questions"
+                                            class="px-3 py-1 rounded-full border app-list-button app-list-button-active">
+                                            問題数指定
+                                        </button>
+                                        <button type="button" data-test-completion="time"
+                                            class="px-3 py-1 rounded-full border app-list-button">
+                                            時間指定
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="test-time-limit-group" class="space-y-1 hidden">
+                                    <label for="test-time-limit" class="text-xs app-text-muted">
+                                        タイマー（分）
+                                    </label>
+                                    <input id="test-time-limit" type="number" min="1" max="180" step="1" value="10"
+                                        class="w-24 text-sm rounded-lg border app-border-subtle px-2 py-1 app-surface-main app-text-main" />
+                                </div>
                             </div>
                         </section>
 
@@ -494,6 +592,13 @@ if ($modeParam !== null) {
                             </div>
                             <input id="question-count-slider" type="range" min="5" max="100" step="5" value="10"
                                 class="w-full app-range-accent" />
+                            <div class="flex items-center gap-3">
+                                <input id="question-count" type="number" min="5" max="200" step="5" value="10"
+                                    class="w-24 text-sm rounded-lg border app-border-subtle px-2 py-1 app-surface-main app-text-main" />
+                                <span class="text-[11px] app-text-muted">
+                                    「問題数指定」のときに利用されます（モードごとに保存）
+                                </span>
+                            </div>
                         </section>
 
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">

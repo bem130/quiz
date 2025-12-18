@@ -1011,7 +1011,9 @@ function buildSentencePreview(question, dataSets, answerIndex, optionIndex) {
 
 export function renderProgress(currentIndex, total, score) {
     dom.currentQNum.textContent = `${currentIndex + 1}`;
-    dom.totalQNum.textContent = `${total}`;
+    const totalLabel =
+        typeof total === 'number' ? `${total}` : (total ? String(total) : '--');
+    dom.totalQNum.textContent = totalLabel;
     dom.currentScore.textContent = `${score}`;
 }
 

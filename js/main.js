@@ -115,6 +115,30 @@ const WEAK_CORRECT_THRESHOLD_MS = 8000;
 const CONFUSION_WEAK_THRESHOLD = 0.6;
 const MAX_RECENT_RESPONSE_TIMES = 40;
 let recentAnswerDurations = [];
+const GAME_MODE_LABELS = { study: '学習', test: 'テスト' };
+const COMPLETION_LABELS = {
+    questions: '問題数指定',
+    time: '時間指定',
+    drain: '復習ゼロまで'
+};
+const DEFAULT_GAME_MODE_SETTINGS = {
+    study: { completion: 'questions', questionCount: 10, timeLimitMinutes: 15 },
+    test: { completion: 'questions', questionCount: 10, timeLimitMinutes: 10 }
+};
+let activeGameMode = 'study';
+const gameModeSettings = {
+    study: { ...DEFAULT_GAME_MODE_SETTINGS.study },
+    test: { ...DEFAULT_GAME_MODE_SETTINGS.test }
+};
+let sessionCompletionState = {
+    type: 'questions',
+    questionLimit: 10,
+    timeLimitMs: null,
+    drainDue: false
+};
+let activeTimeLimitMs = null;
+let quizTimeLimitId = null;
+let quizTimeLimitReached = false;
 
 function generateSessionSeed() {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -514,20 +538,39 @@ function resetQuizTimer() {
         clearInterval(quizTimerId);
         quizTimerId = null;
     }
+    if (quizTimeLimitId) {
+        clearTimeout(quizTimeLimitId);
+        quizTimeLimitId = null;
+    }
+    activeTimeLimitMs = null;
+    quizTimeLimitReached = false;
     updateQuizTimerDisplay(0);
 }
 
 /**
  * Start timer from zero.
  */
-function startQuizTimer() {
+function startQuizTimer(options = {}) {
+    const { timeLimitMs = null } = options || {};
     resetQuizTimer();
     quizStartTime = Date.now();
+    activeTimeLimitMs =
+        typeof timeLimitMs === 'number' && Number.isFinite(timeLimitMs) && timeLimitMs > 0
+            ? timeLimitMs
+            : null;
+    if (activeTimeLimitMs) {
+        quizTimeLimitId = window.setTimeout(() => {
+            handleTimeLimitReached();
+        }, activeTimeLimitMs);
+    }
     quizTimerId = window.setInterval(() => {
         if (!quizStartTime) return;
         const elapsedMs = Date.now() - quizStartTime;
         const elapsedSeconds = Math.floor(elapsedMs / 1000);
         updateQuizTimerDisplay(elapsedSeconds);
+        if (activeTimeLimitMs && elapsedMs >= activeTimeLimitMs) {
+            handleTimeLimitReached();
+        }
     }, 1000);
 }
 
@@ -538,6 +581,20 @@ function stopQuizTimer() {
     if (quizTimerId) {
         clearInterval(quizTimerId);
         quizTimerId = null;
+    }
+    if (quizTimeLimitId) {
+        clearTimeout(quizTimeLimitId);
+        quizTimeLimitId = null;
+    }
+}
+
+function handleTimeLimitReached() {
+    if (quizTimeLimitReached) {
+        return;
+    }
+    quizTimeLimitReached = true;
+    if (sessionCompletionState.type === 'time' && currentScreen === 'quiz') {
+        showResult();
     }
 }
 
@@ -563,6 +620,22 @@ function clampQuestionCount(value) {
     const clamped = Math.min(100, Math.max(5, numericValue));
     const adjusted = Math.round(clamped / 5) * 5;
     return Math.min(100, Math.max(5, adjusted));
+}
+
+function clampTimeLimitMinutes(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+        return 1;
+    }
+    return Math.min(180, Math.max(1, Math.round(numericValue)));
+}
+
+function getGameModeLabel(value) {
+    return GAME_MODE_LABELS[value] || value || '学習';
+}
+
+function getCompletionLabel(value) {
+    return COMPLETION_LABELS[value] || value || '';
 }
 
 /**
@@ -632,7 +705,7 @@ function updateQuestionCountLabel(value) {
     dom.questionCountLabel.textContent = `${value} 問`;
 }
 
-function syncQuestionCountInputs(value) {
+function syncQuestionCountInputs(value, options = {}) {
     const normalized = clampQuestionCount(value);
     if (dom.questionCountSlider) {
         dom.questionCountSlider.value = normalized;
@@ -641,13 +714,214 @@ function syncQuestionCountInputs(value) {
         dom.questionCountInput.value = normalized;
     }
     updateQuestionCountLabel(normalized);
+    if (options.persist && gameModeSettings[activeGameMode]) {
+        gameModeSettings[activeGameMode].questionCount = normalized;
+        updateGameModeSummary();
+    }
 }
 
 function getConfiguredQuestionCount() {
-    if (!dom.questionCountInput) {
-        return 10;
+    const settings =
+        gameModeSettings[activeGameMode] ||
+        gameModeSettings.study ||
+        DEFAULT_GAME_MODE_SETTINGS.study;
+    return clampQuestionCount(settings.questionCount);
+}
+
+function getCurrentGameModeConfig() {
+    const fallback = DEFAULT_GAME_MODE_SETTINGS[activeGameMode] || DEFAULT_GAME_MODE_SETTINGS.study;
+    const base = gameModeSettings[activeGameMode] || fallback;
+    let completion = base.completion || 'questions';
+    if (activeGameMode === 'test' && completion === 'drain') {
+        completion = 'questions';
     }
-    return clampQuestionCount(dom.questionCountInput.value);
+    const questionCount = clampQuestionCount(base.questionCount);
+    gameModeSettings[activeGameMode].questionCount = questionCount;
+    const timeLimitMinutes = clampTimeLimitMinutes(
+        completion === 'time' ? base.timeLimitMinutes || fallback.timeLimitMinutes : base.timeLimitMinutes || fallback.timeLimitMinutes
+    );
+    gameModeSettings[activeGameMode].timeLimitMinutes = timeLimitMinutes;
+    const timeLimitMs = completion === 'time' ? timeLimitMinutes * 60 * 1000 : null;
+    return {
+        mode: activeGameMode,
+        completion,
+        questionCount,
+        timeLimitMinutes,
+        timeLimitMs,
+        drainDue: activeGameMode === 'study' && completion === 'drain'
+    };
+}
+
+function applySessionCompletionState(nextState, options = {}) {
+    const normalizedType = nextState && nextState.type ? nextState.type : 'questions';
+    let questionLimit = null;
+    if (normalizedType === 'questions') {
+        if (options.skipClamp) {
+            questionLimit = Math.max(1, Number(nextState.questionLimit) || 1);
+        } else {
+            questionLimit = clampQuestionCount(
+                typeof nextState.questionLimit === 'number' ? nextState.questionLimit : getConfiguredQuestionCount()
+            );
+        }
+    }
+    const timeLimitMs = normalizedType === 'time' ? nextState.timeLimitMs || null : null;
+    const drainDue = normalizedType === 'drain' ? Boolean(nextState.drainDue) : false;
+    sessionCompletionState = {
+        type: normalizedType,
+        questionLimit,
+        timeLimitMs,
+        drainDue
+    };
+    totalQuestions =
+        sessionCompletionState.type === 'questions' ? sessionCompletionState.questionLimit : null;
+}
+
+function getProgressTotalDisplay() {
+    if (typeof totalQuestions === 'number' && Number.isFinite(totalQuestions)) {
+        return totalQuestions;
+    }
+    if (sessionCompletionState.type === 'time') {
+        return '∞';
+    }
+    if (sessionCompletionState.type === 'drain') {
+        return 'Due';
+    }
+    return '--';
+}
+
+function updateCompletionButtonGroup(container, attr, selectedValue) {
+    if (!container) {
+        return;
+    }
+    const buttons = container.querySelectorAll(`[${attr}]`);
+    buttons.forEach((button) => {
+        const value = button.getAttribute(attr);
+        const isActive = value === selectedValue;
+        button.classList.toggle('app-list-button-active', isActive);
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+}
+
+function refreshCompletionControls() {
+    const studySettings = gameModeSettings.study || DEFAULT_GAME_MODE_SETTINGS.study;
+    const testSettings = gameModeSettings.test || DEFAULT_GAME_MODE_SETTINGS.test;
+    updateCompletionButtonGroup(
+        dom.studyCompletionOptions,
+        'data-study-completion',
+        studySettings.completion || 'questions'
+    );
+    updateCompletionButtonGroup(
+        dom.testCompletionOptions,
+        'data-test-completion',
+        testSettings.completion || 'questions'
+    );
+
+    if (dom.studyTimeLimitInput) {
+        const minutes = clampTimeLimitMinutes(studySettings.timeLimitMinutes || DEFAULT_GAME_MODE_SETTINGS.study.timeLimitMinutes);
+        dom.studyTimeLimitInput.value = minutes;
+        gameModeSettings.study.timeLimitMinutes = minutes;
+    }
+    if (dom.testTimeLimitInput) {
+        const minutes = clampTimeLimitMinutes(testSettings.timeLimitMinutes || DEFAULT_GAME_MODE_SETTINGS.test.timeLimitMinutes);
+        dom.testTimeLimitInput.value = minutes;
+        gameModeSettings.test.timeLimitMinutes = minutes;
+    }
+    if (dom.studyTimeLimitGroup) {
+        const shouldShow = (studySettings.completion || 'questions') === 'time';
+        dom.studyTimeLimitGroup.classList.toggle('hidden', !shouldShow);
+    }
+    if (dom.studyDrainNotice) {
+        const showDrain = (studySettings.completion || 'questions') === 'drain';
+        dom.studyDrainNotice.classList.toggle('hidden', !showDrain);
+    }
+    if (dom.testTimeLimitGroup) {
+        const shouldShowTest = (testSettings.completion || 'questions') === 'time';
+        dom.testTimeLimitGroup.classList.toggle('hidden', !shouldShowTest);
+    }
+
+    const completionForActive =
+        (gameModeSettings[activeGameMode] && gameModeSettings[activeGameMode].completion) || 'questions';
+    const disableQuestionControls = completionForActive !== 'questions';
+    if (dom.questionCountSlider) {
+        dom.questionCountSlider.disabled = disableQuestionControls;
+    }
+    if (dom.questionCountInput) {
+        dom.questionCountInput.disabled = disableQuestionControls;
+    }
+}
+
+function refreshGameModeControls() {
+    if (dom.gameModeStudyButton) {
+        dom.gameModeStudyButton.classList.toggle(
+            'app-list-button-active',
+            activeGameMode === 'study'
+        );
+    }
+    if (dom.gameModeTestButton) {
+        dom.gameModeTestButton.classList.toggle(
+            'app-list-button-active',
+            activeGameMode === 'test'
+        );
+    }
+    if (dom.studyModeConfig) {
+        dom.studyModeConfig.classList.toggle('hidden', activeGameMode !== 'study');
+    }
+    if (dom.testModeConfig) {
+        dom.testModeConfig.classList.toggle('hidden', activeGameMode !== 'test');
+    }
+    refreshCompletionControls();
+}
+
+function updateGameModeSummary() {
+    if (!dom.selectedGameModeTitle || !dom.selectedGameModeDesc) {
+        return;
+    }
+    const settings =
+        gameModeSettings[activeGameMode] ||
+        DEFAULT_GAME_MODE_SETTINGS[activeGameMode] ||
+        DEFAULT_GAME_MODE_SETTINGS.study;
+    let completion = settings.completion || 'questions';
+    if (activeGameMode === 'test' && completion === 'drain') {
+        completion = 'questions';
+    }
+    let description = '';
+    if (completion === 'questions') {
+        description = `${clampQuestionCount(settings.questionCount)} 問で終了`;
+    } else if (completion === 'time') {
+        description = `${clampTimeLimitMinutes(settings.timeLimitMinutes)} 分タイマー`;
+    } else if (completion === 'drain') {
+        description = '復習キューが空になるまで継続';
+    }
+    dom.selectedGameModeTitle.textContent = `${getGameModeLabel(activeGameMode)}モード`;
+    dom.selectedGameModeDesc.textContent = `${getCompletionLabel(completion)} / ${description}`;
+}
+
+function setActiveGameMode(mode) {
+    if (!gameModeSettings[mode]) {
+        return;
+    }
+    if (activeGameMode !== mode) {
+        activeGameMode = mode;
+        const storedCount = gameModeSettings[mode].questionCount || DEFAULT_GAME_MODE_SETTINGS[mode].questionCount;
+        syncQuestionCountInputs(storedCount);
+    }
+    refreshGameModeControls();
+    updateGameModeSummary();
+}
+
+function setCompletionMode(mode, completion) {
+    if (!gameModeSettings[mode]) {
+        return;
+    }
+    if (mode === 'test' && completion === 'drain') {
+        completion = 'questions';
+    }
+    if (gameModeSettings[mode].completion === completion) {
+        return;
+    }
+    gameModeSettings[mode].completion = completion;
+    refreshGameModeControls();
+    updateGameModeSummary();
 }
 
 function getMenuTabElements(name) {
@@ -774,6 +1048,8 @@ function updateSelectionSummary() {
 
     dom.selectedModeTitle.textContent = modeTitle;
     dom.selectedModeDesc.textContent = modeDesc;
+
+    updateGameModeSummary();
 }
 
 function resolveModeBehavior(mode) {
@@ -1030,6 +1306,12 @@ async function persistAttemptRecord(question, meta) {
             : activeUser
                 ? activeUser.userId || 'guest'
                 : 'guest';
+        const isTestSession =
+            !!(
+                session &&
+                typeof session.modeBehavior === 'string' &&
+                session.modeBehavior.toLowerCase() === 'test'
+            );
         const questionIndex =
             typeof meta.questionIndex === 'number' ? meta.questionIndex : null;
         if (session) {
@@ -1039,10 +1321,12 @@ async function persistAttemptRecord(question, meta) {
                 sessionId: session.sessionId || sessionCore.getSessionId()
             });
         }
-        await Promise.all([
-            updateConfusionFromAttempt(userId, snapshot),
-            updateConceptStatsFromAttempt(userId, snapshot)
-        ]);
+        if (!isTestSession) {
+            await Promise.all([
+                updateConfusionFromAttempt(userId, snapshot),
+                updateConceptStatsFromAttempt(userId, snapshot)
+            ]);
+        }
         await sessionCore.submitAnswer({
             questionId: snapshot.questionId,
             resultType: snapshot.resultType,
@@ -1280,7 +1564,7 @@ async function finalizeIdkResult(nearestOptionIndex) {
 
     showOptionFeedback(currentQuestion);
     appendPatternPreviewToOptions(currentQuestion, quizDef ? quizDef.dataSets : null);
-    renderProgress(currentIndex, totalQuestions, currentScore);
+    renderProgress(currentIndex, getProgressTotalDisplay(), currentScore);
     resetTips();
 
     if (dom.nextButton) {
@@ -1743,7 +2027,13 @@ async function startQuiz() {
 
     const n = getConfiguredQuestionCount();
     syncQuestionCountInputs(n);
-    totalQuestions = n;
+    const sessionModeConfig = getCurrentGameModeConfig();
+    applySessionCompletionState({
+        type: sessionModeConfig.drainDue ? 'drain' : sessionModeConfig.completion,
+        questionLimit: sessionModeConfig.questionCount,
+        timeLimitMs: sessionModeConfig.timeLimitMs,
+        drainDue: sessionModeConfig.drainDue
+    });
 
     currentIndex = 0;
     currentScore = 0;
@@ -1765,7 +2055,7 @@ async function startQuiz() {
     const modeDef = Array.isArray(quizDef.modes)
         ? quizDef.modes.find((m) => m && m.id === modeId)
         : null;
-    currentModeBehavior = resolveModeBehavior(modeDef);
+    currentModeBehavior = activeGameMode || resolveModeBehavior(modeDef);
     const sessionSeed = generateSessionSeed();
 
     const entryUrl = currentEntry ? currentEntry.url : null;
@@ -1779,21 +2069,24 @@ async function startQuiz() {
             quizTitle: quizDef.meta && quizDef.meta.title ? quizDef.meta.title : (currentQuiz ? currentQuiz.title : null),
             mode: modeId,
             config: {
-                totalQuestions: n,
-                questionCount: n
+                totalQuestions: sessionCompletionState.questionLimit,
+                questionCount: sessionModeConfig.questionCount,
+                completionType: sessionModeConfig.completion,
+                timeLimitMs: sessionModeConfig.timeLimitMs,
+                drainDue: sessionModeConfig.drainDue
             },
             seed: sessionSeed,
             engine,
             quizDefinition: quizDef,
             modeBehavior: currentModeBehavior,
-            questionCount: n,
+            questionCount: Math.max(1, sessionModeConfig.questionCount),
             resolveQuestionId: resolveQuestionIdentifier
         });
     } catch (error) {
         console.error('[session] failed to start session', error);
     }
 
-    renderProgress(currentIndex, totalQuestions, currentScore);
+    renderProgress(currentIndex, getProgressTotalDisplay(), currentScore);
     resetReviewList();
     resetTips();
     resetResultList();
@@ -1803,7 +2096,7 @@ async function startQuiz() {
 
     updateQuestionStageLabel(null);
     showScreen('quiz');
-    startQuizTimer();
+    startQuizTimer({ timeLimitMs: sessionCompletionState.timeLimitMs });
     await loadNextQuestion();
 }
 
@@ -1812,7 +2105,15 @@ async function startQuiz() {
  */
 async function loadNextQuestion() {
     resetIdkState();
-    if (currentIndex >= totalQuestions) {
+    if (
+        sessionCompletionState.type === 'questions' &&
+        typeof sessionCompletionState.questionLimit === 'number' &&
+        currentIndex >= sessionCompletionState.questionLimit
+    ) {
+        showResult();
+        return;
+    }
+    if (sessionCompletionState.type === 'time' && quizTimeLimitReached) {
         showResult();
         return;
     }
@@ -1838,6 +2139,10 @@ async function loadNextQuestion() {
                 totalQuestions
             });
             if (!currentQuestion) {
+                if (sessionCompletionState.drainDue) {
+                    showResult();
+                    return;
+                }
                 throw new NoQuestionsAvailableError();
             }
         } else {
@@ -1880,7 +2185,7 @@ async function loadNextQuestion() {
     questionStartTime = Date.now();
 
     renderQuestion(currentQuestion, quizDef.dataSets, handleSelectOption);
-    renderProgress(currentIndex, totalQuestions, currentScore);
+    renderProgress(currentIndex, getProgressTotalDisplay(), currentScore);
     if (dom.idkButton) {
         dom.idkButton.disabled = false;
     }
@@ -1952,7 +2257,7 @@ async function handleSelectOption(answerIndex, optionIndex) {
     appendPatternPreviewToOptions(currentQuestion, quizDef.dataSets);
 
     // スコアなどの表示を更新
-    renderProgress(currentIndex, totalQuestions, currentScore);
+    renderProgress(currentIndex, getProgressTotalDisplay(), currentScore);
 
     const row = resolveRowForQuestion(currentQuestion);
     if (currentQuestion.patternTips && currentQuestion.patternTips.length && row) {
@@ -1998,25 +2303,41 @@ async function handleSelectOption(answerIndex, optionIndex) {
  * クイズ結果を表示し、スコアの概要と画面状態を更新する。
  */
 function showResult() {
+    if (currentScreen === 'result') {
+        return;
+    }
     questionStartTime = null;
     // Stop timer when quiz is finished or interrupted
     stopQuizTimer();
     quizFinishTime = quizFinishTime || Date.now();
     updateQuestionStageLabel(null);
 
-    dom.resultScore.textContent = `Score: ${currentScore} / ${totalQuestions}`;
-    dom.resultTotal.textContent = `${totalQuestions}`;
-    dom.resultCorrect.textContent = `${currentScore}`;
     const answeredCount = questionHistory.length;
-    const overallAccuracy = calculateAccuracy(currentScore, totalQuestions);
+    const isQuestionTarget =
+        sessionCompletionState.type === 'questions' &&
+        typeof sessionCompletionState.questionLimit === 'number' &&
+        Number.isFinite(sessionCompletionState.questionLimit);
+    const totalForDisplay = isQuestionTarget
+        ? sessionCompletionState.questionLimit
+        : answeredCount;
+    dom.resultScore.textContent = `Score: ${currentScore} / ${totalForDisplay}`;
+    dom.resultTotal.textContent = `${totalForDisplay}`;
+    dom.resultCorrect.textContent = `${currentScore}`;
+    const accuracyDenominator = totalForDisplay > 0 ? totalForDisplay : answeredCount;
+    const overallAccuracy =
+        accuracyDenominator > 0 ? Math.round((currentScore / accuracyDenominator) * 100) : 0;
     dom.resultAccuracy.textContent = `${overallAccuracy}%`;
     const idkCount = questionHistory.filter(
         (item) => item && item.resultType === 'idk'
     ).length;
-    const knownPool = Math.max(0, totalQuestions - idkCount);
+    const knownPool = isQuestionTarget
+        ? Math.max(0, sessionCompletionState.questionLimit - idkCount)
+        : Math.max(0, answeredCount - idkCount);
     const knownAccuracy =
         knownPool > 0 ? Math.round((currentScore / knownPool) * 100) : null;
-    const idkRate = calculateAccuracy(idkCount, totalQuestions);
+    const idkRateDenominator = accuracyDenominator;
+    const idkRate =
+        idkRateDenominator > 0 ? Math.round((idkCount / idkRateDenominator) * 100) : 0;
     if (dom.resultKnownAccuracy) {
         dom.resultKnownAccuracy.textContent =
             knownAccuracy == null ? '--%' : `${knownAccuracy}%`;
@@ -2037,7 +2358,7 @@ function showResult() {
     showScreen('result');
 
     const summary = {
-        totalQuestions,
+        totalQuestions: sessionCompletionState.questionLimit,
         answeredQuestions: answeredCount,
         correctAnswers: currentScore,
         accuracyPercent: overallAccuracy,
@@ -2045,7 +2366,11 @@ function showResult() {
         idkCount,
         idkRatePercent: idkRate,
         durationMs: quizStartTime ? quizFinishTime - quizStartTime : null,
-        finishedAt: quizFinishTime
+        finishedAt: quizFinishTime,
+        completionType: sessionCompletionState.type,
+        timeLimitMs: sessionCompletionState.timeLimitMs,
+        drainDue: sessionCompletionState.drainDue,
+        gameMode: activeGameMode
     };
     if (sessionCore.getSessionId()) {
         sessionCore.finishSession(summary).catch((error) => {
@@ -2066,24 +2391,40 @@ function buildResultExportObject() {
     const idkCount = questionHistory.filter(
         (item) => item && item.resultType === 'idk'
     ).length;
-    const knownPool = Math.max(0, totalQuestions - idkCount);
+    const isQuestionTarget =
+        sessionCompletionState.type === 'questions' &&
+        typeof sessionCompletionState.questionLimit === 'number' &&
+        Number.isFinite(sessionCompletionState.questionLimit);
+    const totalForMeta = isQuestionTarget
+        ? sessionCompletionState.questionLimit
+        : answeredCount;
+    const knownPool = isQuestionTarget
+        ? Math.max(0, sessionCompletionState.questionLimit - idkCount)
+        : Math.max(0, answeredCount - idkCount);
     const knownAccuracy =
         knownPool > 0 ? Math.round((currentScore / knownPool) * 100) : null;
-    const idkRate = calculateAccuracy(idkCount, totalQuestions);
+    const accuracyPercent =
+        totalForMeta > 0 ? Math.round((currentScore / totalForMeta) * 100) : 0;
+    const idkRate =
+        totalForMeta > 0 ? Math.round((idkCount / totalForMeta) * 100) : 0;
 
     const meta = {
         quizId: currentQuiz ? currentQuiz.id : null,
         quizTitle: quizDef && quizDef.meta ? quizDef.meta.title : null,
         modeId: currentModeId,
-        totalQuestions,
+        totalQuestions: sessionCompletionState.questionLimit,
         answeredQuestions: answeredCount,
         correctAnswers: currentScore,
-        accuracyPercent: calculateAccuracy(currentScore, totalQuestions),
+        accuracyPercent,
         knownAccuracyPercent: knownAccuracy,
         idkRatePercent: idkRate,
         startedAt: formatIsoTimestamp(quizStartTime),
         finishedAt: formatIsoTimestamp(finishTimestamp),
-        elapsedSeconds
+        elapsedSeconds,
+        completionType: sessionCompletionState.type,
+        questionTarget: sessionCompletionState.questionLimit,
+        timeLimitMs: sessionCompletionState.timeLimitMs,
+        gameMode: activeGameMode
     };
 
     const questions = questionHistory.map((item) => {
@@ -2196,7 +2537,15 @@ async function retryMistakes() {
 
     customQuestionSequence = sequence;
     useCustomQuestionSequence = true;
-    totalQuestions = sequence.length;
+    applySessionCompletionState(
+        {
+            type: 'questions',
+            questionLimit: sequence.length,
+            timeLimitMs: null,
+            drainDue: false
+        },
+        { skipClamp: true }
+    );
     currentIndex = 0;
     currentScore = 0;
     hasAnswered = false;
@@ -2205,7 +2554,7 @@ async function retryMistakes() {
     quizFinishTime = null;
     questionStartTime = null;
 
-    renderProgress(currentIndex, totalQuestions, currentScore);
+    renderProgress(currentIndex, getProgressTotalDisplay(), currentScore);
     resetReviewList();
     resetTips();
     resetResultList();
@@ -2913,13 +3262,64 @@ function attachMenuHandlers() {
 
     if (dom.questionCountSlider) {
         dom.questionCountSlider.addEventListener('input', (event) => {
-            syncQuestionCountInputs(event.target.value);
+            syncQuestionCountInputs(event.target.value, { persist: true });
         });
     }
 
     if (dom.questionCountInput) {
         dom.questionCountInput.addEventListener('input', (event) => {
-            syncQuestionCountInputs(event.target.value);
+            syncQuestionCountInputs(event.target.value, { persist: true });
+        });
+    }
+
+    if (dom.gameModeStudyButton) {
+        dom.gameModeStudyButton.addEventListener('click', () => {
+            setActiveGameMode('study');
+        });
+    }
+    if (dom.gameModeTestButton) {
+        dom.gameModeTestButton.addEventListener('click', () => {
+            setActiveGameMode('test');
+        });
+    }
+    if (dom.studyCompletionOptions) {
+        dom.studyCompletionOptions.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-study-completion]');
+            if (!target) return;
+            const value = target.getAttribute('data-study-completion');
+            if (value) {
+                setCompletionMode('study', value);
+            }
+        });
+    }
+    if (dom.testCompletionOptions) {
+        dom.testCompletionOptions.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-test-completion]');
+            if (!target) return;
+            const value = target.getAttribute('data-test-completion');
+            if (value) {
+                setCompletionMode('test', value);
+            }
+        });
+    }
+    if (dom.studyTimeLimitInput) {
+        dom.studyTimeLimitInput.addEventListener('input', (event) => {
+            const minutes = clampTimeLimitMinutes(event.target.value);
+            dom.studyTimeLimitInput.value = minutes;
+            gameModeSettings.study.timeLimitMinutes = minutes;
+            if (activeGameMode === 'study') {
+                updateGameModeSummary();
+            }
+        });
+    }
+    if (dom.testTimeLimitInput) {
+        dom.testTimeLimitInput.addEventListener('input', (event) => {
+            const minutes = clampTimeLimitMinutes(event.target.value);
+            dom.testTimeLimitInput.value = minutes;
+            gameModeSettings.test.timeLimitMinutes = minutes;
+            if (activeGameMode === 'test') {
+                updateGameModeSummary();
+            }
         });
     }
 
@@ -3332,7 +3732,9 @@ async function bootstrap() {
 
     initThemeFromStorage();
     initAppHeightObserver();
-    syncQuestionCountInputs(dom.questionCountInput ? dom.questionCountInput.value : 10);
+    refreshGameModeControls();
+    updateGameModeSummary();
+    syncQuestionCountInputs(gameModeSettings[activeGameMode].questionCount || 10);
     registerServiceWorker();
     await initUserManager({
         onActiveUserChange: handleActiveUserChange

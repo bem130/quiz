@@ -126,6 +126,8 @@ class SessionCore {
             questionCount ||
             (config && (config.questionCount || config.totalQuestions)) ||
             10;
+        const runnerQuestionCount =
+            (config && config.questionCount) || totalQuestions;
 
         if (modeBehavior === 'test') {
             this.runner = new TestSessionRunner({
@@ -144,8 +146,9 @@ class SessionCore {
             userId,
             quizId,
             modeId: mode,
-            questionCount: totalQuestions,
-            seed
+            questionCount: runnerQuestionCount,
+            seed,
+            drainDue: Boolean(config && config.drainDue)
         });
 
         this.sessionMeta = {

@@ -98,6 +98,7 @@ export class StudySessionRunner {
         this.relearningDue = new Set();
         this.reviewDue = new Set();
         this.newQuota = 0;
+        this.drainDueMode = false;
         this.backlogSize = 0;
         this.priorityServed = {
             review: 0,
@@ -113,6 +114,7 @@ export class StudySessionRunner {
         this.userId = config.userId;
         this.quizId = config.quizId;
         this.questionCount = config.questionCount || 10;
+        this.drainDueMode = Boolean(config && config.drainDue);
         this.seenQuestionKeys.clear();
         this.learningDue.clear();
         this.relearningDue.clear();
@@ -136,7 +138,7 @@ export class StudySessionRunner {
             1,
             Math.round(this.questionCount * NEW_RATIO)
         );
-        this.newQuota = backlogHeavy ? 0 : plannedNew;
+        this.newQuota = this.drainDueMode ? 0 : backlogHeavy ? 0 : plannedNew;
         await this._prepareTargetedQueue();
     }
 
@@ -236,6 +238,9 @@ export class StudySessionRunner {
     }
 
     _bucketMatchesPriority(bucket, priority) {
+        if (this.drainDueMode && bucket === 'new') {
+            return false;
+        }
         if (priority === 'any') {
             return true;
         }
@@ -277,6 +282,9 @@ export class StudySessionRunner {
                 continue;
             }
             const bucket = this._classifyBucket(questionKey);
+            if (this.drainDueMode && bucket === 'new') {
+                continue;
+            }
             if (!this._bucketMatchesPriority(bucket, priority)) {
                 continue;
             }
@@ -652,7 +660,7 @@ export class StudySessionRunner {
         if (this.reviewDue.size > 0) {
             priorities.push('review');
         }
-        if (this.newQuota > 0 || this.backlogSize === 0) {
+        if (!this.drainDueMode && (this.newQuota > 0 || this.backlogSize === 0)) {
             priorities.push('new');
         }
         priorities.push('any');
