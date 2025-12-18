@@ -5,6 +5,8 @@ import {
     logAttemptRecord
 } from './storage/session-store.js';
 import { decayConfusionRecentSessions } from './storage/confusion-store.js';
+import { makeQuestionKey } from './storage/schedule-store.js';
+import { getQuestionSnapshotByKey } from './storage/question-store.js';
 import { StudySessionRunner } from './study-engine.js';
 import { TestSessionRunner } from './test-engine.js';
 
@@ -31,6 +33,23 @@ function defaultResolveQuestionId(question) {
         return question.meta.questionId || question.meta.id;
     }
     return null;
+}
+
+function tagQuestionStage(question, stage) {
+    if (!question || !stage) {
+        return;
+    }
+    try {
+        Object.defineProperty(question, '__sessionStage', {
+            value: stage,
+            writable: true,
+            configurable: true,
+            enumerable: false
+        });
+    } catch (error) {
+        // Fallback when defineProperty is not allowed (e.g., frozen objects)
+        question.__sessionStage = stage; // eslint-disable-line no-param-reassign
+    }
 }
 
 class SessionCore {
@@ -183,31 +202,61 @@ class SessionCore {
         });
     }
 
+    async _loadRetryQuestion(questionId) {
+        if (!this.currentSession || !this.currentSession.quizId) {
+            return null;
+        }
+        const questionKey = makeQuestionKey(
+            this.currentSession.quizId,
+            questionId
+        );
+        try {
+            const snapshot = await getQuestionSnapshotByKey(questionKey);
+            if (snapshot) {
+                tagQuestionStage(snapshot, 'RETRY');
+                return snapshot;
+            }
+        } catch (error) {
+            console.warn('[session][retry] failed to load snapshot', {
+                questionId,
+                error
+            });
+        }
+        return null;
+    }
+
+    async _tryServeRetryQuestion(currentIndex) {
+        const dueRetryIds = this._dueRetryQuestionIds(currentIndex);
+        if (!dueRetryIds.length) {
+            return null;
+        }
+        for (const rawId of dueRetryIds) {
+            const snapshot = await this._loadRetryQuestion(rawId);
+            this._consumeRetryQuestion(String(rawId));
+            if (snapshot) {
+                return snapshot;
+            }
+        }
+        return null;
+    }
+
     async nextQuestion({ currentIndex = 0 } = {}) {
         if (!this.runner) {
             return null;
         }
-        const dueRetryIds = this._dueRetryQuestionIds(currentIndex);
+        const retryQuestion = await this._tryServeRetryQuestion(currentIndex);
+        if (retryQuestion) {
+            return retryQuestion;
+        }
         for (let attempt = 0; attempt < MAX_RUNNER_ATTEMPTS; attempt += 1) {
             const question = await this.runner.nextQuestion();
             if (!question) {
                 continue;
             }
             const qid = this.resolveQuestionId(question);
-            if (dueRetryIds.length > 0) {
-                if (!qid || !dueRetryIds.includes(String(qid))) {
-                    continue;
-                }
-                this._consumeRetryQuestion(String(qid));
-            }
             return question;
         }
 
-        if (dueRetryIds.length > 0) {
-            // Drop the oldest retry to avoid deadlock and try again.
-            this.retryQueue.shift();
-            return this.nextQuestion({ currentIndex });
-        }
         return null;
     }
 
