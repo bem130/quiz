@@ -17,6 +17,11 @@ function nowMs() {
     return Date.now();
 }
 
+async function getScheduleTable() {
+    const db = await getDatabase();
+    return db.table('schedule');
+}
+
 function defaultScheduleRecord(userId, quizId, questionId) {
     const key = makeQuestionKey(quizId, questionId);
     const timestamp = nowMs();
@@ -59,27 +64,17 @@ function applyFuzz(intervalSec) {
 export async function ensureScheduleEntry(userId, quizId, questionId) {
     if (!userId || !questionId) return null;
     const db = await getDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('schedule', 'readwrite');
-        const store = tx.objectStore('schedule');
-        const key = makeQuestionKey(quizId, questionId);
-        const request = store.get([userId, key]);
-        let resultRecord = null;
-
-        request.onsuccess = () => {
-            const existing = request.result;
-            if (existing) {
-                resultRecord = existing;
-            } else {
-                const record = defaultScheduleRecord(userId, quizId, questionId);
-                store.put(record);
-                resultRecord = record;
-            }
-        };
-
-        tx.oncomplete = () => resolve(resultRecord);
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
+    const scheduleTable = db.table('schedule');
+    return db.transaction('rw', scheduleTable, async () => {
+        const qid = makeQuestionKey(quizId, questionId);
+        const key = [userId, qid];
+        const existing = await scheduleTable.get(key);
+        if (existing) {
+            return existing;
+        }
+        const record = defaultScheduleRecord(userId, quizId, questionId);
+        await scheduleTable.put(record);
+        return record;
     });
 }
 
@@ -161,15 +156,8 @@ function handleIdk(entry) {
 
 export async function deleteScheduleEntryByKey(userId, questionKey) {
     if (!userId || !questionKey) return;
-    const db = await getDatabase();
-    await new Promise((resolve, reject) => {
-        const tx = db.transaction('schedule', 'readwrite');
-        const store = tx.objectStore('schedule');
-        store.delete([userId, questionKey]);
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-    });
+    const table = await getScheduleTable();
+    await table.delete([userId, questionKey]);
 }
 
 export async function updateScheduleAfterResult({
@@ -181,47 +169,38 @@ export async function updateScheduleAfterResult({
 }) {
     if (!userId || !questionId) return;
     const db = await getDatabase();
-    await new Promise((resolve, reject) => {
-        const tx = db.transaction('schedule', 'readwrite');
-        const store = tx.objectStore('schedule');
+    const scheduleTable = db.table('schedule');
+    await db.transaction('rw', scheduleTable, async () => {
         const key = [userId, makeQuestionKey(quizId, questionId)];
-        const request = store.get(key);
+        let entry = await scheduleTable.get(key);
+        if (!entry) {
+            entry = defaultScheduleRecord(userId, quizId, questionId);
+        }
 
-        request.onsuccess = () => {
-            let entry = request.result;
-            if (!entry) {
-                entry = defaultScheduleRecord(userId, quizId, questionId);
-            }
+        entry.lastAnswerMs = typeof answerMs === 'number' ? answerMs : entry.lastAnswerMs;
+        entry.quizId = quizId || entry.quizId || null;
+        entry.questionId = questionId || entry.questionId;
 
-            entry.lastAnswerMs = typeof answerMs === 'number' ? answerMs : entry.lastAnswerMs;
-            entry.quizId = quizId || entry.quizId || null;
-            entry.questionId = questionId || entry.questionId;
+        switch (resultType) {
+            case 'correct':
+            case 'strong':
+                handleStrong(entry);
+                break;
+            case 'weak':
+                handleWeak(entry);
+                break;
+            case 'wrong':
+                handleWrong(entry);
+                break;
+            case 'idk':
+                handleIdk(entry);
+                break;
+            default:
+                handleWrong(entry);
+                break;
+        }
 
-            switch (resultType) {
-                case 'correct':
-                case 'strong':
-                    handleStrong(entry);
-                    break;
-                case 'weak':
-                    handleWeak(entry);
-                    break;
-                case 'wrong':
-                    handleWrong(entry);
-                    break;
-                case 'idk':
-                    handleIdk(entry);
-                    break;
-                default:
-                    handleWrong(entry);
-                    break;
-            }
-
-            store.put(entry);
-        };
-
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
+        await scheduleTable.put(entry);
     });
 }
 
@@ -236,19 +215,6 @@ function normalizeStatesFilter(states) {
             )
             .filter(Boolean)
     );
-}
-
-function resolveKeyRangeFactory() {
-    if (typeof IDBKeyRange !== 'undefined') {
-        return IDBKeyRange;
-    }
-    if (typeof window !== 'undefined' && window.IDBKeyRange) {
-        return window.IDBKeyRange;
-    }
-    if (typeof self !== 'undefined' && self.IDBKeyRange) {
-        return self.IDBKeyRange;
-    }
-    return null;
 }
 
 export async function listDueScheduleEntries(userId, quizId, options = {}) {
@@ -275,128 +241,81 @@ export async function listDueScheduleEntries(userId, quizId, options = {}) {
     const statesFilter = normalizeStatesFilter(options.states);
     const upperBound = now + lookaheadMs;
 
-    const db = await getDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('schedule', 'readonly');
-        let index;
-        try {
-            index = tx.objectStore('schedule').index('byUserDue');
-        } catch (error) {
-            resolve({ learning: [], relearning: [], review: [] });
-            tx.abort();
-            return;
+    const table = await getScheduleTable();
+    const range = table
+        .where('[userId+dueAt]')
+        .between([userId, 0], [userId, upperBound]);
+    const results = {
+        learning: [],
+        relearning: [],
+        review: []
+    };
+    const limits = {
+        learning: perStateLimit,
+        relearning: perStateLimit,
+        review: perStateLimit
+    };
+
+    const entries = await range.toArray();
+    for (const value of entries) {
+        if (!value) {
+            continue;
         }
-        const keyRangeFactory = resolveKeyRangeFactory();
-        if (!keyRangeFactory) {
-            resolve({ learning: [], relearning: [], review: [] });
-            tx.abort();
-            return;
+        if (quizId && value.quizId && value.quizId !== quizId) {
+            continue;
         }
-
-        const lower = [userId, 0];
-        const upper = [userId, upperBound];
-        const range = keyRangeFactory.bound(lower, upper);
-        const results = {
-            learning: [],
-            relearning: [],
-            review: []
-        };
-
-        const limits = {
-            learning: perStateLimit,
-            relearning: perStateLimit,
-            review: perStateLimit
-        };
-
-        const request = index.openCursor(range);
-        request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (!cursor) {
-                return;
-            }
-            const value = cursor.value;
-            if (!value) {
-                cursor.continue();
-                return;
-            }
-            if (quizId && value.quizId && value.quizId !== quizId) {
-                cursor.continue();
-                return;
-            }
-
-            const stateRaw = typeof value.state === 'string' ? value.state.toUpperCase() : '';
-            if (statesFilter && !statesFilter.has(stateRaw)) {
-                cursor.continue();
-                return;
-            }
-
-            const bucket =
-                stateRaw === 'LEARNING'
-                    ? 'learning'
-                    : stateRaw === 'RELEARNING'
-                        ? 'relearning'
-                        : stateRaw === 'REVIEW'
-                            ? 'review'
-                            : null;
-
-            if (!bucket) {
-                cursor.continue();
-                return;
-            }
-
-            if (results[bucket].length < limits[bucket]) {
-                results[bucket].push(value);
-            }
-            cursor.continue();
-        };
-
-        request.onerror = () => reject(request.error);
-        tx.oncomplete = () => resolve(results);
-        tx.onabort = () => reject(tx.error);
-    });
+        const stateRaw = typeof value.state === 'string' ? value.state.toUpperCase() : '';
+        if (statesFilter && !statesFilter.has(stateRaw)) {
+            continue;
+        }
+        const bucket =
+            stateRaw === 'LEARNING'
+                ? 'learning'
+                : stateRaw === 'RELEARNING'
+                    ? 'relearning'
+                    : stateRaw === 'REVIEW'
+                        ? 'review'
+                        : null;
+        if (!bucket) {
+            continue;
+        }
+        if (results[bucket].length < limits[bucket]) {
+            results[bucket].push(value);
+        }
+        const allFilled = Object.keys(results).every(
+            (key) => results[key].length >= limits[key]
+        );
+        if (allFilled) {
+            break;
+        }
+    }
+    return results;
 }
 
-function fetchEntriesByState(db, userId, state, quizId) {
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('schedule', 'readonly');
-        const store = tx.objectStore('schedule');
-        const index = store.index('byUserState');
-        const range = typeof IDBKeyRange !== 'undefined'
-            ? IDBKeyRange.only([userId, state])
-            : self.IDBKeyRange.only([userId, state]);
-        const list = [];
-
-        const request = index.openCursor(range);
-        request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (!cursor) {
-                return;
-            }
-            const value = cursor.value;
-            if (!quizId || value.quizId === quizId) {
-                list.push(value);
-            }
-            cursor.continue();
-        };
-
-        request.onerror = () => reject(request.error);
-        tx.oncomplete = () => resolve(list);
-        tx.onabort = () => reject(tx.error);
-    });
+async function fetchEntriesByState(userId, state, quizId) {
+    const table = await getScheduleTable();
+    const entries = await table
+        .where('[userId+state]')
+        .equals([userId, state])
+        .toArray();
+    if (!quizId) {
+        return entries;
+    }
+    return entries.filter((entry) => entry && entry.quizId === quizId);
 }
 
 export async function listScheduleEntriesForQuiz(userId, quizId) {
     if (!userId) return { learning: [], relearning: [], review: [], fresh: [] };
-    const db = await getDatabase();
     const [learning, relearning, review] = await Promise.all([
-        fetchEntriesByState(db, userId, 'LEARNING', quizId),
-        fetchEntriesByState(db, userId, 'RELEARNING', quizId),
-        fetchEntriesByState(db, userId, 'REVIEW', quizId)
+        fetchEntriesByState(userId, 'LEARNING', quizId),
+        fetchEntriesByState(userId, 'RELEARNING', quizId),
+        fetchEntriesByState(userId, 'REVIEW', quizId)
     ]);
 
     return {
         learning,
         relearning,
-        review
+        review,
+        fresh: []
     };
 }

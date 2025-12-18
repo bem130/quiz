@@ -85,14 +85,8 @@ export async function saveQuestionSnapshot(quizId, questionId, question) {
         savedAt: Date.now()
     };
     const db = await getDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('questions', 'readwrite');
-        const store = tx.objectStore('questions');
-        store.put(record);
-        tx.oncomplete = () => resolve(record);
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-    });
+    await db.table('questions').put(record);
+    return record;
 }
 
 export async function getQuestionSnapshot(quizId, questionId) {
@@ -107,23 +101,11 @@ export async function getQuestionSnapshotByKey(questionKey) {
         return null;
     }
     const db = await getDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('questions', 'readonly');
-        const store = tx.objectStore('questions');
-        const request = store.get(questionKey);
-        request.onsuccess = () => {
-            const record = request.result;
-            if (!record || !record.payload) {
-                resolve(null);
-                return;
-            }
-            resolve(clonePayload(record.payload));
-        };
-        request.onerror = () => reject(request.error);
-        tx.oncomplete = () => {};
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-    });
+    const record = await db.table('questions').get(questionKey);
+    if (!record || !record.payload) {
+        return null;
+    }
+    return clonePayload(record.payload);
 }
 
 export async function deleteQuestionSnapshot(quizId, questionId) {
@@ -131,14 +113,7 @@ export async function deleteQuestionSnapshot(quizId, questionId) {
         return;
     }
     const db = await getDatabase();
-    await new Promise((resolve, reject) => {
-        const tx = db.transaction('questions', 'readwrite');
-        const store = tx.objectStore('questions');
-        store.delete(makeQuestionKey(quizId, questionId));
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-    });
+    await db.table('questions').delete(makeQuestionKey(quizId, questionId));
 }
 
 export async function findQuestionsByConcept(quizId, conceptId, options = {}) {
@@ -151,63 +126,38 @@ export async function findQuestionsByConcept(quizId, conceptId, options = {}) {
             : 5;
     const normalizedConcept = String(conceptId);
     const db = await getDatabase();
-    return new Promise((resolve, reject) => {
-        let index;
-        const tx = db.transaction('questions', 'readonly');
-        try {
-            index = tx.objectStore('questions').index('byConcept');
-        } catch (error) {
-            resolve([]);
-            tx.abort();
-            return;
+    const table = db.table('questions');
+    const seenKeys = new Set();
+    let collection;
+    if (quizId) {
+        collection = table
+            .where('[packageId+conceptId]')
+            .equals([quizId, normalizedConcept]);
+    } else {
+        collection = table.where('conceptId').equals(normalizedConcept);
+    }
+    const fetchLimit = Math.max(limit * 3, limit);
+    const candidates = await collection.limit(fetchLimit).toArray();
+    const results = [];
+    for (const value of candidates) {
+        if (
+            value &&
+            value.payload &&
+            !seenKeys.has(value.qid) &&
+            (!quizId || value.quizId === quizId)
+        ) {
+            seenKeys.add(value.qid);
+            results.push({
+                questionKey: value.qid,
+                questionId: value.questionId || null,
+                question: clonePayload(value.payload)
+            });
         }
-        const keyRangeFactory =
-            typeof IDBKeyRange !== 'undefined'
-                ? IDBKeyRange
-                : typeof window !== 'undefined' && window.IDBKeyRange
-                    ? window.IDBKeyRange
-                    : typeof self !== 'undefined' && self.IDBKeyRange
-                        ? self.IDBKeyRange
-                        : null;
-        if (!keyRangeFactory) {
-            resolve([]);
-            tx.abort();
-            return;
+        if (results.length >= limit) {
+            break;
         }
-        const range = keyRangeFactory.only(normalizedConcept);
-        const results = [];
-        const seenKeys = new Set();
-
-        const request = index.openCursor(range);
-        request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (!cursor) {
-                return;
-            }
-            const value = cursor.value;
-            if (
-                value &&
-                (!quizId || value.quizId === quizId) &&
-                value.payload &&
-                !seenKeys.has(value.qid)
-            ) {
-                seenKeys.add(value.qid);
-                results.push({
-                    questionKey: value.qid,
-                    questionId: value.questionId || null,
-                    question: clonePayload(value.payload)
-                });
-            }
-            if (results.length < limit) {
-                cursor.continue();
-            }
-        };
-        request.onerror = () => reject(request.error);
-        tx.oncomplete = () => {
-            resolve(results.slice(0, limit));
-        };
-        tx.onabort = () => resolve(results.slice(0, limit));
-    });
+    }
+    return results;
 }
 
 export async function listQuestionsForQuiz(quizId, options = {}) {
@@ -219,51 +169,13 @@ export async function listQuestionsForQuiz(quizId, options = {}) {
             ? Math.floor(options.limit)
             : 100;
     const db = await getDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('questions', 'readonly');
-        let index;
-        try {
-            index = tx.objectStore('questions').index('byPackage');
-        } catch (error) {
-            resolve([]);
-            tx.abort();
-            return;
-        }
-        const keyRangeFactory =
-            typeof IDBKeyRange !== 'undefined'
-                ? IDBKeyRange
-                : typeof window !== 'undefined' && window.IDBKeyRange
-                    ? window.IDBKeyRange
-                    : typeof self !== 'undefined' && self.IDBKeyRange
-                        ? self.IDBKeyRange
-                        : null;
-        if (!keyRangeFactory) {
-            resolve([]);
-            tx.abort();
-            return;
-        }
-        const range = keyRangeFactory.only(quizId);
-        const results = [];
-        const request = index.openCursor(range);
-        request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (!cursor) {
-                return;
-            }
-            const value = cursor.value;
-            if (value && value.payload) {
-                results.push({
-                    questionKey: value.qid,
-                    questionId: value.questionId || null,
-                    question: clonePayload(value.payload)
-                });
-            }
-            cursor.continue();
-        };
-        request.onerror = () => reject(request.error);
-        tx.oncomplete = () => {
-            resolve(results.slice(0, limit));
-        };
-        tx.onabort = () => resolve(results.slice(0, limit));
-    });
+    const table = db.table('questions');
+    const entries = await table.where('packageId').equals(quizId).limit(limit).toArray();
+    return entries
+        .filter((entry) => entry && entry.payload)
+        .map((value) => ({
+            questionKey: value.qid,
+            questionId: value.questionId || null,
+            question: clonePayload(value.payload)
+        }));
 }

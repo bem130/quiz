@@ -35,43 +35,26 @@ export async function createSessionRecord({
     };
 
     const db = await getDatabase();
-    await new Promise((resolve, reject) => {
-        const tx = db.transaction('sessions', 'readwrite');
-        tx.oncomplete = resolve;
-        tx.onabort = () => reject(tx.error);
-        tx.onerror = () => reject(tx.error);
-        tx.objectStore('sessions').put(record);
-    });
+    await db.table('sessions').put(record);
 
     return record;
 }
 
 export async function completeSessionRecord(sessionId, summary) {
     const db = await getDatabase();
-    await new Promise((resolve, reject) => {
-        const tx = db.transaction('sessions', 'readwrite');
-        const store = tx.objectStore('sessions');
-        const request = store.get(sessionId);
-
-        request.onsuccess = () => {
-            const record = request.result;
-            if (!record) {
-                resolve();
-                return;
-            }
-            record.endedAt = Date.now();
-            record.summary = summary || null;
-            store.put(record);
-        };
-
-        tx.oncomplete = resolve;
-        tx.onabort = () => reject(tx.error);
-        tx.onerror = () => reject(tx.error);
+    const table = db.table('sessions');
+    await db.transaction('rw', table, async () => {
+        const record = await table.get(sessionId);
+        if (!record) {
+            return;
+        }
+        record.endedAt = Date.now();
+        record.summary = summary || null;
+        await table.put(record);
     });
 }
 
 export async function logAttemptRecord(attempt) {
-    const db = await getDatabase();
     const { attemptId, ...attemptWithoutId } = attempt || {};
     const record = {
         ...attemptWithoutId,
@@ -80,19 +63,12 @@ export async function logAttemptRecord(attempt) {
     if (!record.userId || !record.sessionId || !record.quizId) {
         console.warn('[session][attempt] missing key fields', record);
     }
-
-    await new Promise((resolve, reject) => {
-        const tx = db.transaction('attempts', 'readwrite');
-        tx.oncomplete = resolve;
-        tx.onabort = () => reject(tx.error);
-        tx.onerror = () => reject(tx.error);
-        try {
-            tx.objectStore('attempts').put(record);
-        } catch (error) {
-            console.error('[session][attempt] failed before put', record, error);
-            tx.abort();
-        }
-    });
+    const db = await getDatabase();
+    try {
+        await db.table('attempts').put(record);
+    } catch (error) {
+        console.error('[session][attempt] failed before put', record, error);
+    }
 }
 
 export async function getUserStats(userId) {
@@ -105,60 +81,30 @@ export async function getUserStats(userId) {
         };
     }
     const db = await getDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('attempts', 'readonly');
-        const store = tx.objectStore('attempts');
-        const index = store.index('byUserTime');
-
-        const lower = [userId, 0];
-        const upper = [userId, Number.MAX_SAFE_INTEGER];
-        const keyRangeFactory =
-            typeof IDBKeyRange !== 'undefined'
-                ? IDBKeyRange
-                : typeof self !== 'undefined' && self.IDBKeyRange
-                    ? self.IDBKeyRange
-                    : null;
-        if (!keyRangeFactory) {
-            reject(new Error('IDBKeyRange is not available.'));
+    const stats = {
+        totalAttempts: 0,
+        correctAttempts: 0,
+        weakAttempts: 0,
+        idkCount: 0
+    };
+    const collection = db
+        .table('attempts')
+        .where('[userId+timestamp]')
+        .between([userId, 0], [userId, Number.MAX_SAFE_INTEGER]);
+    await collection.each((value) => {
+        if (!value) {
             return;
         }
-        const range = keyRangeFactory.bound(lower, upper);
-
-        const stats = {
-            totalAttempts: 0,
-            correctAttempts: 0,
-            weakAttempts: 0,
-            idkCount: 0
-        };
-
-        const cursorRequest = index.openCursor(range);
-        cursorRequest.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (!cursor) {
-                return;
-            }
-            const value = cursor.value;
-            stats.totalAttempts += 1;
-            if (value && value.correct) {
-                stats.correctAttempts += 1;
-            }
-            if (value && value.resultType === 'weak') {
-                stats.weakAttempts += 1;
-            }
-            if (value && value.resultType === 'idk') {
-                stats.idkCount += 1;
-            }
-            cursor.continue();
-        };
-
-        cursorRequest.onerror = () => {
-            reject(cursorRequest.error);
-        };
-
-        tx.oncomplete = () => {
-            resolve(stats);
-        };
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
+        stats.totalAttempts += 1;
+        if (value.correct) {
+            stats.correctAttempts += 1;
+        }
+        if (value.resultType === 'weak') {
+            stats.weakAttempts += 1;
+        }
+        if (value.resultType === 'idk') {
+            stats.idkCount += 1;
+        }
     });
+    return stats;
 }
