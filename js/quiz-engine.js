@@ -11,6 +11,29 @@ import {
 import { resolveSubTokenValue, tokensToPlainText } from './text-utils.js';
 
 const DEFAULT_MAX_CONSECUTIVE_SKIPS = 20;
+const ENABLE_BUILD_CHOICE_DEBUG = false;
+const ENABLE_PATTERN_DEBUG = false;
+function debugBuildChoice(...args) {
+    if (!ENABLE_BUILD_CHOICE_DEBUG) {
+        return;
+    }
+    try {
+        console.debug(...args);
+    } catch (error) {
+        // ignore logging errors
+    }
+}
+
+function debugPattern(...args) {
+    if (!ENABLE_PATTERN_DEBUG) {
+        return;
+    }
+    try {
+        console.debug(...args);
+    } catch (error) {
+        // ignore logging errors
+    }
+}
 /**
  * Build version of quiz-engine module for runtime compatibility checks.
  * Use window.APP_VERSION when running in a browser so that the module
@@ -159,6 +182,16 @@ function resolveConceptIdFromRow(row) {
     return null;
 }
 
+function removeCandidateFromPool(pool, candidate) {
+    if (!Array.isArray(pool) || !candidate) {
+        return;
+    }
+    const index = pool.indexOf(candidate);
+    if (index >= 0) {
+        pool.splice(index, 1);
+    }
+}
+
 function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
     const choiceCfg = (token.answer && token.answer.choice) || {};
     const ds = choiceCfg.distractorSource || {};
@@ -173,28 +206,33 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
     const pool = Array.isArray(poolRows)
         ? poolRows.filter((row) => !ds.filter || evaluateFilter(row, ds.filter))
         : [];
+    const initialPoolSize = pool.length;
 
     const correctKey = tokenDisplayKey(token, correctRow);
     const usedIds = new Set([correctRow.id]);
     const usedText = new Set([correctKey]);
 
     // Debug: summary of choice config
-    try {
-        console.debug('[quiz][buildChoiceFromEntities] choiceCount:', choiceCount, 'avoidSameId:', avoidSameId, 'avoidSameText:', avoidSameText, 'correctKey:', JSON.stringify(correctKey), 'tokenType:', token && token.type);
-        if (token && token.answer && token.answer.choice && token.answer.choice.distractorSource) {
-            console.debug('[quiz][buildChoiceFromEntities] distractorSource:', token.answer.choice.distractorSource);
-        }
-    } catch (e) {}
+    debugBuildChoice('[quiz][buildChoiceFromEntities] choiceCount:', choiceCount, 'avoidSameId:', avoidSameId, 'avoidSameText:', avoidSameText, 'correctKey:', JSON.stringify(correctKey), 'tokenType:', token && token.type);
+    if (token && token.answer && token.answer.choice && token.answer.choice.distractorSource) {
+        debugBuildChoice('[quiz][buildChoiceFromEntities] distractorSource:', token.answer.choice.distractorSource);
+    }
     const distractors = [];
-    let safety = 2000;
-    while (distractors.length < choiceCount - 1 && safety > 0) {
-        safety -= 1;
-        const candidate = randomChoice(pool);
+    const allowRepeatAfterAccept = !avoidSameId && !avoidSameText;
+    let attempts = 0;
+    const maxAttempts = Math.max(40, initialPoolSize * 4);
+    while (
+        distractors.length < choiceCount - 1 &&
+        pool.length > 0 &&
+        attempts < maxAttempts
+    ) {
+        attempts += 1;
+        const randomIndex = Math.floor(Math.random() * pool.length);
+        const candidate = pool[randomIndex];
         if (!candidate) {
-            try {
-                console.debug('[quiz][buildChoiceFromEntities] candidate: null - pool exhausted or randomChoice returned falsy');
-            } catch (e) {}
-            break;
+            pool.splice(randomIndex, 1);
+            debugBuildChoice('[quiz][buildChoiceFromEntities] candidate: null - removed placeholder entry');
+            continue;
         }
 
         // compute key early for logging
@@ -205,39 +243,36 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
             key = '';
         }
 
-        try {
-            console.debug('[quiz][buildChoiceFromEntities] trying candidate:', candidate && candidate.id, 'key:', JSON.stringify(key));
-        } catch (e) {}
+        debugBuildChoice('[quiz][buildChoiceFromEntities] trying candidate:', candidate && candidate.id, 'key:', JSON.stringify(key));
 
         if (avoidSameId && usedIds.has(candidate.id)) {
-            try {
-                console.debug('[quiz][buildChoiceFromEntities] skip candidate (same id):', candidate && candidate.id);
-            } catch (e) {}
+            debugBuildChoice('[quiz][buildChoiceFromEntities] skip candidate (same id):', candidate && candidate.id);
+            removeCandidateFromPool(pool, candidate);
             continue;
         }
 
         if (avoidSameText && usedText.has(key)) {
-            try {
-                console.debug('[quiz][buildChoiceFromEntities] skip candidate (same text):', candidate && candidate.id, 'key:', JSON.stringify(key));
-            } catch (e) {}
+            debugBuildChoice('[quiz][buildChoiceFromEntities] skip candidate (same text):', candidate && candidate.id, 'key:', JSON.stringify(key));
+            removeCandidateFromPool(pool, candidate);
             continue;
         }
 
         distractors.push(candidate);
-        usedIds.add(candidate.id);
-        usedText.add(key);
-        try {
-            console.debug('[quiz][buildChoiceFromEntities] accepted distractor:', candidate && candidate.id, 'currentDistractors:', distractors.map((d) => d && d.id));
-        } catch (e) {}
+        if (avoidSameId) {
+            usedIds.add(candidate.id);
+        }
+        if (avoidSameText) {
+            usedText.add(key);
+        }
+        if (!allowRepeatAfterAccept) {
+            removeCandidateFromPool(pool, candidate);
+        }
+        debugBuildChoice('[quiz][buildChoiceFromEntities] accepted distractor:', candidate && candidate.id, 'currentDistractors:', distractors.map((d) => d && d.id));
     }
 
     // Debug: log distractor discovery
-    try {
-        console.debug('[quiz][buildChoiceFromEntities] tokenId:', token && token.id, 'dataSetId:', dataSetId, 'correctRowId:', correctRow && correctRow.id, 'poolSize:', pool.length);
-        console.debug('[quiz][buildChoiceFromEntities] distractors count:', distractors.length, 'ids:', distractors.map((d) => d && d.id));
-    } catch (e) {
-        // ignore logging errors
-    }
+    debugBuildChoice('[quiz][buildChoiceFromEntities] tokenId:', token && token.id, 'dataSetId:', dataSetId, 'correctRowId:', correctRow && correctRow.id, 'poolSize:', initialPoolSize);
+    debugBuildChoice('[quiz][buildChoiceFromEntities] distractors count:', distractors.length, 'ids:', distractors.map((d) => d && d.id));
 
     const optionEntities = [
         {
@@ -259,20 +294,16 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
     ];
 
     // Debug: dump option entities (lightweight view)
-    try {
-        console.debug('[quiz][buildChoiceFromEntities] optionEntities (pre-shuffle):', optionEntities.map((o) => ({
-            entityId: o && o.entityId,
-            isCorrect: !!(o && o.isCorrect),
-            displayKey: o && o.displayKey
-        })));
-    } catch (e) {}
+    debugBuildChoice('[quiz][buildChoiceFromEntities] optionEntities (pre-shuffle):', optionEntities.map((o) => ({
+        entityId: o && o.entityId,
+        isCorrect: !!(o && o.isCorrect),
+        displayKey: o && o.displayKey
+    })));
 
     const shuffledOptions = shuffled(optionEntities);
     const correctIndex = shuffledOptions.findIndex((o) => o.isCorrect);
 
-    try {
-        console.debug('[quiz][buildChoiceFromEntities] shuffledOptions:', shuffledOptions.map((o) => ({ entityId: o && o.entityId, isCorrect: !!(o && o.isCorrect), displayKey: o && o.displayKey })), 'correctIndex:', correctIndex);
-    } catch (e) {}
+    debugBuildChoice('[quiz][buildChoiceFromEntities] shuffledOptions:', shuffledOptions.map((o) => ({ entityId: o && o.entityId, isCorrect: !!(o && o.isCorrect), displayKey: o && o.displayKey })), 'correctIndex:', correctIndex);
 
     return {
         id: token.id || `ans_${correctRow.id}`,
@@ -321,9 +352,9 @@ function buildChoiceUniqueProperty(token, correctRow, allRows, dataSetId) {
     ]);
     const correctIndex = options.findIndex((o) => o.isCorrect);
     try {
-        console.debug('[quiz][buildChoiceUniqueProperty] tokenId:', token && token.id, 'dataSetId:', dataSetId, 'correctRowId:', correctRow && correctRow.id);
-        console.debug('[quiz][buildChoiceUniqueProperty] distractors count:', distractors.length, 'ids:', distractors.map((d) => d && d.id));
-        console.debug('[quiz][buildChoiceUniqueProperty] options:', options.map((o) => ({ entityId: o && o.entityId, isCorrect: !!(o && o.isCorrect), displayKey: o && o.displayKey })), 'correctIndex:', correctIndex);
+        debugBuildChoice('[quiz][buildChoiceUniqueProperty] tokenId:', token && token.id, 'dataSetId:', dataSetId, 'correctRowId:', correctRow && correctRow.id);
+        debugBuildChoice('[quiz][buildChoiceUniqueProperty] distractors count:', distractors.length, 'ids:', distractors.map((d) => d && d.id));
+        debugBuildChoice('[quiz][buildChoiceUniqueProperty] options:', options.map((o) => ({ entityId: o && o.entityId, isCorrect: !!(o && o.isCorrect), displayKey: o && o.displayKey })), 'correctIndex:', correctIndex);
     } catch (e) {}
     return {
         id: token.id || `ans_${correctRow.id}`,
@@ -915,7 +946,7 @@ export class QuizEngine {
         }];
 
         this.currentWeights = { list, total: 1 };
-        console.log(`[quiz] Set single pattern mode: ${patternId}`);
+        debugPattern('[quiz] Set single pattern mode:', patternId);
     }
 
     choosePattern() {
@@ -943,7 +974,7 @@ export class QuizEngine {
             return pattern;
         }
 
-        console.log('[quiz][pattern] Pattern chosen:', {
+        debugPattern('[quiz][pattern] Pattern chosen:', {
             modeId: this.currentMode && this.currentMode.id,
             patternId: chosen.pattern.id,
             patternLabel: chosen.pattern.label,

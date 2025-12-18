@@ -1373,10 +1373,12 @@ async function persistAttemptRecord(question, meta) {
             });
         }
         if (!isTestSession) {
-            await Promise.all([
-                updateConfusionFromAttempt(userId, snapshot),
-                updateConceptStatsFromAttempt(userId, snapshot)
-            ]);
+            const promises = [];
+            if (snapshot.resultType !== 'idk') {
+                promises.push(updateConfusionFromAttempt(userId, snapshot));
+            }
+            promises.push(updateConceptStatsFromAttempt(userId, snapshot));
+            await Promise.all(promises);
         }
         await sessionCore.submitAnswer({
             questionId: snapshot.questionId,
