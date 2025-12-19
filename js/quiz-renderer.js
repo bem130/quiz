@@ -37,6 +37,9 @@ const CHOICE_STATE_MAP = {
     disabled: ['choice-disabled']
 };
 
+// Cooldown for option button clicks (milliseconds)
+const OPTION_CLICK_COOLDOWN_MS = 100;
+
 function resetChoiceButtonState(btn) {
     if (!btn) return;
     btn.classList.remove(
@@ -366,7 +369,22 @@ function createOptionButton(labelNodes, isDisabled, onClick, { fullHeight = true
         btn.disabled = true;
         addChoiceStateClasses(btn, 'disabled');
     } else {
-        btn.addEventListener('click', onClick);
+        // Wrap the provided onClick with a small cooldown to prevent accidental double-clicks
+        btn._lastClick = 0;
+        btn.addEventListener('click', (ev) => {
+            const now = Date.now();
+            if (now - (btn._lastClick || 0) < OPTION_CLICK_COOLDOWN_MS) {
+                ev.stopImmediatePropagation();
+                ev.preventDefault();
+                return;
+            }
+            btn._lastClick = now;
+            try {
+                onClick(ev);
+            } catch (e) {
+                console.error('option click handler error', e);
+            }
+        });
     }
 
     // ─────────────────────────────────
