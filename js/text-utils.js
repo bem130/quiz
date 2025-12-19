@@ -1,5 +1,22 @@
 import { parseContentToSegments } from './ruby-parser.js';
 
+function inlineSegmentsToPlainText(segments) {
+    let text = '';
+    (segments || []).forEach((segment) => {
+        if (!segment || !segment.kind) return;
+        if (segment.kind === 'Plain') {
+            text += segment.text || '';
+            return;
+        }
+        if (segment.kind === 'Math') {
+            if (segment.tex) {
+                text += segment.display ? `$$${segment.tex}$$` : `$${segment.tex}$`;
+            }
+        }
+    });
+    return text;
+}
+
 function contentSegmentsToPlainText(segments) {
     let text = '';
     (segments || []).forEach((segment) => {
@@ -9,7 +26,7 @@ function contentSegmentsToPlainText(segments) {
             return;
         }
         if (segment.kind === 'Annotated') {
-            text += segment.base || '';
+            text += inlineSegmentsToPlainText(segment.base);
             return;
         }
         if (segment.kind === 'Term') {

@@ -101,6 +101,21 @@ function createStyledSpan(text, styles = []) {
     return span;
 }
 
+function appendInlineSegmentsInto(parent, segments) {
+    (segments || []).forEach((seg) => {
+        if (!seg || !seg.kind) return;
+        if (seg.kind === 'Plain') {
+            parent.appendChild(document.createTextNode(seg.text || ''));
+            return;
+        }
+        if (seg.kind === 'Math') {
+            const styles = ['katex'];
+            if (seg.display) styles.push('katex-block');
+            parent.appendChild(createStyledSpan(seg.tex || '', styles));
+        }
+    });
+}
+
 function renderRubyToken(token, row) {
     const rubyEl = document.createElement('ruby');
     if (token._loc) {
@@ -158,7 +173,7 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                 } else if (seg.kind === 'Annotated') {
                     const rubyEl = document.createElement('ruby');
                     const rb = document.createElement('rb');
-                    rb.textContent = seg.base;
+                    appendInlineSegmentsInto(rb, seg.base);
                     const rt = document.createElement('rt');
                     rt.textContent = seg.reading;
                     rubyEl.appendChild(rb);
@@ -177,9 +192,15 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                     seg.children.forEach(child => {
                         if (child.kind === 'Annotated') {
                             const rb = document.createElement('rb');
-                            rb.textContent = child.base;
+                            appendInlineSegmentsInto(rb, child.base);
                             const rt = document.createElement('rt');
                             rt.textContent = child.reading;
+                            rubyEl.appendChild(rb);
+                            rubyEl.appendChild(rt);
+                        } else if (child.kind === 'Math') {
+                            const rb = document.createElement('rb');
+                            appendInlineSegmentsInto(rb, [child]);
+                            const rt = document.createElement('rt');
                             rubyEl.appendChild(rb);
                             rubyEl.appendChild(rt);
                         } else if (child.kind === 'Plain') {

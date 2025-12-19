@@ -17,14 +17,14 @@
 /**
  * @typedef {Object} SegmentAnnotated
  * @property {"Annotated"} kind
- * @property {string} base
+ * @property {InlineSegment[]} base
  * @property {string} reading
  */
 
 /**
  * @typedef {Object} SegmentTerm
  * @property {"Term"} kind
- * @property {Segment[]} children
+ * @property {TermChildSegment[]} children
  * @property {string} english
  */
 
@@ -37,6 +37,14 @@
 
 /**
  * @typedef {SegmentPlain | SegmentAnnotated | SegmentTerm | SegmentMath} Segment
+ */
+
+/**
+ * @typedef {SegmentPlain | SegmentMath} InlineSegment
+ */
+
+/**
+ * @typedef {SegmentPlain | SegmentAnnotated | SegmentMath} TermChildSegment
  */
 
 /**
@@ -118,6 +126,99 @@ function tokenize(input) {
 }
 
 /**
+ * Split a string into inline segments (plain or math).
+ * Handles escaped dollar signs to allow literal $ characters.
+ *
+ * @param {string} text
+ * @returns {InlineSegment[]}
+ */
+function splitInlineMathSegments(text) {
+    const segments = [];
+    let i = 0;
+    const len = text.length;
+    let plainBuffer = "";
+
+    const flushPlain = () => {
+        if (plainBuffer.length > 0) {
+            segments.push({ kind: "Plain", text: plainBuffer });
+            plainBuffer = "";
+        }
+    };
+
+    const isEscaped = (idx) => {
+        let count = 0;
+        for (let j = idx - 1; j >= 0 && text[j] === '\\'; j--) {
+            count++;
+        }
+        return count % 2 === 1;
+    };
+
+    while (i < len) {
+        if (text.startsWith('$$', i) && !isEscaped(i)) {
+            let end = i + 2;
+            while (end < len) {
+                if (text.startsWith('$$', end) && !isEscaped(end)) break;
+                end++;
+            }
+            if (end < len) {
+                flushPlain();
+                segments.push({
+                    kind: "Math",
+                    tex: text.slice(i + 2, end),
+                    display: true
+                });
+                i = end + 2;
+                continue;
+            }
+        }
+
+        if (text[i] === '$' && !isEscaped(i)) {
+            let end = i + 1;
+            while (end < len) {
+                if (text[end] === '$' && !isEscaped(end)) break;
+                end++;
+            }
+            if (end < len) {
+                flushPlain();
+                segments.push({
+                    kind: "Math",
+                    tex: text.slice(i + 1, end),
+                    display: false
+                });
+                i = end + 1;
+                continue;
+            }
+        }
+
+        plainBuffer += text[i];
+        i++;
+    }
+    flushPlain();
+    return segments;
+}
+
+/**
+ * Append inline segments, merging adjacent plain nodes.
+ *
+ * @param {TermChildSegment[]} target
+ * @param {InlineSegment[]} incoming
+ */
+function appendInlineSegments(target, incoming) {
+    for (const seg of incoming) {
+        if (seg.kind === 'Plain') {
+            const last = target[target.length - 1];
+            if (last && last.kind === 'Plain') {
+                last.text += seg.text;
+            } else {
+                target.push(seg);
+            }
+        } else {
+            target.push(seg);
+        }
+    }
+}
+
+/**
  * Parse a ruby block: [Base/Reading]
  * Expects the cursor to be at '['.
  *
@@ -144,7 +245,7 @@ function parseRubyBlock(tokens, start) {
                 return null;
             }
             return {
-                segment: { kind: "Annotated", base, reading },
+                segment: { kind: "Annotated", base: splitInlineMathSegments(base), reading },
                 nextIndex: i + 1
             };
         } else if (t.kind === 'Symbol' && t.value === '/') {
@@ -189,11 +290,20 @@ function parseTermBlock(tokens, start) {
     let jpSegments = [];
     let english = "";
     let foundSlash = false;
+    let jpBuffer = "";
+
+    const flushJapaneseBuffer = () => {
+        if (!jpBuffer) return;
+        const inlineSegments = splitInlineMathSegments(jpBuffer);
+        appendInlineSegments(jpSegments, inlineSegments);
+        jpBuffer = "";
+    };
 
     while (i < tokens.length) {
         const t = tokens[i];
 
         if (t.kind === 'Symbol' && t.value === '}') {
+            flushJapaneseBuffer();
             return {
                 segment: { kind: "Term", children: jpSegments, english },
                 nextIndex: i + 1
@@ -208,6 +318,7 @@ function parseTermBlock(tokens, start) {
         }
 
         if (t.kind === 'Symbol' && t.value === '/') {
+            flushJapaneseBuffer();
             foundSlash = true;
             i++;
             continue;
@@ -215,6 +326,7 @@ function parseTermBlock(tokens, start) {
 
         // Japanese part
         if (t.kind === 'Symbol' && t.value === '[') {
+            flushJapaneseBuffer();
             const rubyResult = parseRubyBlock(tokens, i);
             if (rubyResult) {
                 jpSegments.push(rubyResult.segment);
@@ -224,12 +336,7 @@ function parseTermBlock(tokens, start) {
         }
 
         // Plain text or unparsed symbols in Japanese part
-        const last = jpSegments[jpSegments.length - 1];
-        if (last && last.kind === "Plain") {
-            last.text += t.value;
-        } else {
-            jpSegments.push({ kind: "Plain", text: t.value });
-        }
+        jpBuffer += t.value;
         i++;
     }
 
@@ -283,6 +390,28 @@ function parseLineToSegments(line) {
 }
 
 /**
+ * Convert inline segments to plain text (math retains $...$ wrappers).
+ *
+ * @param {InlineSegment[]} segments
+ * @returns {string}
+ */
+function inlineSegmentsToPlainText(segments) {
+    let text = '';
+    (segments || []).forEach((seg) => {
+        if (seg.kind === 'Plain') {
+            text += seg.text || '';
+            return;
+        }
+        if (seg.kind === 'Math') {
+            if (seg.tex) {
+                text += seg.display ? `$$${seg.tex}$$` : `$${seg.tex}$`;
+            }
+        }
+    });
+    return text;
+}
+
+/**
  * Convert a ruby-annotated string to HTML.
  *
  * @param {string} line
@@ -294,15 +423,17 @@ export function rubyLineToHtml(line) {
         if (seg.kind === "Plain") {
             return escapeHtml(seg.text);
         } else if (seg.kind === "Annotated") {
-            return `<ruby><rb>${escapeHtml(seg.base)}</rb><rt>${escapeHtml(seg.reading)}</rt></ruby>`;
+            return `<ruby><rb>${escapeHtml(inlineSegmentsToPlainText(seg.base))}</rb><rt>${escapeHtml(seg.reading)}</rt></ruby>`;
         } else if (seg.kind === "Term") {
             const jpHtml = seg.children.map(child => {
                 if (child.kind === "Annotated") {
-                    return `<rb>${escapeHtml(child.base)}</rb><rt>${escapeHtml(child.reading)}</rt>`;
-                } else {
-                    // Plain text inside term ruby
-                    return `<rb>${escapeHtml(child.text)}</rb><rt></rt>`;
+                    return `<rb>${escapeHtml(inlineSegmentsToPlainText(child.base))}</rb><rt>${escapeHtml(child.reading)}</rt>`;
                 }
+                if (child.kind === "Math") {
+                    return `<rb>${escapeHtml(inlineSegmentsToPlainText([child]))}</rb><rt></rt>`;
+                }
+                // Plain text inside term ruby
+                return `<rb>${escapeHtml(child.text)}</rb><rt></rt>`;
             }).join("");
 
             let html = `<span class="term"><ruby>${jpHtml}</ruby>`;
@@ -327,6 +458,8 @@ function splitMathAndPlain(src) {
     let i = 0;
     const len = src.length;
     let plainBuffer = "";
+    let bracketDepth = 0;
+    let braceDepth = 0;
 
     const flushPlain = () => {
         if (plainBuffer.length > 0) {
@@ -336,29 +469,70 @@ function splitMathAndPlain(src) {
     };
 
     while (i < len) {
-        // Check for display math $$...$$
-        if (src.startsWith('$$', i)) {
-            const end = src.indexOf('$$', i + 2);
-            if (end !== -1) {
-                flushPlain();
-                parts.push({ kind: "math", tex: src.slice(i + 2, end), display: true });
-                i = end + 2;
+        const ch = src[i];
+
+        if (ch === '\\') {
+            if (i + 1 < len) {
+                plainBuffer += src.slice(i, i + 2);
+                i += 2;
                 continue;
+            }
+            plainBuffer += ch;
+            i++;
+            continue;
+        }
+
+        if (ch === '[') {
+            bracketDepth++;
+            plainBuffer += ch;
+            i++;
+            continue;
+        }
+        if (ch === ']') {
+            bracketDepth = Math.max(0, bracketDepth - 1);
+            plainBuffer += ch;
+            i++;
+            continue;
+        }
+        if (ch === '{') {
+            braceDepth++;
+            plainBuffer += ch;
+            i++;
+            continue;
+        }
+        if (ch === '}') {
+            braceDepth = Math.max(0, braceDepth - 1);
+            plainBuffer += ch;
+            i++;
+            continue;
+        }
+
+        const inAnnotation = bracketDepth > 0 || braceDepth > 0;
+        if (!inAnnotation) {
+            // Check for display math $$...$$
+            if (src.startsWith('$$', i)) {
+                const end = src.indexOf('$$', i + 2);
+                if (end !== -1) {
+                    flushPlain();
+                    parts.push({ kind: "math", tex: src.slice(i + 2, end), display: true });
+                    i = end + 2;
+                    continue;
+                }
+            }
+
+            // Check for inline math $...$
+            if (ch === '$') {
+                const end = src.indexOf('$', i + 1);
+                if (end !== -1) {
+                    flushPlain();
+                    parts.push({ kind: "math", tex: src.slice(i + 1, end), display: false });
+                    i = end + 1;
+                    continue;
+                }
             }
         }
 
-        // Check for inline math $...$
-        if (src[i] === '$') {
-            const end = src.indexOf('$', i + 1);
-            if (end !== -1) {
-                flushPlain();
-                parts.push({ kind: "math", tex: src.slice(i + 1, end), display: false });
-                i = end + 1;
-                continue;
-            }
-        }
-
-        plainBuffer += src[i];
+        plainBuffer += ch;
         i++;
     }
     flushPlain();
