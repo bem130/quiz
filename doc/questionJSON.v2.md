@@ -685,7 +685,7 @@ Mode と ModeGroup を混在させた例：
 ```jsonc
 {
   "type": "content",
-  "value": "(数学/すうがく)B：(等比数列/とうひすうれつ)の(漸化式/ぜんかしき)"
+  "value": "[数学/すうがく]B：[等比数列/とうひすうれつ]の[漸化式/ぜんかしき]"
 }
 ```
 
@@ -700,21 +700,21 @@ Mode と ModeGroup を混在させた例：
 
    * 英語部分（English）は省略可能です。
 
-   * 例: `{(漸化式/ぜんかしき)/recurrence relation}` 
+   * 例: `{[漸化式/ぜんかしき]/recurrence relation}` 
 
      → `<span class="term"><ruby><rb>漸化式</rb><rt>ぜんかしき</rt></ruby><span class="term-alt">recurrence relation</span></span>`
 
    * 例: `{専門用語}` → `<span class="term"><ruby><rb>専門用語</rb><rt></rt></ruby></span>`
 
-   * Term 内の日本語部分では、`(Base/Reading)` 形式の Ruby 記法が使用できます。
+   * Term 内の日本語部分では、`[Base/Reading]` 形式の Ruby 記法が使用できます。
 
    * `{` `}` `/` を文字として使いたい場合は `\` でエスケープします（例: `\{`, `\}`, `\/`）。
 
 
 
-2. **Ruby（ルビ）**: `(Base/Reading)` の形式で記述します。
-   * 例: `(漢字/かんじ)` → `<ruby><rb>漢字</rb><rt>かんじ</rt></ruby>`
-   * `(` `)` `/` を文字として使いたい場合は `\` でエスケープします（例: `\(`, `\)`, `\/`）。
+2. **Ruby（ルビ）**: `[Base/Reading]` の形式で記述します。
+   * 例: `[漢字/かんじ]` → `<ruby><rb>漢字</rb><rt>かんじ</rt></ruby>`
+   * `[` `]` `/` を文字として使いたい場合は `\` でエスケープします（例: `\[`, `\]`, `\/`）。
 
 3. **KaTeX（数式）**: `$` で囲むとインライン数式、`$$` で囲むとブロック数式になります。
    * 例: `$a_n = a_1 r^{n-1}$` → インライン数式

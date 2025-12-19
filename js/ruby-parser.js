@@ -2,7 +2,7 @@
  * Ruby Parser for "type": "content" tokens.
  *
  * Implements a parser for the format:
- *   (Base/Reading) -> <ruby><rb>Base</rb><rt>Reading</rt></ruby>
+ *   [Base/Reading] -> <ruby><rb>Base</rb><rt>Reading</rt></ruby>
  *   {Term/English} -> <span class="term"><ruby>...</ruby><span class="term-alt">English</span></span>
  *
  * Also handles plain text and escapes.
@@ -63,7 +63,7 @@ function escapeHtml(str) {
  * Tokenize the input string into a list of tokens.
  * Distinguishes between syntax symbols and plain text (including escaped symbols).
  *
- * Special characters: '(', ')', '/', '{', '}'
+ * Special characters: '[', ']', '/', '{', '}'
  *
  * @param {string} input
  * @returns {Token[]}
@@ -72,7 +72,7 @@ function tokenize(input) {
     const tokens = [];
     let i = 0;
     const len = input.length;
-    const SPECIAL_CHARS = ['(', ')', '/', '{', '}'];
+    const SPECIAL_CHARS = ['[', ']', '/', '{', '}'];
 
     while (i < len) {
         const char = input[i];
@@ -118,16 +118,16 @@ function tokenize(input) {
 }
 
 /**
- * Parse a ruby block: (Base/Reading)
- * Expects the cursor to be at '('.
+ * Parse a ruby block: [Base/Reading]
+ * Expects the cursor to be at '['.
  *
  * @param {Token[]} tokens
  * @param {number} start
  * @returns {{ segment: SegmentAnnotated, nextIndex: number } | null}
  */
 function parseRubyBlock(tokens, start) {
-    // 1. Check '('
-    if (tokens[start].kind !== 'Symbol' || tokens[start].value !== '(') return null;
+    // 1. Check '['
+    if (tokens[start].kind !== 'Symbol' || tokens[start].value !== '[') return null;
 
     let i = start + 1;
     let base = "";
@@ -137,10 +137,10 @@ function parseRubyBlock(tokens, start) {
     while (i < tokens.length) {
         const t = tokens[i];
 
-        if (t.kind === 'Symbol' && t.value === ')') {
+        if (t.kind === 'Symbol' && t.value === ']') {
             // End of block
             if (!foundSlash) {
-                // (Text) -> treat as plain text
+                // [Text] -> treat as plain text
                 return null;
             }
             return {
@@ -155,8 +155,8 @@ function parseRubyBlock(tokens, start) {
                 foundSlash = true;
             }
             i++;
-        } else if (t.kind === 'Symbol' && t.value === '(') {
-            // Nested '('? Not allowed in simple ruby parser.
+        } else if (t.kind === 'Symbol' && t.value === '[') {
+            // Nested '['? Not allowed in simple ruby parser.
             return null;
         } else {
             // Text or other symbols (like { } inside ruby?)
@@ -170,7 +170,7 @@ function parseRubyBlock(tokens, start) {
         }
     }
 
-    // Unclosed '('
+    // Unclosed '['
     return null;
 }
 
@@ -214,7 +214,7 @@ function parseTermBlock(tokens, start) {
         }
 
         // Japanese part
-        if (t.kind === 'Symbol' && t.value === '(') {
+        if (t.kind === 'Symbol' && t.value === '[') {
             const rubyResult = parseRubyBlock(tokens, i);
             if (rubyResult) {
                 jpSegments.push(rubyResult.segment);
@@ -260,7 +260,7 @@ function parseLineToSegments(line) {
             }
         }
 
-        if (t.kind === 'Symbol' && t.value === '(') {
+        if (t.kind === 'Symbol' && t.value === '[') {
             const result = parseRubyBlock(tokens, i);
             if (result) {
                 segments.push(result.segment);
