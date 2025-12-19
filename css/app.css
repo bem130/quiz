@@ -198,6 +198,24 @@ ruby rt {
     padding: 6px;
 }
 
+/* QR image: use rem-based size so it follows root font-size and --app-scale */
+#share-modal #share-qr-image {
+    width: 12.5rem; /* ~200px at default 16px root */
+    height: 12.5rem;
+    max-width: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+/* Ensure pixel-based Tailwind arbitrary text sizes scale with root font-size
+   so they follow `--app-scale`. Add rules for commonly used pixel sizes. */
+.text-\[11px\] {
+    font-size: 0.6875rem; /* 11px -> 0.6875rem */
+}
+.text-\[10px\] {
+    font-size: 0.625rem; /* 10px -> 0.625rem */
+}
+
 #share-modal #share-url-input {
 
     /* 横長レイアウト時の main:sub 比率 */
