@@ -421,7 +421,7 @@ export function rubyLineToHtml(line) {
     const segments = parseLineToSegments(line);
     return segments.map(seg => {
         if (seg.kind === "Plain") {
-            return escapeHtml(seg.text);
+            return escapeHtml(seg.text).replace(/\n/g, "<br/>");
         } else if (seg.kind === "Annotated") {
             return `<ruby><rb>${escapeHtml(inlineSegmentsToPlainText(seg.base))}</rb><rt>${escapeHtml(seg.reading)}</rt></ruby>`;
         } else if (seg.kind === "Term") {
@@ -433,7 +433,7 @@ export function rubyLineToHtml(line) {
                     return `<rb>${escapeHtml(inlineSegmentsToPlainText([child]))}</rb><rt></rt>`;
                 }
                 // Plain text inside term ruby
-                return `<rb>${escapeHtml(child.text)}</rb><rt></rt>`;
+                return `<rb>${escapeHtml(child.text).replace(/\n/g, "<br/>")}</rb><rt></rt>`;
             }).join("");
 
             let html = `<span class="term"><ruby>${jpHtml}</ruby>`;

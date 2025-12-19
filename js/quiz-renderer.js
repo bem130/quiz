@@ -105,7 +105,19 @@ function appendInlineSegmentsInto(parent, segments) {
     (segments || []).forEach((seg) => {
         if (!seg || !seg.kind) return;
         if (seg.kind === 'Plain') {
-            parent.appendChild(document.createTextNode(seg.text || ''));
+            // Preserve newline characters by inserting <br> elements.
+            const txt = seg.text || '';
+            if (txt.indexOf('\n') === -1) {
+                parent.appendChild(document.createTextNode(txt));
+            } else {
+                const parts = txt.split('\n');
+                parts.forEach((p, idx) => {
+                    parent.appendChild(document.createTextNode(p));
+                    if (idx !== parts.length - 1) {
+                        parent.appendChild(document.createElement('br'));
+                    }
+                });
+            }
             return;
         }
         if (seg.kind === 'Math') {
@@ -169,7 +181,19 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
 
             segments.forEach((seg) => {
                 if (seg.kind === 'Plain') {
-                    wrapper.appendChild(document.createTextNode(seg.text));
+                        // Preserve newline characters in content segments
+                        const txt = seg.text || '';
+                        if (txt.indexOf('\n') === -1) {
+                            wrapper.appendChild(document.createTextNode(txt));
+                        } else {
+                            const parts = txt.split('\n');
+                            parts.forEach((p, idx) => {
+                                wrapper.appendChild(document.createTextNode(p));
+                                if (idx !== parts.length - 1) {
+                                    wrapper.appendChild(document.createElement('br'));
+                                }
+                            });
+                        }
                 } else if (seg.kind === 'Annotated') {
                     const rubyEl = document.createElement('ruby');
                     const rb = document.createElement('rb');

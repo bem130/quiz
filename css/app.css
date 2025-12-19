@@ -439,6 +439,9 @@ ruby rt {
 /* Content Token Styles */
 .content-token {
     line-height: 1.8;
+    /* Preserve newlines and spacing inside content tokens so `\n` becomes visible */
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 /* KaTeX Block Style */
