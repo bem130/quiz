@@ -188,6 +188,102 @@ function applySourceInfo(target, sourceInfo) {
     attachSourceInfo(target, sourceInfo);
 }
 
+function getSourceColumnForIndex(sourceInfo, index) {
+    if (!sourceInfo || typeof sourceInfo.column !== 'number') return null;
+    return sourceInfo.column + 1 + index;
+}
+
+function appendTextWithSource(parent, text, sourceInfo, baseOffset = 0, styles = []) {
+    if (!text) return;
+    for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        if (ch === '\n') {
+            const br = document.createElement('br');
+            const column = getSourceColumnForIndex(sourceInfo, baseOffset + i);
+            applySourceInfo(br, column != null ? { ...sourceInfo, column } : sourceInfo);
+            parent.appendChild(br);
+            continue;
+        }
+        const span = createStyledSpan(ch, styles);
+        const column = getSourceColumnForIndex(sourceInfo, baseOffset + i);
+        applySourceInfo(span, column != null ? { ...sourceInfo, column } : sourceInfo);
+        parent.appendChild(span);
+    }
+}
+
+function appendInlineSegmentsWithSource(parent, segments, sourceInfo) {
+    (segments || []).forEach((seg) => {
+        if (!seg || !seg.kind) return;
+        if (seg.kind === 'Plain') {
+            const baseOffset = seg.range ? seg.range.start : 0;
+            appendTextWithSource(parent, seg.text || '', sourceInfo, baseOffset);
+            return;
+        }
+        if (seg.kind === 'Math') {
+            const styles = ['katex'];
+            if (seg.display) styles.push('katex-block');
+            const span = createStyledSpan(seg.tex || '', styles);
+            const column = getSourceColumnForIndex(sourceInfo, seg.range ? seg.range.start : 0);
+            applySourceInfo(span, column != null ? { ...sourceInfo, column } : sourceInfo);
+            parent.appendChild(span);
+            return;
+        }
+        if (seg.kind === 'Escape') {
+            const br = document.createElement('br');
+            const column = getSourceColumnForIndex(sourceInfo, seg.range ? seg.range.start : 0);
+            applySourceInfo(br, column != null ? { ...sourceInfo, column } : sourceInfo);
+            parent.appendChild(br);
+        }
+    });
+}
+
+function appendGlossSegmentsWithSource(parent, segments, sourceInfo) {
+    (segments || []).forEach((seg) => {
+        if (!seg || !seg.kind) return;
+        if (seg.kind === 'Annotated') {
+            const rubyEl = document.createElement('ruby');
+            const rb = document.createElement('rb');
+            appendInlineSegmentsWithSource(rb, seg.base, sourceInfo);
+            const rt = document.createElement('rt');
+            appendTextWithSource(
+                rt,
+                seg.reading || '',
+                sourceInfo,
+                seg.rubyRange ? seg.rubyRange.start : seg.range ? seg.range.start : 0
+            );
+            rubyEl.appendChild(rb);
+            rubyEl.appendChild(rt);
+            applySourceInfo(rubyEl, sourceInfo);
+            parent.appendChild(rubyEl);
+            return;
+        }
+        if (seg.kind === 'Plain') {
+            appendTextWithSource(
+                parent,
+                seg.text || '',
+                sourceInfo,
+                seg.range ? seg.range.start : 0
+            );
+            return;
+        }
+        if (seg.kind === 'Math') {
+            const styles = ['katex'];
+            if (seg.display) styles.push('katex-block');
+            const span = createStyledSpan(seg.tex || '', styles);
+            const column = getSourceColumnForIndex(sourceInfo, seg.range ? seg.range.start : 0);
+            applySourceInfo(span, column != null ? { ...sourceInfo, column } : sourceInfo);
+            parent.appendChild(span);
+            return;
+        }
+        if (seg.kind === 'Escape') {
+            const br = document.createElement('br');
+            const column = getSourceColumnForIndex(sourceInfo, seg.range ? seg.range.start : 0);
+            applySourceInfo(br, column != null ? { ...sourceInfo, column } : sourceInfo);
+            parent.appendChild(br);
+        }
+    });
+}
+
 export function appendContentString(parent, value, styles = [], sourceInfo = null) {
     const raw = value != null ? String(value) : '';
     const segments = parseContentToSegments(raw);
@@ -199,86 +295,184 @@ export function appendContentString(parent, value, styles = [], sourceInfo = nul
         applySourceInfo(wrapper, sourceInfo);
     }
 
-    segments.forEach((seg) => {
-        if (seg.kind === 'Plain') {
-            const txt = seg.text || '';
-            if (txt.indexOf('\n') === -1) {
-                wrapper.appendChild(document.createTextNode(txt));
-            } else {
-                const parts = txt.split('\n');
-                parts.forEach((p, idx) => {
-                    wrapper.appendChild(document.createTextNode(p));
-                    if (idx !== parts.length - 1) {
-                        wrapper.appendChild(document.createElement('br'));
+    if (sourceInfo && typeof sourceInfo.column === 'number') {
+        segments.forEach((seg) => {
+            if (seg.kind === 'Plain') {
+                appendTextWithSource(
+                    wrapper,
+                    seg.text || '',
+                    sourceInfo,
+                    seg.range ? seg.range.start : 0,
+                    []
+                );
+                return;
+            }
+            if (seg.kind === 'Annotated') {
+                const rubyEl = document.createElement('ruby');
+                const rb = document.createElement('rb');
+                appendInlineSegmentsWithSource(rb, seg.base, sourceInfo);
+                const rt = document.createElement('rt');
+                appendTextWithSource(
+                    rt,
+                    seg.reading || '',
+                    sourceInfo,
+                    seg.rubyRange ? seg.rubyRange.start : seg.range ? seg.range.start : 0
+                );
+                rubyEl.appendChild(rb);
+                rubyEl.appendChild(rt);
+                applySourceInfo(rubyEl, sourceInfo);
+                wrapper.appendChild(rubyEl);
+                return;
+            }
+            if (seg.kind === 'Math') {
+                const mathSpan = createStyledSpan(seg.tex, ['katex']);
+                const column = getSourceColumnForIndex(sourceInfo, seg.range ? seg.range.start : 0);
+                applySourceInfo(mathSpan, column != null ? { ...sourceInfo, column } : sourceInfo);
+                wrapper.appendChild(mathSpan);
+                return;
+            }
+            if (seg.kind === 'Gloss') {
+                const glossSpan = document.createElement('span');
+                glossSpan.className = 'gloss';
+
+                const rubyEl = document.createElement('ruby');
+                (seg.base || []).forEach((child) => {
+                    if (child.kind === 'Annotated') {
+                        const rb = document.createElement('rb');
+                        appendInlineSegmentsWithSource(rb, child.base, sourceInfo);
+                        const rt = document.createElement('rt');
+                        appendTextWithSource(
+                            rt,
+                            child.reading || '',
+                            sourceInfo,
+                            child.rubyRange ? child.rubyRange.start : child.range ? child.range.start : 0
+                        );
+                        rubyEl.appendChild(rb);
+                        rubyEl.appendChild(rt);
+                    } else if (child.kind === 'Math') {
+                        const rb = document.createElement('rb');
+                        appendInlineSegmentsWithSource(rb, [child], sourceInfo);
+                        const rt = document.createElement('rt');
+                        rubyEl.appendChild(rb);
+                        rubyEl.appendChild(rt);
+                    } else if (child.kind === 'Plain') {
+                        const rb = document.createElement('rb');
+                        appendTextWithSource(
+                            rb,
+                            child.text || '',
+                            sourceInfo,
+                            child.range ? child.range.start : 0
+                        );
+                        const rt = document.createElement('rt');
+                        rubyEl.appendChild(rb);
+                        rubyEl.appendChild(rt);
                     }
                 });
-            }
-            return;
-        }
-        if (seg.kind === 'Annotated') {
-            const rubyEl = document.createElement('ruby');
-            const rb = document.createElement('rb');
-            appendInlineSegmentsInto(rb, seg.base);
-            const rt = document.createElement('rt');
-            rt.textContent = seg.reading;
-            rubyEl.appendChild(rb);
-            rubyEl.appendChild(rt);
-            wrapper.appendChild(rubyEl);
-            return;
-        }
-        if (seg.kind === 'Math') {
-            const mathSpan = createStyledSpan(seg.tex, ['katex']);
-            wrapper.appendChild(mathSpan);
-            return;
-        }
-        if (seg.kind === 'Gloss') {
-            const glossSpan = document.createElement('span');
-            glossSpan.className = 'gloss';
+                glossSpan.appendChild(rubyEl);
 
-            const rubyEl = document.createElement('ruby');
-            (seg.base || []).forEach((child) => {
-                if (child.kind === 'Annotated') {
-                    const rb = document.createElement('rb');
-                    appendInlineSegmentsInto(rb, child.base);
-                    const rt = document.createElement('rt');
-                    rt.textContent = child.reading;
-                    rubyEl.appendChild(rb);
-                    rubyEl.appendChild(rt);
-                } else if (child.kind === 'Math') {
-                    const rb = document.createElement('rb');
-                    appendInlineSegmentsInto(rb, [child]);
-                    const rt = document.createElement('rt');
-                    rubyEl.appendChild(rb);
-                    rubyEl.appendChild(rt);
-                } else if (child.kind === 'Plain') {
-                    const rb = document.createElement('rb');
-                    rb.textContent = child.text;
-                    const rt = document.createElement('rt');
-                    rubyEl.appendChild(rb);
-                    rubyEl.appendChild(rt);
+                if (seg.glosses && seg.glosses.length) {
+                    const altsWrapper = document.createElement('span');
+                    altsWrapper.className = 'gloss-alts';
+                    seg.glosses.forEach((gloss) => {
+                        const altSpan = document.createElement('span');
+                        altSpan.className = 'gloss-alt';
+                        appendGlossSegmentsWithSource(altSpan, gloss, sourceInfo);
+                        altsWrapper.appendChild(altSpan);
+                    });
+                    glossSpan.appendChild(altsWrapper);
                 }
-            });
-            glossSpan.appendChild(rubyEl);
-
-            if (seg.glosses && seg.glosses.length) {
-                const altsWrapper = document.createElement('span');
-                altsWrapper.className = 'gloss-alts';
-                seg.glosses.forEach((gloss) => {
-                    const altSpan = document.createElement('span');
-                    altSpan.className = 'gloss-alt';
-                    appendGlossSegmentsInto(altSpan, gloss);
-                    altsWrapper.appendChild(altSpan);
-                });
-                glossSpan.appendChild(altsWrapper);
+                applySourceInfo(glossSpan, sourceInfo);
+                wrapper.appendChild(glossSpan);
+                return;
             }
-            wrapper.appendChild(glossSpan);
-            return;
-        }
-        if (seg.kind === 'Escape') {
-            wrapper.appendChild(document.createElement('br'));
-            return;
-        }
-    });
+            if (seg.kind === 'Escape') {
+                const br = document.createElement('br');
+                const column = getSourceColumnForIndex(sourceInfo, seg.range ? seg.range.start : 0);
+                applySourceInfo(br, column != null ? { ...sourceInfo, column } : sourceInfo);
+                wrapper.appendChild(br);
+            }
+        });
+    } else {
+        segments.forEach((seg) => {
+            if (seg.kind === 'Plain') {
+                const txt = seg.text || '';
+                if (txt.indexOf('\n') === -1) {
+                    wrapper.appendChild(document.createTextNode(txt));
+                } else {
+                    const parts = txt.split('\n');
+                    parts.forEach((p, idx) => {
+                        wrapper.appendChild(document.createTextNode(p));
+                        if (idx !== parts.length - 1) {
+                            wrapper.appendChild(document.createElement('br'));
+                        }
+                    });
+                }
+                return;
+            }
+            if (seg.kind === 'Annotated') {
+                const rubyEl = document.createElement('ruby');
+                const rb = document.createElement('rb');
+                appendInlineSegmentsInto(rb, seg.base);
+                const rt = document.createElement('rt');
+                rt.textContent = seg.reading;
+                rubyEl.appendChild(rb);
+                rubyEl.appendChild(rt);
+                wrapper.appendChild(rubyEl);
+                return;
+            }
+            if (seg.kind === 'Math') {
+                const mathSpan = createStyledSpan(seg.tex, ['katex']);
+                wrapper.appendChild(mathSpan);
+                return;
+            }
+            if (seg.kind === 'Gloss') {
+                const glossSpan = document.createElement('span');
+                glossSpan.className = 'gloss';
+
+                const rubyEl = document.createElement('ruby');
+                (seg.base || []).forEach((child) => {
+                    if (child.kind === 'Annotated') {
+                        const rb = document.createElement('rb');
+                        appendInlineSegmentsInto(rb, child.base);
+                        const rt = document.createElement('rt');
+                        rt.textContent = child.reading;
+                        rubyEl.appendChild(rb);
+                        rubyEl.appendChild(rt);
+                    } else if (child.kind === 'Math') {
+                        const rb = document.createElement('rb');
+                        appendInlineSegmentsInto(rb, [child]);
+                        const rt = document.createElement('rt');
+                        rubyEl.appendChild(rb);
+                        rubyEl.appendChild(rt);
+                    } else if (child.kind === 'Plain') {
+                        const rb = document.createElement('rb');
+                        rb.textContent = child.text;
+                        const rt = document.createElement('rt');
+                        rubyEl.appendChild(rb);
+                        rubyEl.appendChild(rt);
+                    }
+                });
+                glossSpan.appendChild(rubyEl);
+
+                if (seg.glosses && seg.glosses.length) {
+                    const altsWrapper = document.createElement('span');
+                    altsWrapper.className = 'gloss-alts';
+                    seg.glosses.forEach((gloss) => {
+                        const altSpan = document.createElement('span');
+                        altSpan.className = 'gloss-alt';
+                        appendGlossSegmentsInto(altSpan, gloss);
+                        altsWrapper.appendChild(altSpan);
+                    });
+                    glossSpan.appendChild(altsWrapper);
+                }
+                wrapper.appendChild(glossSpan);
+                return;
+            }
+            if (seg.kind === 'Escape') {
+                wrapper.appendChild(document.createElement('br'));
+            }
+        });
+    }
 
     parent.appendChild(wrapper);
 }

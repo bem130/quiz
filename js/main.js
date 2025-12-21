@@ -173,6 +173,23 @@ function buildVsCodeFileUrl(filePath, line, column) {
         : `vscode://file/${safePath}:${safeLine}`;
 }
 
+function openExternalEditorUrl(url) {
+    if (!url) return;
+    const opened = window.open(url, '_blank');
+    if (!opened) {
+        return;
+    }
+    setTimeout(() => {
+        try {
+            if (opened.location && opened.location.href === 'about:blank') {
+                opened.close();
+            }
+        } catch (error) {
+            // Ignore cross-origin or closed window errors.
+        }
+    }, 200);
+}
+
 function schedulePackageRevisionUpdate({ filePath, json, source, logPrefix }) {
     if (!filePath || !json) return;
     const scheduler =
@@ -732,7 +749,7 @@ function syncQuizDataUrlsToServiceWorker() {
             ? buildVsCodeFileUrl(editorPath, info.line, info.column)
             : null;
         if (vscodeUrl) {
-            window.open(vscodeUrl, '_blank');
+            openExternalEditorUrl(vscodeUrl);
         }
 
         // Copy to clipboard or show prompt
@@ -758,6 +775,9 @@ function syncQuizDataUrlsToServiceWorker() {
 (function setupTextClickLogger() {
     document.addEventListener('click', (event) => {
         if (currentScreen !== 'quiz') {
+            return;
+        }
+        if (!event.ctrlKey && !event.metaKey) {
             return;
         }
         const target = event.target;
@@ -788,7 +808,7 @@ function syncQuizDataUrlsToServiceWorker() {
             ? buildVsCodeFileUrl(editorPath, info.line, info.column)
             : null;
         if (vscodeUrl) {
-            window.open(vscodeUrl, '_blank');
+            openExternalEditorUrl(vscodeUrl);
         }
     });
 })();
