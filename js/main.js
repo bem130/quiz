@@ -126,6 +126,53 @@ function extractFileLabelFromPath(path) {
     return parts.length ? parts[parts.length - 1] : normalized || 'quiz';
 }
 
+function normalizeEditorSourcePath(path) {
+    if (!path) return '';
+    return String(path).replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
+function isEditorUrlPath(path) {
+    return /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(path);
+}
+
+function resolveEditorTargetPath(entry, sourceFile) {
+    if (!entry || !sourceFile) return null;
+    const normalizedSource = normalizeEditorSourcePath(sourceFile);
+    if (!normalizedSource || isEditorUrlPath(normalizedSource)) return null;
+
+    const fileMap = entry.editorFileMap;
+    if (fileMap) {
+        if (fileMap[normalizedSource]) return fileMap[normalizedSource];
+        if (fileMap[sourceFile]) return fileMap[sourceFile];
+    }
+
+    if (normalizedSource.startsWith('/') || /^[A-Za-z]:\//.test(normalizedSource)) {
+        return normalizedSource;
+    }
+
+    const basePath = entry.editorBasePath;
+    if (!basePath) return null;
+    const normalizedBase = String(basePath).replace(/\\/g, '/').replace(/\/+$/, '');
+    const normalizedRel = normalizedSource.replace(/^\/+/, '');
+    return `${normalizedBase}/${normalizedRel}`;
+}
+
+function buildVsCodeFileUrl(filePath, line, column) {
+    if (!filePath) return null;
+    const normalized = String(filePath).replace(/\\/g, '/');
+    const safePath = encodeURI(normalized);
+    const hasLine = typeof line === 'number' && Number.isFinite(line);
+    const hasColumn = typeof column === 'number' && Number.isFinite(column);
+    if (!hasLine) {
+        return `vscode://file/${safePath}`;
+    }
+    const safeLine = Math.max(1, Math.floor(line));
+    const safeColumn = hasColumn ? Math.max(1, Math.floor(column)) : null;
+    return safeColumn
+        ? `vscode://file/${safePath}:${safeLine}:${safeColumn}`
+        : `vscode://file/${safePath}:${safeLine}`;
+}
+
 function schedulePackageRevisionUpdate({ filePath, json, source, logPrefix }) {
     if (!filePath || !json) return;
     const scheduler =
@@ -680,6 +727,14 @@ function syncQuizDataUrlsToServiceWorker() {
         };
         console.log('[text-source]', payload);
 
+        const editorPath = resolveEditorTargetPath(currentEntry, info.file);
+        const vscodeUrl = editorPath
+            ? buildVsCodeFileUrl(editorPath, info.line, info.column)
+            : null;
+        if (vscodeUrl) {
+            window.open(vscodeUrl, '_blank');
+        }
+
         // Copy to clipboard or show prompt
         // For now, let's use prompt for easy copying
         // window.prompt('Source info (JSON):', JSON.stringify(payload, null, 2));
@@ -688,12 +743,53 @@ function syncQuizDataUrlsToServiceWorker() {
         navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(() => {
             const toast = document.createElement('div');
             toast.className = 'fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded shadow-lg text-xs z-50 animate-fade-in-up';
-            toast.textContent = `Source info copied to clipboard`;
+            toast.textContent = vscodeUrl
+                ? 'Source info copied and opened in VSCode'
+                : 'Source info copied to clipboard';
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 2000);
         }).catch(err => {
             window.prompt('Source info (JSON):', JSON.stringify(payload, null, 2));
         });
+    });
+})();
+
+// Click handler for source info (quiz play)
+(function setupTextClickLogger() {
+    document.addEventListener('click', (event) => {
+        if (currentScreen !== 'quiz') {
+            return;
+        }
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        const info = findSourceInfo(target);
+        if (!info) {
+            return;
+        }
+
+        const payload = {
+            file: info.file,
+            line: info.line,
+            column: info.column,
+            endLine: info.endLine,
+            endColumn: info.endColumn,
+            dataSetId: info.dataSetId,
+            rowId: info.rowId,
+            field: info.field,
+            tokenIndex: info.tokenIndex
+        };
+        console.log('[text-source]', payload);
+
+        const editorPath = resolveEditorTargetPath(currentEntry, info.file);
+        const vscodeUrl = editorPath
+            ? buildVsCodeFileUrl(editorPath, info.line, info.column)
+            : null;
+        if (vscodeUrl) {
+            window.open(vscodeUrl, '_blank');
+        }
     });
 })();
 

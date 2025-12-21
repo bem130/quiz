@@ -197,6 +197,20 @@ export async function loadEntrySourceFromUrl(entryUrl) {
                 ? json.label.trim()
                 : rawUrl;
 
+        const editorBasePath = (() => {
+            const pathValue =
+                typeof json.editorBasePath === 'string'
+                    ? json.editorBasePath
+                    : typeof json.editorPath === 'string'
+                        ? json.editorPath
+                        : '';
+            return pathValue.trim() || null;
+        })();
+        const editorFileMap =
+            json.editorFileMap && typeof json.editorFileMap === 'object' && !Array.isArray(json.editorFileMap)
+                ? json.editorFileMap
+                : null;
+
         const files = Array.isArray(json.files) ? json.files : null;
         if (!files) {
             return {
@@ -236,6 +250,8 @@ export async function loadEntrySourceFromUrl(entryUrl) {
             url: absoluteUrl,
             label,
             available: true,
+            editorBasePath,
+            editorFileMap,
             files: fileEntries,
             tree,
             nodeMap,

@@ -47,13 +47,19 @@ v3 では、**問題ファイルの選択肢をディレクトリ構造で生成
     "./data/quizzes/biology/amino/basic.json",
     "./data/quizzes/biology/amino/advanced.json",
     "./data/quizzes/chemistry/organic.json"
-  ]
+  ],
+  "editorBasePath": "/path/to/project/root",
+  "editorFileMap": {
+    "./data/quizzes/chemistry/organic.json": "/absolute/path/to/organic.json"
+  }
 }
 ```
 
 * `files` は **Quiz File へのパス配列**です（相対パス推奨）。
 * パスは `/` 区切りで、クライアント側で OS に応じて解釈します。
 * `files` は **再帰的にディレクトリを含む**形で列挙して構いません。
+* `editorBasePath` は任意で、VSCode など外部エディタで開くための **ローカル基準パス**です。
+* `editorFileMap` は任意で、特定ファイルだけ **個別パスで上書き**したい場合のマッピングです。
 
 #### 処理（メニュー生成）
 

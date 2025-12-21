@@ -51,7 +51,41 @@ function resolveConceptIdFromRow(row) {
 function replaceListKeyToken(tokens, listIndex, replacementTokens) {
     const head = tokens.slice(0, listIndex);
     const tail = tokens.slice(listIndex + 1);
-    return head.concat(replacementTokens, tail);
+    const next = head.concat(replacementTokens, tail);
+
+    const baseMap = tokens && tokens.__locMap ? tokens.__locMap : null;
+    const replacementMap =
+        Array.isArray(replacementTokens) && replacementTokens.__locMap
+            ? replacementTokens.__locMap
+            : null;
+    if (baseMap || replacementMap) {
+        const locMap = [];
+        head.forEach((_, idx) => {
+            if (baseMap && baseMap[idx]) {
+                locMap[idx] = baseMap[idx];
+            }
+        });
+        if (Array.isArray(replacementTokens)) {
+            replacementTokens.forEach((_, idx) => {
+                if (replacementMap && replacementMap[idx]) {
+                    locMap[head.length + idx] = replacementMap[idx];
+                }
+            });
+        }
+        tail.forEach((_, idx) => {
+            const baseIndex = listIndex + 1 + idx;
+            if (baseMap && baseMap[baseIndex]) {
+                locMap[head.length + (Array.isArray(replacementTokens) ? replacementTokens.length : 0) + idx] =
+                    baseMap[baseIndex];
+            }
+        });
+        Object.defineProperty(next, '__locMap', {
+            value: locMap,
+            writable: true,
+            configurable: true
+        });
+    }
+    return next;
 }
 
 function resolveHideValue(tokens, row) {

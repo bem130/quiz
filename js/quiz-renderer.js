@@ -183,13 +183,21 @@ function appendGlossSegmentsInto(parent, segments) {
     });
 }
 
-export function appendContentString(parent, value, styles = []) {
+function applySourceInfo(target, sourceInfo) {
+    if (!target || !sourceInfo) return;
+    attachSourceInfo(target, sourceInfo);
+}
+
+export function appendContentString(parent, value, styles = [], sourceInfo = null) {
     const raw = value != null ? String(value) : '';
     const segments = parseContentToSegments(raw);
 
     const wrapper = document.createElement('span');
     wrapper.classList.add('content-token');
     applyStyles(wrapper, styles);
+    if (sourceInfo) {
+        applySourceInfo(wrapper, sourceInfo);
+    }
 
     segments.forEach((seg) => {
         if (seg.kind === 'Plain') {
@@ -312,10 +320,12 @@ function renderHideValueIntoSpan(span, token, row) {
 
 function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
     let answerIndexCounter = 0;
-    (tokens || []).forEach((token) => {
+    const locMap = Array.isArray(tokens) ? tokens.__locMap : null;
+    (tokens || []).forEach((token, index) => {
+        const tokenLoc = locMap && locMap[index] ? locMap[index] : null;
         if (token == null) return;
         if (typeof token === 'string') {
-            appendContentString(parent, token);
+            appendContentString(parent, token, [], tokenLoc);
             return;
         }
         if (!token.type) return;
@@ -329,11 +339,15 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
 
             // Basic validation to prevent empty msub errors if text is empty or malformed
             if (!text) {
-                parent.appendChild(createStyledSpan('', ['katex', ...(token.styles || [])]));
+                const span = createStyledSpan('', ['katex', ...(token.styles || [])]);
+                applySourceInfo(span, token._loc || tokenLoc);
+                parent.appendChild(span);
                 return;
             }
 
-            parent.appendChild(createStyledSpan(String(text), ['katex', ...(token.styles || [])]));
+            const span = createStyledSpan(String(text), ['katex', ...(token.styles || [])]);
+            applySourceInfo(span, token._loc || tokenLoc);
+            parent.appendChild(span);
             return;
         }
         if (token.type === 'smiles') {
@@ -347,6 +361,7 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
             if (smiles != null) {
                 span.dataset.smiles = String(smiles);
             }
+            applySourceInfo(span, token._loc || tokenLoc);
             parent.appendChild(span);
             const renderOptions = {
                 maxHeightEm: token.maxHeightEm,
@@ -360,12 +375,14 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
         if (token.type === 'key') {
             const field = token.field;
             const value = field && row ? row[field] ?? '' : '';
+            const fieldLoc = row && row.__locMap ? row.__locMap[field] : null;
 
             // 1) 配列なら tokens とみなして再帰
             if (Array.isArray(value)) {
                 const wrapper = document.createElement('span');
                 appendTokens(wrapper, value, row, placeholders, promises);
                 applyStyles(wrapper, token.styles || []);
+                applySourceInfo(wrapper, fieldLoc || token._loc || tokenLoc);
                 parent.appendChild(wrapper);
                 return;
             }
@@ -375,18 +392,21 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                 const wrapper = document.createElement('span');
                 appendTokens(wrapper, [value], row, placeholders, promises);
                 applyStyles(wrapper, token.styles || []);
+                applySourceInfo(wrapper, fieldLoc || token._loc || tokenLoc);
                 parent.appendChild(wrapper);
                 return;
             }
 
             // 3) 文字列は string token と同じパースで描画
             if (typeof value === 'string') {
-                appendContentString(parent, value, token.styles || []);
+                appendContentString(parent, value, token.styles || [], fieldLoc || token._loc || tokenLoc);
                 return;
             }
 
             // 4) それ以外はテキストとして扱う
-            parent.appendChild(createStyledSpan(value != null ? String(value) : '', token.styles || []));
+            const fallback = createStyledSpan(value != null ? String(value) : '', token.styles || []);
+            applySourceInfo(fallback, fieldLoc || token._loc || tokenLoc);
+            parent.appendChild(fallback);
             return;
         }
         if (token.type === 'listkey') {
@@ -417,22 +437,27 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                 span.dataset.answerIndex = String(answerIndexCounter);
                 span.className = 'inline-block min-w-[2.5rem] border-b app-border-strong mx-1 pb-0.5';
                 span.textContent = ' ';
+                applySourceInfo(span, token._loc || tokenLoc);
                 parent.appendChild(span);
             } else {
                 const span = document.createElement('span');
                 renderHideValueIntoSpan(span, token, row);
+                applySourceInfo(span, token._loc || tokenLoc);
                 parent.appendChild(span);
             }
             answerIndexCounter += 1;
             return;
         }
         if (token.type === 'br') {
-            parent.appendChild(document.createElement('br'));
+            const br = document.createElement('br');
+            applySourceInfo(br, token._loc || tokenLoc);
+            parent.appendChild(br);
             return;
         }
         if (token.type === 'hr') {
             const line = document.createElement('hr');
             line.className = 'my-2 border-t app-border-subtle';
+            applySourceInfo(line, token._loc || tokenLoc);
             parent.appendChild(line);
             return;
         }

@@ -1,4 +1,6 @@
 // js/quiz-model.js
+import { parseJsonWithLoc } from './json-loc-parser.js';
+
 const ALLOWED_TOKEN_TYPES = new Set([
     'key',
     'listkey',
@@ -264,6 +266,172 @@ function normalizeFileKey(path) {
     return normalized.replace(/\.json$/i, '');
 }
 
+function normalizeSourcePath(path) {
+    if (!path) return '';
+    return String(path).replace(/\\/g, '/').replace(/^\.?\//, '');
+}
+
+function defineHiddenProperty(target, key, value) {
+    if (!target || typeof target !== 'object') return;
+    Object.defineProperty(target, key, {
+        value,
+        writable: true,
+        configurable: true
+    });
+}
+
+function buildSourceLocation(loc, filePath, extraInfo = null) {
+    if (!loc || !loc.start) return null;
+    const base = {
+        file: filePath,
+        line: loc.start.line,
+        column: loc.start.column,
+        endLine: loc.end ? loc.end.line : loc.start.line,
+        endColumn: loc.end ? loc.end.column : loc.start.column
+    };
+    if (extraInfo && typeof extraInfo === 'object') {
+        return { ...base, ...extraInfo };
+    }
+    return base;
+}
+
+function findNodeByPath(ast, path) {
+    let current = ast;
+    for (let i = 0; i < path.length; i += 1) {
+        const key = path[i];
+        if (!current || !current.children) return null;
+        if (current.type === 'Object') {
+            const prop = current.children.find((child) => child.key && child.key.value === key);
+            if (!prop) return null;
+            current = prop.value;
+            continue;
+        }
+        if (current.type === 'Array') {
+            if (typeof key !== 'number') return null;
+            if (key >= current.children.length) return null;
+            current = current.children[key];
+            continue;
+        }
+        return null;
+    }
+    return current;
+}
+
+function attachTokenObjectLoc(token, ast, path, filePath, extraInfo = null) {
+    if (!token || typeof token !== 'object' || Array.isArray(token)) return;
+    const node = findNodeByPath(ast, path);
+    if (node && node.loc) {
+        defineHiddenProperty(token, '_loc', buildSourceLocation(node.loc, filePath, extraInfo));
+    }
+
+    if (token.value != null) {
+        const valuePath = [...path, 'value'];
+        if (Array.isArray(token.value)) {
+            attachTokenArrayLocs(token.value, ast, valuePath, filePath, extraInfo);
+        } else if (typeof token.value === 'object') {
+            attachTokenObjectLoc(token.value, ast, valuePath, filePath, extraInfo);
+        }
+    }
+    if (token.base != null) {
+        const basePath = [...path, 'base'];
+        if (Array.isArray(token.base)) {
+            attachTokenArrayLocs(token.base, ast, basePath, filePath, extraInfo);
+        } else if (typeof token.base === 'object') {
+            attachTokenObjectLoc(token.base, ast, basePath, filePath, extraInfo);
+        }
+    }
+    if (token.ruby != null) {
+        const rubyPath = [...path, 'ruby'];
+        if (Array.isArray(token.ruby)) {
+            attachTokenArrayLocs(token.ruby, ast, rubyPath, filePath, extraInfo);
+        } else if (typeof token.ruby === 'object') {
+            attachTokenObjectLoc(token.ruby, ast, rubyPath, filePath, extraInfo);
+        }
+    }
+    if (token.separatorTokens != null) {
+        const sepPath = [...path, 'separatorTokens'];
+        if (Array.isArray(token.separatorTokens)) {
+            attachTokenArrayLocs(token.separatorTokens, ast, sepPath, filePath, extraInfo);
+        } else if (typeof token.separatorTokens === 'object') {
+            attachTokenObjectLoc(token.separatorTokens, ast, sepPath, filePath, extraInfo);
+        }
+    }
+}
+
+function attachTokenArrayLocs(tokens, ast, path, filePath, extraInfo = null) {
+    if (!Array.isArray(tokens)) return;
+    const locMap = [];
+    tokens.forEach((token, idx) => {
+        const tokenPath = [...path, idx];
+        const node = findNodeByPath(ast, tokenPath);
+        if (node && node.loc) {
+            locMap[idx] = buildSourceLocation(node.loc, filePath, extraInfo);
+        }
+        if (token && typeof token === 'object') {
+            if (Array.isArray(token)) {
+                attachTokenArrayLocs(token, ast, tokenPath, filePath, extraInfo);
+            } else {
+                attachTokenObjectLoc(token, ast, tokenPath, filePath, extraInfo);
+            }
+        }
+    });
+    defineHiddenProperty(tokens, '__locMap', locMap);
+}
+
+function attachTableRowLocs(table, ast, filePath) {
+    if (!Array.isArray(table)) return;
+    table.forEach((row, rowIndex) => {
+        if (!row || typeof row !== 'object') return;
+        const rowPath = ['table', rowIndex];
+        const rowLocMap = {};
+        Object.keys(row).forEach((field) => {
+            const fieldPath = [...rowPath, field];
+            const node = findNodeByPath(ast, fieldPath);
+            const extraInfo = {
+                rowId: row.id,
+                field
+            };
+            if (node && node.loc) {
+                rowLocMap[field] = buildSourceLocation(node.loc, filePath, extraInfo);
+            }
+            const value = row[field];
+            if (Array.isArray(value)) {
+                attachTokenArrayLocs(value, ast, fieldPath, filePath, extraInfo);
+            } else if (value && typeof value === 'object' && value.type) {
+                attachTokenObjectLoc(value, ast, fieldPath, filePath, extraInfo);
+            }
+        });
+        defineHiddenProperty(row, '__locMap', rowLocMap);
+    });
+}
+
+function attachQuizSourceLocations(json, ast, filePath) {
+    if (!json || !ast || typeof json !== 'object') return;
+    const sourcePath = normalizeSourcePath(filePath);
+    const patterns = Array.isArray(json.patterns) ? json.patterns : [];
+    patterns.forEach((pattern, index) => {
+        if (!pattern) return;
+        if (Array.isArray(pattern.tokens)) {
+            attachTokenArrayLocs(pattern.tokens, ast, ['patterns', index, 'tokens'], sourcePath);
+        }
+        if (Array.isArray(pattern.tips)) {
+            pattern.tips.forEach((tip, tipIndex) => {
+                if (tip && Array.isArray(tip.tokens)) {
+                    attachTokenArrayLocs(
+                        tip.tokens,
+                        ast,
+                        ['patterns', index, 'tips', tipIndex, 'tokens'],
+                        sourcePath
+                    );
+                }
+            });
+        }
+    });
+    if (Array.isArray(json.table)) {
+        attachTableRowLocs(json.table, ast, sourcePath);
+    }
+}
+
 function buildMeta({ id, title, description, version }) {
     return {
         id: id || title || 'quiz',
@@ -464,7 +632,8 @@ async function fetchJson(path, baseUrl = null) {
         const filePath = fileURLToPath(url);
         const rawText = await readFile(filePath, 'utf8');
         const json = JSON.parse(rawText);
-        return { json, url };
+        const ast = parseJsonWithLoc(rawText);
+        return { json, url, ast };
     }
 
     const res = await fetch(url.toString());
@@ -472,8 +641,10 @@ async function fetchJson(path, baseUrl = null) {
         console.error('[quiz] fetch not OK for', path, res.status, res.statusText);
         throw new Error(`Failed to load quiz JSON: ${path}`);
     }
-    const json = await res.json();
-    return { json, url };
+    const rawText = await res.text();
+    const json = JSON.parse(rawText);
+    const ast = parseJsonWithLoc(rawText);
+    return { json, url, ast };
 }
 
 async function loadQuizFiles(filePaths, baseUrl, metaOverrides = {}) {
@@ -487,7 +658,8 @@ async function loadQuizFiles(filePaths, baseUrl, metaOverrides = {}) {
 
     for (const filePath of filePaths) {
         const normalizedKey = normalizeFileKey(filePath);
-        const { json } = await fetchJson(filePath, baseUrl);
+        const { json, ast } = await fetchJson(filePath, baseUrl);
+        attachQuizSourceLocations(json, ast, filePath);
         const file = normalizeQuizFile(json, normalizedKey);
         dataSets[file.dataSetId] = file.dataSet;
         patterns.push(...file.patterns);
@@ -528,7 +700,8 @@ async function loadQuizFiles(filePaths, baseUrl, metaOverrides = {}) {
 }
 
 async function loadQuizDefinitionInternal(quizName, path, baseUrl = null) {
-    const { json, url } = await fetchJson(path, baseUrl);
+    const { json, url, ast } = await fetchJson(path, baseUrl);
+    attachQuizSourceLocations(json, ast, path);
     const fileKey = normalizeFileKey(path);
     const file = normalizeQuizFile(json, fileKey);
 
