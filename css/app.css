@@ -152,6 +152,52 @@ button:active {
     color: var(--color-gloss-delimiter) !important;
 }
 
+.monaco-editor .katex-delimiter {
+    color: var(--color-katex-delimiter) !important;
+}
+
+/* Monaco content highlighting (white for ruby/gloss/katex) */
+.monaco-editor .ruby-content,
+.monaco-editor .gloss-content,
+.monaco-editor .katex-content {
+    color: var(--color-monaco-content) !important;
+}
+
+/* JSON preview bracket nesting colors */
+.json-bracket-0 {
+    color: var(--color-bracket-0) !important;
+}
+
+.json-bracket-1 {
+    color: var(--color-bracket-1) !important;
+}
+
+.json-bracket-2 {
+    color: var(--color-bracket-2) !important;
+}
+
+.json-bracket-3 {
+    color: var(--color-bracket-3) !important;
+}
+
+.json-bracket-4 {
+    color: var(--color-bracket-4) !important;
+}
+
+.json-bracket-5 {
+    color: var(--color-bracket-5) !important;
+}
+
+/* JSON preview base text tinting */
+.json-ruby-base {
+    color: var(--color-ruby-base-tint) !important;
+}
+
+.json-gloss-base {
+    color: var(--color-gloss-base-tint) !important;
+}
+
+
 /* JSON preview cursor */
 .json-preview {
     position: relative;

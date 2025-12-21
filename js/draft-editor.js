@@ -231,6 +231,44 @@ function updateRubyGlossDecorations() {
         });
     };
 
+    const addRangeDecoration = (node, startIndex, endIndex, className) => {
+        if (!node || startIndex == null || endIndex == null) return;
+        const rawStartOffset = getOffsetForStringIndex(node, startIndex);
+        const rawEndOffset = getOffsetForStringIndex(node, endIndex);
+        if (rawStartOffset == null || rawEndOffset == null) return;
+        const startPos = model.getPositionAt(rawStartOffset);
+        const endPos = model.getPositionAt(rawEndOffset);
+        decorations.push({
+            range: new monaco.Range(
+                startPos.lineNumber,
+                startPos.column,
+                endPos.lineNumber,
+                endPos.column
+            ),
+            options: {
+                inlineClassName: className
+            }
+        });
+    };
+
+    const addMathDecorations = (node, seg) => {
+        if (!seg || !seg.range) return;
+        const delimLen = seg.display ? 2 : 1;
+        addDelimiterDecoration(node, seg.range.start, 'katex-delimiter');
+        if (delimLen === 2) {
+            addDelimiterDecoration(node, seg.range.start + 1, 'katex-delimiter');
+        }
+        addDelimiterDecoration(node, seg.range.end - 1, 'katex-delimiter');
+        if (delimLen === 2) {
+            addDelimiterDecoration(node, seg.range.end - 2, 'katex-delimiter');
+        }
+        const contentStart = seg.range.start + delimLen;
+        const contentEnd = seg.range.end - delimLen;
+        if (contentStart < contentEnd) {
+            addRangeDecoration(node, contentStart, contentEnd, 'katex-content');
+        }
+    };
+
     const addRubyDelimiters = (node, seg) => {
         if (!seg || !seg.range) return;
         const positions = new Set();
@@ -240,6 +278,22 @@ function updateRubyGlossDecorations() {
             positions.add(seg.baseRange.end);
         }
         positions.forEach((pos) => addDelimiterDecoration(node, pos, 'ruby-delimiter'));
+
+        // Add content highlighting for base (handle nested math/ruby)
+        if (Array.isArray(seg.base)) {
+            seg.base.forEach(child => {
+                if (child.kind === 'Math') {
+                    addMathDecorations(node, child);
+                } else if (child.kind === 'Plain' && child.range) {
+                    addRangeDecoration(node, child.range.start, child.range.end, 'ruby-content');
+                }
+            });
+        }
+
+        // Add content highlighting for ruby text
+        if (seg.rubyRange && seg.rubyRange.start != null && seg.rubyRange.end != null) {
+            addRangeDecoration(node, seg.rubyRange.start, seg.rubyRange.end, 'ruby-content');
+        }
     };
 
     const addGlossDelimiters = (node, seg) => {
@@ -253,11 +307,19 @@ function updateRubyGlossDecorations() {
         positions.forEach((pos) => addDelimiterDecoration(node, pos, 'gloss-delimiter'));
     };
 
-    const addRubyFromGlossChildren = (node, children) => {
-        (children || []).forEach((child) => {
-            if (!child || !child.kind) return;
-            if (child.kind === 'Annotated') {
-                addRubyDelimiters(node, child);
+    const addSegmentsDecorations = (node, segments, defaultContentClass) => {
+        (segments || []).forEach((seg) => {
+            if (!seg || !seg.range) return;
+            if (seg.kind === 'Annotated') {
+                addRubyDelimiters(node, seg);
+            } else if (seg.kind === 'Gloss') {
+                addGlossDelimiters(node, seg);
+                addSegmentsDecorations(node, seg.base, 'gloss-content');
+                (seg.glosses || []).forEach((alt) => addSegmentsDecorations(node, alt, 'gloss-content'));
+            } else if (seg.kind === 'Math') {
+                addMathDecorations(node, seg);
+            } else if (seg.kind === 'Plain' && defaultContentClass) {
+                addRangeDecoration(node, seg.range.start, seg.range.end, defaultContentClass);
             }
         });
     };
@@ -265,16 +327,7 @@ function updateRubyGlossDecorations() {
     stringNodes.forEach((node) => {
         if (!node || typeof node.value !== 'string') return;
         const segments = parseContentToSegments(node.value);
-        segments.forEach((seg) => {
-            if (!seg || !seg.range) return;
-            if (seg.kind === 'Annotated') {
-                addRubyDelimiters(node, seg);
-            } else if (seg.kind === 'Gloss') {
-                addGlossDelimiters(node, seg);
-                addRubyFromGlossChildren(node, seg.base);
-                (seg.glosses || []).forEach((alt) => addRubyFromGlossChildren(node, alt));
-            }
-        });
+        addSegmentsDecorations(node, segments, null);
     });
     rubyGlossDecorations.set(decorations);
 }
@@ -350,9 +403,13 @@ function appendJsonToken(parent, text, startOffset, className, state) {
     }
 }
 
-function getTokenClass(tokenText) {
+function getTokenClass(tokenText, bracketDepth) {
     if (/^\s+$/.test(tokenText)) return null;
-    if (/^[{}\[\]:,]$/.test(tokenText)) return 'json-token-punct';
+    if (/^[{}\[\]]$/.test(tokenText)) {
+        const level = bracketDepth % 6;
+        return `json-token-punct json-bracket-${level}`;
+    }
+    if (tokenText === ':' || tokenText === ',') return 'json-token-punct';
     if (tokenText === 'true' || tokenText === 'false') return 'json-token-boolean';
     if (tokenText === 'null') return 'json-token-null';
     if (/^-?\d/.test(tokenText)) return 'json-token-number';
@@ -364,6 +421,8 @@ function appendJsonTextSegment(parent, text, startOffset, state) {
     const tokenRegex = /\s+|true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[{}\[\]:,]/g;
     let lastIndex = 0;
     let match;
+    let bracketDepth = state && state.bracketDepth != null ? state.bracketDepth : 0;
+
     while ((match = tokenRegex.exec(text)) !== null) {
         if (match.index > lastIndex) {
             appendJsonToken(
@@ -375,13 +434,37 @@ function appendJsonTextSegment(parent, text, startOffset, state) {
             );
         }
         const tokenText = match[0];
-        appendJsonToken(
-            parent,
-            tokenText,
-            startOffset + match.index,
-            getTokenClass(tokenText),
-            state
-        );
+
+        // Update bracket depth
+        if (tokenText === '{' || tokenText === '[') {
+            const tokenClass = getTokenClass(tokenText, bracketDepth);
+            appendJsonToken(
+                parent,
+                tokenText,
+                startOffset + match.index,
+                tokenClass,
+                state
+            );
+            bracketDepth++;
+        } else if (tokenText === '}' || tokenText === ']') {
+            bracketDepth = Math.max(0, bracketDepth - 1);
+            const tokenClass = getTokenClass(tokenText, bracketDepth);
+            appendJsonToken(
+                parent,
+                tokenText,
+                startOffset + match.index,
+                tokenClass,
+                state
+            );
+        } else {
+            appendJsonToken(
+                parent,
+                tokenText,
+                startOffset + match.index,
+                getTokenClass(tokenText, bracketDepth),
+                state
+            );
+        }
         lastIndex = match.index + tokenText.length;
     }
     if (lastIndex < text.length) {
@@ -392,6 +475,11 @@ function appendJsonTextSegment(parent, text, startOffset, state) {
             null,
             state
         );
+    }
+
+    // Update state bracket depth
+    if (state) {
+        state.bracketDepth = bracketDepth;
     }
 }
 
@@ -432,7 +520,7 @@ function appendJsonStringSegment(parent, node, isKey, state) {
 
     const contentWrapper = document.createElement('span');
     contentWrapper.className = stringClass;
-    renderStringValue(contentWrapper, rawValue, node, [], 'decoded', null, null, segments);
+    renderStringValue(contentWrapper, rawValue, node, [], 'decoded', null, null, segments, true);
     parent.appendChild(contentWrapper);
 
     appendJsonToken(parent, '"', rawEnd - 1, stringClass, state);
@@ -452,7 +540,8 @@ function buildJsonPreview(jsonText, container) {
         container,
         tokenRanges: [],
         offsetMap: new Map(),
-        cursorOverlay: null
+        cursorOverlay: null,
+        bracketDepth: 0
     };
     if (!lastParsedAst || !lastParsedAst.loc) {
         renderPlainJsonPreview(container, jsonText, state);
@@ -777,7 +866,7 @@ function renderInlineSegments(parent, segments, node, offsetMode = 'decoded', cu
     });
 }
 
-function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorState = null, cursorIndex = null) {
+function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorState = null, cursorIndex = null, isJsonPreview = false) {
     const glossSpan = document.createElement('span');
     glossSpan.className = 'gloss';
 
@@ -825,6 +914,12 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorSta
         }
         if (child.kind === 'Plain') {
             const rb = document.createElement('rb');
+
+            // Add base text tinting class for JSON preview
+            if (isJsonPreview) {
+                rb.classList.add('json-gloss-base');
+            }
+
             appendTextWithOffsets(
                 rb,
                 child.text || '',
@@ -908,7 +1003,7 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorSta
     parent.appendChild(glossSpan);
 }
 
-function renderSegments(parent, segments, node, offsetMode = 'decoded', cursorState = null, cursorIndex = null) {
+function renderSegments(parent, segments, node, offsetMode = 'decoded', cursorState = null, cursorIndex = null, isJsonPreview = false) {
     (segments || []).forEach((seg) => {
         if (!seg || !seg.kind) return;
         if (seg.kind === 'Plain') {
@@ -964,6 +1059,12 @@ function renderSegments(parent, segments, node, offsetMode = 'decoded', cursorSt
             }
             const rubyEl = document.createElement('ruby');
             const rb = document.createElement('rb');
+
+            // Add base text tinting class for JSON preview
+            if (isJsonPreview) {
+                rb.classList.add('json-ruby-base');
+            }
+
             renderInlineSegments(rb, seg.base || [], node, offsetMode, cursorState, cursorIndex);
             const rt = document.createElement('rt');
             appendTextWithOffsets(
@@ -1002,7 +1103,7 @@ function renderSegments(parent, segments, node, offsetMode = 'decoded', cursorSt
             } else if (cursorInSegment) {
                 appendCursorMarker(parent, cursorState);
             }
-            renderGlossSegment(parent, seg, node, offsetMode, cursorState, cursorIndex);
+            renderGlossSegment(parent, seg, node, offsetMode, cursorState, cursorIndex, isJsonPreview);
         }
     });
 }

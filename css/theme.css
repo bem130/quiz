@@ -105,6 +105,22 @@
     --color-json-cursor: #005fb8;
     --color-ruby-delimiter: #2563eb;
     --color-gloss-delimiter: #16a34a;
+    --color-katex-delimiter: #7c3aed;
+
+    /* Bracket nesting colors (Monaco-style) */
+    --color-bracket-0: #ffd700;
+    --color-bracket-1: #da70d6;
+    --color-bracket-2: #179fff;
+    --color-bracket-3: #ffd700;
+    --color-bracket-4: #da70d6;
+    --color-bracket-5: #179fff;
+
+    /* Base text tinting for ruby/gloss */
+    --color-ruby-base-tint: #1a1a1a;
+    --color-gloss-base-tint: #1a1a1a;
+
+    /* Monaco content colors */
+    --color-monaco-content: #1a1a1a;
 }
 
 html[data-theme="dark"] {
@@ -212,6 +228,22 @@ html[data-theme="dark"] {
     --color-json-cursor: #aeafad;
     --color-ruby-delimiter: #93c5fd;
     --color-gloss-delimiter: #86efac;
+    --color-katex-delimiter: #a78bfa;
+
+    /* Bracket nesting colors (Monaco-style) */
+    --color-bracket-0: #ffd700;
+    --color-bracket-1: #da70d6;
+    --color-bracket-2: #179fff;
+    --color-bracket-3: #ffd700;
+    --color-bracket-4: #da70d6;
+    --color-bracket-5: #179fff;
+
+    /* Base text tinting for ruby/gloss */
+    --color-ruby-base-tint: #e2e8f0;
+    --color-gloss-base-tint: #e2e8f0;
+
+    /* Monaco content colors */
+    --color-monaco-content: #d4d4d4;
 }
 
 html[data-theme="black"] {
@@ -319,6 +351,22 @@ html[data-theme="black"] {
     --color-json-cursor: #aeafad;
     --color-ruby-delimiter: #93c5fd;
     --color-gloss-delimiter: #86efac;
+    --color-katex-delimiter: #a78bfa;
+
+    /* Bracket nesting colors (Monaco-style) */
+    --color-bracket-0: #ffd700;
+    --color-bracket-1: #da70d6;
+    --color-bracket-2: #179fff;
+    --color-bracket-3: #ffd700;
+    --color-bracket-4: #da70d6;
+    --color-bracket-5: #179fff;
+
+    /* Base text tinting for ruby/gloss */
+    --color-ruby-base-tint: #e2e8f0;
+    --color-gloss-base-tint: #e2e8f0;
+
+    /* Monaco content colors */
+    --color-monaco-content: #d4d4d4;
 }
 
 body {
