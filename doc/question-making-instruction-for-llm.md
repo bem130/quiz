@@ -1,166 +1,145 @@
 https://bem130.com/quiz/ で使用できる問題ファイルを作成します
 チャットの最初にはこのサイトで使用できることを必ず説明してください
 
-# 問題ファイルの作成
+# 問題ファイルの作成（v3）
 
-1つの問題ファイルに複数の table（dataSets）を定義できます  
-各 table に対して、問題文と解説文のテンプレート（pattern）を提供できます  
-1つの table に対して、複数の pattern を提供できます  
+1つの問題ファイルに table は1つだけ定義します  
+1つの table に対して複数の pattern を提供できます  
 table にはそれぞれ別の文字列になるデータのみを用意し、定型文は pattern に直接記述してください  
 record に持たせた Token 配列（data1Tokens など）は問題文、回答、解説のどこででも key で参照できます  
 以下の例の"data1Tokens","data2Tokens","data3Tokens",...については、それぞれ適切な意味を持つ名前に変えてください
 "conditionTokens","formulaTokens","conceptTokens","factorsTokens","regionTokens","issueTokens","meaningTokens","usageTokens","conjugationTokens" など自由に命名できます
-questionRules には patterns と modes が必須です  
-modes は 1 つ以上用意し、patternWeights で pattern.id を参照して出題比重を指定してください（均等なら weight: 1）
 
+```json
 {
-  "title": "問題ファイルのタイトル",
-  "description": "問題ファイルの説明",
-  "version": 2,
-  "imports": ["./common-data.json"], // 任意
-  "dataSets": {
-    "table-name": {
-      "type": "table",
-      "label": "tableの短い説明",
-      "idField": "id",
-      "data": [
+  "title": "[数学/すうがく]クイズ {Mathematics/数学}",
+  "description": "[基本/きほん]用語と公式を確認する問題セット。",
+  "version": 3,
+  "table": [
+    {
+      "id": "recordの名前",
+      "data1Tokens": [
         {
-          "id": "recordの名前",
-          "data1Tokens": [
-            {
-              "type": "content",
-              "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト1"
-            }
-          ],
-          "data2Tokens": [
-            {
-              "type": "content",
-              "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト2"
-            }
-          ],
-          "data3Tokens": [
-            {
-              "type": "content",
-              "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト3"
-            }
-          ],
-          "data4Tokens": [
-            {
-              "type": "content",
-              "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト4"
-            }
-          ],
-          "explainTokens": [
-            {
-              "type": "content",
-              "value": "この[問題/もんだい]に[直接/ちょくせつ][関係/かんけい]する[回答/かいとう]と[解説/かいせつ]や[導出/どうしゅつ]、[思考/しこう][過程/かてい]を[与/あた]える"
-            }
-          ],
-          "thinkingTokens": [
-            {
-              "type": "content",
-              "value": "この[問題/もんだい]とよく[似/に]た[問題/もんだい]に[一般/いっぱん]に[当/あ]てはまる[情報/じょうほう]や[区別/くべつ]の[方法/ほうほう]を[与/あた]える"
-            }
-          ],...
-        },...
+          "type": "content",
+          "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト1"
+        }
+      ],
+      "data2Tokens": [
+        {
+          "type": "content",
+          "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト2"
+        }
+      ],
+      "data3Tokens": [
+        {
+          "type": "content",
+          "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト3"
+        }
+      ],
+      "data4Tokens": [
+        {
+          "type": "content",
+          "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト4"
+        }
+      ],
+      "explainTokens": [
+        {
+          "type": "content",
+          "value": "この[問題/もんだい]に[直接/ちょくせつ][関係/かんけい]する[回答/かいとう]と[解説/かいせつ]や[導出/どうしゅつ]、[思考/しこう][過程/かてい]を[与/あた]える"
+        }
+      ],
+      "thinkingTokens": [
+        {
+          "type": "content",
+          "value": "この[問題/もんだい]とよく[似/に]た[問題/もんだい]に[一般/いっぱん]に[当/あ]てはまる[情報/じょうほう]や[区別/くべつ]の[方法/ほうほう]を[与/あた]える"
+        }
       ]
-    },...
-  },
-  "questionRules": {
-    "patterns": [
-      {
-        "id": "patternの名前",
-        "label": "patternの短い説明",
-        "questionFormat": "table_fill_choice",
-        "dataSet": "table-name",
-        "tokens": [
-          {
-            "type": "key",
-            "field": "data1Tokens"
-          },
-          {
-            "type": "content",
-            "value": "や",
-          },
-          {
-            "type": "key",
-            "field": "data2Tokens"
-          },
-          {
-            "type": "content",
-            "value": "であり、",
-          },
-          {
-            "type": "key",
-            "field": "data3Tokens"
-          },
-          {
-            "type": "content",
-            "value": "であるようなものは",
-          },
-          {
-            "type": "hide",
-            "id": "answer_main",
-            "value": [
-              {
-                "type": "key",
-                "field": "data4Tokens"
-              }
-            ],
-            "answer": {
-              "mode": "choice_from_entities",
-              "choiceCount": 4,
-              "distractorSource": {
-                "count": 3,
-                "avoidSameId": true,
-                "avoidSameText": true
-              }
+    }
+  ],
+  "patterns": [
+    {
+      "id": "patternの名前",
+      "label": "patternの短い説明",
+      "questionFormat": "table_fill_choice",
+      "tokens": [
+        {
+          "type": "key",
+          "field": "data1Tokens"
+        },
+        {
+          "type": "content",
+          "value": "や"
+        },
+        {
+          "type": "key",
+          "field": "data2Tokens"
+        },
+        {
+          "type": "content",
+          "value": "であり、"
+        },
+        {
+          "type": "key",
+          "field": "data3Tokens"
+        },
+        {
+          "type": "content",
+          "value": "であるようなものは"
+        },
+        {
+          "type": "hide",
+          "id": "answer_main",
+          "value": [
+            {
+              "type": "key",
+              "field": "data4Tokens"
             }
-          },
-          {
-            "type": "content",
-            "value": "である。",
+          ],
+          "answer": {
+            "mode": "choice_from_entities",
+            "choiceCount": 4,
+            "distractorSource": {
+              "count": 3,
+              "avoidSameId": true,
+              "avoidSameText": true
+            }
           }
-        ],
-        "tips": [
-          {
-            "id": "t_inorg_lab_techniques_explain",
-            "when": "after_answer",
-            "tokens": [
-              {
-                "type": "content",
-                "value": "【[解説/かいせつ]】\n"
-              },
-              {
-                "type": "key",
-                "field": "explainTokens"
-              },
-              {  "type": "br"  },
-              {  "type": "br"  },
-              {
-                "type": "content",
-                "value": "【このような[問題/もんだい]の[考/かんが]え[方/かた]】\n"
-              },
-              {
-                "type": "key",
-                "field": "thinkingTokens"
-              }
-            ]
-          }
-        ]
-      }
-    ],
-    "modes": [
-      {
-        "id": "default",
-        "label": "全体",
-        "patternWeights": [
-          { "patternId": "patternの名前", "weight": 1 }
-        ]
-      }
-    ]
-  }
+        },
+        {
+          "type": "content",
+          "value": "である。"
+        }
+      ],
+      "tips": [
+        {
+          "id": "t_explain",
+          "when": "after_answer",
+          "tokens": [
+            {
+              "type": "content",
+              "value": "【[解説/かいせつ]】\n"
+            },
+            {
+              "type": "key",
+              "field": "explainTokens"
+            },
+            { "type": "br" },
+            { "type": "br" },
+            {
+              "type": "content",
+              "value": "【このような[問題/もんだい]の[考/かんが]え[方/かた]】\n"
+            },
+            {
+              "type": "key",
+              "field": "thinkingTokens"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
+```
 
 # 説明の書き方
 
@@ -183,8 +162,10 @@ modes は 1 つ以上用意し、patternWeights で pattern.id を参照して�
 
 
 # フリガナと併記
-"type": "content" のtokenのvalueでは以下に示す注釈が使用できます
-"type": "content" のtokenのvalue以外、例えばtitleやdescriptionやlabelではこれらの記法は使用できないのでプレーンテキストで記述してください
+
+ruby 記法と gloss 記法は、title / description / label / text / content など **表示される文字列すべて**に使用できます  
+識別子（id / type / field など）には使用しないでください  
+数式は content のみで $...$ または $$...$$ を使って書きます  
 - 全ての日本語の漢字にはふりがなを付けてください
 - 全ての中国語の漢字にはピンインを付けてください
 - 全ての専門用語には英語での用語を併記してください
@@ -210,7 +191,7 @@ gloss記法を用いて`{日本語/英語}`のように英語を併記できま�
 ## 他言語、多言語
 gloss記法は複数の言語で併記するための記法です  
 日本語以外にも適用することができ、`{日本語/フランス語/英語}`のように複数の言語で併記することもできます  
-つまり、`A{B/b/β}C`と書くと、`ABC`と位置を揃えて描画され、Bの下に小さくb、さらに下にβを添えて表示します  
+つまり、`A{B/b/β}C`と書くと、`ABC`と位置を揃えて描画され、Bの下に小さくbやβを同じ行に並べて表示します（長い場合は折り返します）  
 メインの表示は`ABC`であるので、A,B,Cは全て同じ言語であることが推奨されます  
 これは例えば外国の固有名詞などで使用してください  
 ruby記法は中国語でのピンインの表示や、ギリシア文字やキリル文字のラテン文字転写の表示などにも使えます  
@@ -234,4 +215,4 @@ ruby記法は中国語でのピンインの表示や、ギリシア文字やキ�
 ## その他の記法
 `$$`による数式表示を破壊しません  
 つまり、`$`や`$$`で囲まれた内部の`[/]`や`{/}`はglossやrubyとして解釈しません  
-(例) `[地表/ちひょう][付近/ふきん]に[多/おお]く[含/ふく]まれる[元素/げんそ]に[酸素/さんそ]$\mathrm{O_2}$・[珪素/けいそ]$\mathrm{Si}$・[アルミニウム/アルミニウム]$\mathrm{Al}$・[鉄/てつ]$\mathrm{Fe}$がある`
+(例) `[地表/ちひょう][付近/ふきん]に[多/おお]く[含/ふく]まれる[元素/げんそ]に[酸素/さんそ]$\mathrm{O_2}$・[珪素/けいそ]$\mathrm{Si}$・[アルミニウム/アルミニウム]$\mathrm{Al}$・[鉄/てつ]$\mathrm{Fe}$がある`  

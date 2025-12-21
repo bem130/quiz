@@ -7,25 +7,45 @@
       "id": "pyt",
       "termJa": "ピタゴラスの定理",
       "definition": "直角三角形で、斜辺の長さの二乗は他の二辺の二乗和に等しい。",
-      "formula": "a^2 + b^2 = c^2"
+      "formulaTokens": [
+        {
+          "type": "content",
+          "value": "$a^2 + b^2 = c^2$"
+        }
+      ]
     },
     {
       "id": "diff",
       "termJa": "微分係数",
       "definition": "関数の変化率の極限で定義される値。",
-      "formula": "f'(a) = lim_{h->0} (f(a+h) - f(a)) / h"
+      "formulaTokens": [
+        {
+          "type": "content",
+          "value": "$f'(a) = \\\\lim_{h\\\\to 0} (f(a+h) - f(a)) / h$"
+        }
+      ]
     },
     {
       "id": "sum",
       "termJa": "等差数列の和",
       "definition": "等差数列の初項から n 項までの和。",
-      "formula": "S_n = n(a_1 + a_n) / 2"
+      "formulaTokens": [
+        {
+          "type": "content",
+          "value": "$S_n = n(a_1 + a_n) / 2$"
+        }
+      ]
     },
     {
       "id": "area",
       "termJa": "円の面積",
       "definition": "半径 r の円の面積。",
-      "formula": "S = pi r^2"
+      "formulaTokens": [
+        {
+          "type": "content",
+          "value": "$S = \\\\pi r^2$"
+        }
+      ]
     }
   ],
   "patterns": [
@@ -66,7 +86,7 @@
         {
           "type": "hide",
           "id": "h_formula",
-          "value": [{ "type": "key", "field": "formula" }],
+          "value": [{ "type": "key", "field": "formulaTokens" }],
           "answer": {
             "mode": "choice_from_entities",
             "choiceCount": 4,
