@@ -68,6 +68,7 @@ import {
     getConceptStatsMap
 } from './storage/concept-stats.js';
 import { initDraftEditor } from './draft-editor.js';
+import { updatePackageRevision } from './storage/package-store.js';
 
 let entrySources = [];
 let currentEntry = null;
@@ -280,7 +281,8 @@ function buildDraftFileEntry(draft) {
         title,
         description,
         patterns: patternMeta,
-        definition
+        definition,
+        rawJson: parsed
     };
 }
 
@@ -388,16 +390,27 @@ async function loadLocalDraftEntryFromExplorer() {
         const fileEntries = [];
         let latestUpdatedAt = null;
 
-        (drafts || []).forEach((draft) => {
-            if (!draft || !draft.path || draft.isFolder || draft.path.endsWith('/')) return;
+        for (const draft of drafts || []) {
+            if (!draft || !draft.path || draft.isFolder || draft.path.endsWith('/')) {
+                continue;
+            }
             if (draft.updatedAt && (!latestUpdatedAt || draft.updatedAt > latestUpdatedAt)) {
                 latestUpdatedAt = draft.updatedAt;
             }
             const entry = buildDraftFileEntry(draft);
             if (entry) {
+                try {
+                    await updatePackageRevision({
+                        filePath: entry.path,
+                        json: entry.rawJson,
+                        source: 'draft'
+                    });
+                } catch (error) {
+                    console.warn('[draft] failed to update package revision', entry.path, error);
+                }
                 fileEntries.push(entry);
             }
-        });
+        }
 
         if (fileEntries.length === 0) {
             return buildEmptyDraftEntry();

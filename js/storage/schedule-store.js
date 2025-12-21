@@ -4,8 +4,10 @@ import { getDatabase } from './database.js';
 const DEFAULT_EASE = 2.5;
 const MIN_EASE = 1.3;
 const MAX_EASE = 2.8;
-const LEARNING_STEPS = [120, 900, 86400]; // 2m -> 15m -> 1d
-const RELEARNING_STEPS = [600, 86400]; // 10m -> 1d
+const LEARNING_STEPS = [30, 300, 3600]; // 30s -> 5m -> 1h
+const RELEARNING_STEPS = [120, 1800]; // 2m -> 30m
+const MIN_INTERVAL_SEC = 20;
+const MAX_INTERVAL_SEC = 21600;
 
 function normalizePatternId(patternId) {
     if (patternId == null) {
@@ -67,7 +69,7 @@ function defaultScheduleRecord(userId, quizId, questionId, patternId = null) {
 }
 
 function applyFuzz(intervalSec) {
-    if (intervalSec < 86400) {
+    if (intervalSec < 600) {
         return { dueAt: nowMs() + intervalSec * 1000, fuzz: 1 };
     }
     const range = 0.05;
@@ -153,9 +155,15 @@ function clampEase(value) {
 }
 
 function scheduleInterval(entry, intervalSec) {
-    const normalized = Math.max(30, Number(intervalSec) || 0);
+    const normalized = Math.min(
+        MAX_INTERVAL_SEC,
+        Math.max(MIN_INTERVAL_SEC, Number(intervalSec) || 0)
+    );
     const { dueAt, fuzz } = applyFuzz(normalized);
-    entry.intervalSec = Math.max(30, Math.round(normalized));
+    entry.intervalSec = Math.min(
+        MAX_INTERVAL_SEC,
+        Math.max(MIN_INTERVAL_SEC, Math.round(normalized))
+    );
     entry.dueAt = dueAt;
     entry.dueAtFuzzed = fuzz;
     entry.lastSeenAt = nowMs();
@@ -182,9 +190,9 @@ function handleStrong(entry) {
     entry.ease = clampEase(entry.ease + 0.02);
     entry.streak = (entry.streak || 0) + 1;
     let nextInterval =
-        entry.intervalSec > 0 ? entry.intervalSec * entry.ease : 86400;
+        entry.intervalSec > 0 ? entry.intervalSec * entry.ease : 3600;
     if (entry.streak < 2) {
-        nextInterval = Math.min(nextInterval, 86400);
+        nextInterval = Math.min(nextInterval, MAX_INTERVAL_SEC);
     }
     scheduleInterval(entry, nextInterval);
 }
@@ -198,7 +206,7 @@ function handleWeak(entry) {
     const base = entry.intervalSec > 0 ? entry.intervalSec : 3600;
     let interval = base * multiplier;
     if (entry.streak < 2) {
-        interval = Math.min(interval, 86400);
+        interval = Math.min(interval, MAX_INTERVAL_SEC);
     }
     scheduleInterval(entry, interval);
 }
@@ -210,7 +218,7 @@ function handleWrong(entry) {
     entry.streak = 0;
     entry.lapses = (entry.lapses || 0) + 1;
     const base = entry.intervalSec > 0 ? entry.intervalSec * 0.2 : RELEARNING_STEPS[0];
-    scheduleInterval(entry, Math.max(60, base));
+    scheduleInterval(entry, Math.max(MIN_INTERVAL_SEC, base));
 }
 
 function handleIdk(entry) {
@@ -219,7 +227,7 @@ function handleIdk(entry) {
     entry.stepIndex = 0;
     entry.streak = 0;
     const base = entry.intervalSec > 0 ? entry.intervalSec * 0.35 : RELEARNING_STEPS[0];
-    scheduleInterval(entry, Math.max(60, base));
+    scheduleInterval(entry, Math.max(MIN_INTERVAL_SEC, base));
 }
 
 export async function deleteScheduleEntryByKey(userId, questionKey) {

@@ -1,4 +1,5 @@
 // js/entry-model.js
+import { updatePackageRevision } from './storage/package-store.js';
 
 function normalizeFilePath(path) {
     if (!path) return '';
@@ -120,6 +121,11 @@ async function loadQuizFileMeta(filePath, baseUrl) {
         throw new Error(`HTTP ${res.status} ${res.statusText}`);
     }
     const json = await res.json();
+    try {
+        await updatePackageRevision({ filePath, json, source: 'entry' });
+    } catch (error) {
+        console.warn('[entry] failed to update package revision', filePath, error);
+    }
     const patterns = Array.isArray(json.patterns) ? json.patterns : [];
 
     return {
