@@ -2,7 +2,7 @@
 import { initThemeFromStorage, toggleTheme, setSize, initAppHeightObserver } from './theme.js';
 import { dom } from './dom-refs.js';
 import { loadQuizDefinitionFromQuizEntry } from './quiz-model.js';
-import { loadEntrySourceFromUrl } from './entry-model.js';
+import { loadEntrySourceFromUrl, makeNodeKey, normalizeFilePath, stripJsonExtension } from './entry-model.js';
 import {
     createDefaultEntrySources,
     getEntryUrlFromLocation,
@@ -36,7 +36,9 @@ import {
     summarizeAnswers,
     optionToText,
     resetResultList,
-    addResultItem
+    addResultItem,
+    appendContentString,
+    replaceContentString
 } from './quiz-renderer.js';
 import { selectAnswer, resetSelections } from './answer-state.js';
 import { cloneQuestionForRetry } from './question-clone.js';
@@ -1034,14 +1036,20 @@ function updateSelectionSummary() {
         return;
     }
 
-    // Quiz summary
-    let quizTitle = 'No quiz selected';
-    let quizDesc = currentEntry ? 'Choose a quiz from the Quizzes tab.' : 'Add or select an entry to begin.';
+    // Quiz summary (selection)
+    let quizTitle = 'No selection';
+    let quizDesc = currentEntry ? 'Choose a file or pattern from the Quizzes tab.' : 'Add or select an entry to begin.';
 
     if (currentQuiz) {
-        quizTitle = currentQuiz.title || currentQuiz.id || 'Selected quiz';
+        quizTitle = currentQuiz.label || currentQuiz.name || currentQuiz.id || 'Selected';
         if (currentQuiz.description) {
             quizDesc = currentQuiz.description;
+        } else if (currentQuiz.type === 'pattern') {
+            quizDesc = `Pattern ID: ${currentQuiz.patternId}`;
+        } else if (currentQuiz.type === 'file') {
+            quizDesc = currentQuiz.path || 'Selected file';
+        } else if (currentQuiz.type === 'dir') {
+            quizDesc = currentQuiz.path ? `Directory: ${currentQuiz.path}` : 'Selected directory';
         } else if (currentEntry) {
             const entryLabel = currentEntry.label || currentEntry.url || 'Current entry';
             quizDesc = `From ${entryLabel}`;
@@ -1050,8 +1058,8 @@ function updateSelectionSummary() {
         }
     }
 
-    dom.selectedQuizTitle.textContent = quizTitle;
-    dom.selectedQuizDesc.textContent = quizDesc;
+    replaceContentString(dom.selectedQuizTitle, quizTitle);
+    replaceContentString(dom.selectedQuizDesc, quizDesc);
 
     // Mode summary
     let modeTitle = 'No mode selected';
@@ -1097,8 +1105,8 @@ function updateSelectionSummary() {
         modeDesc = 'Select a quiz first.';
     }
 
-    dom.selectedModeTitle.textContent = modeTitle;
-    dom.selectedModeDesc.textContent = modeDesc;
+    replaceContentString(dom.selectedModeTitle, modeTitle);
+    replaceContentString(dom.selectedModeDesc, modeDesc);
 
     updateGameModeSummary();
 }
@@ -1192,8 +1200,9 @@ function getActiveQuizIdentifier() {
     if (quizDef && quizDef.meta && quizDef.meta.id) {
         return quizDef.meta.id;
     }
-    if (currentQuiz && currentQuiz.id) {
-        return currentQuiz.id;
+    if (currentQuiz) {
+        if (currentQuiz.id) return currentQuiz.id;
+        if (currentQuiz.key) return currentQuiz.key;
     }
     return 'quiz';
 }
@@ -1459,8 +1468,8 @@ async function isConceptUncertain(question) {
         const stats = statsMap.get(String(conceptId));
         return Boolean(
             stats &&
-                typeof stats.uncertaintyEma === 'number' &&
-                stats.uncertaintyEma >= 0.6
+            typeof stats.uncertaintyEma === 'number' &&
+            stats.uncertaintyEma >= 0.6
         );
     } catch (error) {
         console.warn('[quiz] failed to read concept stats for classify', error);
@@ -1641,9 +1650,6 @@ function resolveRowForQuestion(question) {
     if (!ds) return null;
     if (ds.type === 'table' && Array.isArray(ds.data)) {
         return ds.data.find((row) => row.id === question.meta.entityId) || null;
-    }
-    if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
-        return ds.sentences.find((s) => s.id === question.meta.sentenceId) || null;
     }
     return null;
 }
@@ -1919,13 +1925,13 @@ function renderModeNodes(nodes, parentElement, modeById) {
 
         const title = document.createElement('div');
         title.className = 'font-semibold';
-        title.textContent = mode.label || mode.id;
+        replaceContentString(title, mode.label || mode.id);
         btn.appendChild(title);
 
         if (mode.description) {
             const desc = document.createElement('div');
             desc.className = 'text-[0.8rem] app-text-muted';
-            desc.textContent = mode.description;
+            replaceContentString(desc, mode.description);
             btn.appendChild(desc);
         }
 
@@ -2118,7 +2124,11 @@ async function startQuiz() {
             userId: sessionUser.userId || 'guest',
             userName: sessionUser.displayName || sessionUser.userId || 'Guest',
             quizId: quizIdentifier,
-            quizTitle: quizDef.meta && quizDef.meta.title ? quizDef.meta.title : (currentQuiz ? currentQuiz.title : null),
+            quizTitle: quizDef.meta && quizDef.meta.title
+                ? quizDef.meta.title
+                : currentQuiz
+                    ? (currentQuiz.label || currentQuiz.name || currentQuiz.id || null)
+                    : null,
             mode: modeId,
             config: {
                 totalQuestions: sessionCompletionState.questionLimit,
@@ -2826,9 +2836,7 @@ function reloadLocalDraftEntry() {
     syncQuizDataUrlsToServiceWorker();
     if (currentEntry && currentEntry.isLocal) {
         currentEntry = localDraft;
-        currentQuiz = Array.isArray(localDraft.quizzes)
-            ? localDraft.quizzes[0]
-            : null;
+        currentQuiz = selectSelectionFromEntry(localDraft, getQuizNameFromLocation());
     }
 }
 
@@ -2849,18 +2857,91 @@ function selectEntryFromParams(sources) {
     return sources[0] || null;
 }
 
-function selectQuizFromEntry(entry, explicitQuizId) {
-    if (!entry || !Array.isArray(entry.quizzes) || entry.quizzes.length === 0) {
-        return null;
-    }
-    const requestedQuizId = explicitQuizId || getQuizNameFromLocation();
-    if (requestedQuizId) {
-        const requestedEntry = entry.quizzes.find((quiz) => quiz.id === requestedQuizId);
-        if (requestedEntry) {
-            return requestedEntry;
+function findFirstSelectableNode(nodes) {
+    const queue = Array.isArray(nodes) ? [...nodes] : [];
+    while (queue.length > 0) {
+        const node = queue.shift();
+        if (!node) continue;
+        if (node.type && node.type !== 'dir') {
+            return node;
+        }
+        if (Array.isArray(node.children) && node.children.length) {
+            queue.push(...node.children);
         }
     }
-    return entry.quizzes[0];
+    return null;
+}
+
+function selectSelectionFromEntry(entry, explicitSelectionKey) {
+    if (entry && entry.nodeMap && entry.nodeMap.size) {
+        const requestedKey = explicitSelectionKey || getQuizNameFromLocation();
+        if (requestedKey && entry.nodeMap.has(requestedKey)) {
+            return entry.nodeMap.get(requestedKey);
+        }
+        return findFirstSelectableNode(entry.tree) || null;
+    }
+
+    return null;
+}
+
+function collectFileNodesFromTree(nodes) {
+    const result = [];
+    const stack = Array.isArray(nodes) ? [...nodes] : [];
+    while (stack.length > 0) {
+        const node = stack.pop();
+        if (!node) continue;
+        if (node.type === 'file') {
+            result.push(node);
+        }
+        if (Array.isArray(node.children) && node.children.length) {
+            stack.push(...node.children);
+        }
+    }
+    return result;
+}
+
+function buildQuizEntryForSelection(entry, selection) {
+    if (!selection) return null;
+    if (selection.inlineDefinition) {
+        return selection;
+    }
+
+    const base = {
+        id: selection.id || selection.key,
+        title: selection.label || selection.name,
+        description: selection.description || '',
+        _entryBaseUrl: entry ? entry._entryBaseUrl : null
+    };
+
+    if (selection.type === 'pattern' && selection.parentFile) {
+        const normalizedPath = normalizeFilePath(selection.path || selection.parentFile.path || '');
+        const fileKey = stripJsonExtension(normalizedPath);
+        return {
+            ...base,
+            files: selection.parentFile.files || [],
+            filePath: normalizedPath,
+            patternId: selection.patternId,
+            patternKey: `${fileKey}::${selection.patternId}`
+        };
+    }
+
+    if (selection.type === 'file') {
+        return {
+            ...base,
+            files: selection.files || []
+        };
+    }
+
+    if (selection.type === 'dir') {
+        const fileNodes = collectFileNodesFromTree(selection.children || []);
+        const files = fileNodes.flatMap((node) => node.files || []);
+        return {
+            ...base,
+            files
+        };
+    }
+
+    return null;
 }
 
 /**
@@ -2899,7 +2980,6 @@ function renderDraftSummary(definition, entry, engineInstance) {
         const dsList = Object.values(d.dataSets).map(ds => {
             let info = `${ds.id} (${ds.type})`;
             if (ds.data) info += ` [${ds.data.length} rows]`;
-            if (ds.sentences) info += ` [${ds.sentences.length} sentences]`;
             return info;
         }).join(', ');
         lines.push(`<strong>DataSets:</strong> ${dsList}`);
@@ -2909,7 +2989,7 @@ function renderDraftSummary(definition, entry, engineInstance) {
     if (d.patterns) {
         const pList = d.patterns.map(p => {
             const cap = engineInstance ? engineInstance.getPatternCapacity(p.id) : '?';
-            return `${p.id} (fmt=${p.questionFormat}, cap=${cap})`;
+            return `${p.id} (cap=${cap})`;
         }).join('<br>');
         lines.push(`<strong>Patterns:</strong><div class="pl-2 text-xs text-gray-500">${pList}</div>`);
     }
@@ -3025,7 +3105,11 @@ async function loadCurrentQuizDefinition() {
     try {
         dom.appDescription.textContent = 'Loading quiz definition...';
         clearModeMessage();
-        const def = await loadQuizDefinitionFromQuizEntry(currentQuiz);
+        const quizEntry = buildQuizEntryForSelection(currentEntry, currentQuiz);
+        if (!quizEntry) {
+            throw new Error('Selection could not be resolved to quiz entry.');
+        }
+        const def = await loadQuizDefinitionFromQuizEntry(quizEntry);
         quizDef = def.definition;
         engine = new QuizEngine(quizDef);
         currentModeBehavior = 'study';
@@ -3076,8 +3160,8 @@ async function loadCurrentQuizDefinition() {
         updateLocationParams(entryUrl, quizId, currentModeId);
 
         document.title = quizDef.meta.title || '4-choice Quiz';
-        dom.appTitle.textContent = quizDef.meta.title || '4-choice Quiz';
-        dom.appDescription.textContent = quizDef.meta.description || '';
+        replaceContentString(dom.appTitle, quizDef.meta.title || '4-choice Quiz');
+        replaceContentString(dom.appDescription, quizDef.meta.description || '');
         setStartButtonEnabled(true);
         updateSelectionSummary();
         showScreen('menu');
@@ -3085,7 +3169,7 @@ async function loadCurrentQuizDefinition() {
         quizDef = null;
         engine = null;
         setStartButtonEnabled(false);
-        dom.appDescription.textContent = 'Failed to load quiz definition.';
+        replaceContentString(dom.appDescription, 'Failed to load quiz definition.');
         showModeMessage('クイズ定義の読み込みに失敗しました。');
         updateSelectionSummary();
         console.error('[quiz] Failed to load quiz definition:', error);
@@ -3094,7 +3178,7 @@ async function loadCurrentQuizDefinition() {
 
 function renderMenus() {
     renderEntryMenu(entrySources, currentEntry);
-    renderQuizMenu(currentEntry && currentEntry.available ? currentEntry.quizzes : [], currentQuiz);
+    renderQuizMenu(currentEntry, currentQuiz);
 }
 
 setCapacityRenderCallback(() => {
@@ -3143,7 +3227,8 @@ async function applyEntrySelection(entry, desiredQuizId, options = {}) {
         return;
     }
 
-    if (!Array.isArray(entry.quizzes) || entry.quizzes.length === 0) {
+    const selection = selectSelectionFromEntry(entry, desiredQuizId);
+    if (!selection) {
         setStartButtonEnabled(false);
         showModeMessage('この entry に利用可能なクイズがありません。');
         dom.appDescription.textContent = 'No quizzes available for this entry.';
@@ -3153,19 +3238,19 @@ async function applyEntrySelection(entry, desiredQuizId, options = {}) {
         return;
     }
 
-    const quiz = selectQuizFromEntry(entry, desiredQuizId);
-    currentQuiz = quiz;
+    currentQuiz = selection;
     updateSelectionSummary();
 
-    (entry.quizzes || []).forEach((quizEntry) => {
-        enqueueQuizCapacityTask(entry, quizEntry);
+    const fileNodes = collectFileNodesFromTree(entry.tree || []);
+    fileNodes.forEach((node) => {
+        enqueueQuizCapacityTask(entry, node);
     });
     enqueueEntryCapacityTask(entry);
 
     renderMenus();
 
     const modeToKeep = preserveModeFromUrl ? getModeIdFromLocation() : null;
-    updateLocationParams(entry.url, quiz ? quiz.id : null, modeToKeep);
+    updateLocationParams(entry.url, selection ? selection.id : null, modeToKeep);
 
     await loadCurrentQuizDefinition();
 }
@@ -3177,9 +3262,12 @@ async function handleEntryClick(url) {
     await applyEntrySelection(target, quizParam);
 }
 
-async function handleQuizClick(quizId) {
+async function handleQuizClick(selectionId) {
     if (!currentEntry || !currentEntry.available) return;
-    const target = currentEntry.quizzes.find((quiz) => quiz.id === quizId);
+    const target =
+        currentEntry.nodeMap && currentEntry.nodeMap.has(selectionId)
+            ? currentEntry.nodeMap.get(selectionId)
+            : null;
     if (!target) return;
     currentQuiz = target;
     updateSelectionSummary();
@@ -3205,7 +3293,7 @@ async function addEntryFromUrl(url) {
         (entry) => entry.url === url && entry.temporary
     );
 
-    if (temporary && temporary.available && Array.isArray(temporary.quizzes)) {
+    if (temporary && temporary.available) {
         const permanent = {
             ...temporary,
             temporary: false,
@@ -3661,24 +3749,24 @@ function attachMenuHandlers() {
             }
             if (!target) return;
 
-            // Share quiz button
-            const shareQuizButton = target.closest('[data-share-quiz-id]');
+            // Share selection button
+            const shareQuizButton = target.closest('[data-share-selection-id]');
             if (shareQuizButton) {
                 event.stopPropagation();
-                const quizId = shareQuizButton.dataset.shareQuizId;
+                const quizId = shareQuizButton.dataset.shareSelectionId;
                 const entryUrl = currentEntry ? currentEntry.url : null;
                 const url = buildShareUrl({ entryUrl, quizId });
                 openShareModal(url);
                 return;
             }
 
-            const quizId = target.dataset.quizId;
-            if (quizId) {
-                await handleQuizClick(quizId);
-            } else if (target.closest('[data-quiz-id]')) {
-                const button = target.closest('[data-quiz-id]');
-                if (button && button.dataset.quizId) {
-                    await handleQuizClick(button.dataset.quizId);
+            const selectionId = target.dataset.selectionId;
+            if (selectionId) {
+                await handleQuizClick(selectionId);
+            } else if (target.closest('[data-selection-id]')) {
+                const button = target.closest('[data-selection-id]');
+                if (button && button.dataset.selectionId) {
+                    await handleQuizClick(button.dataset.selectionId);
                 }
             }
         });

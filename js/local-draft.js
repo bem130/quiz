@@ -1,7 +1,7 @@
 // js/local-draft.js
-import { convertToV2, validateDefinition } from './quiz-model.js';
+import { buildDefinitionFromQuizFile, validateDefinition } from './quiz-model.js';
 
-export const LOCAL_DRAFT_STORAGE_KEY = 'quizLocalDraft.v1';
+export const LOCAL_DRAFT_STORAGE_KEY = 'quizLocalDraft.v3';
 export const LOCAL_DRAFT_ENTRY_URL = '__local_draft__';
 
 function getStorage() {
@@ -61,8 +61,10 @@ function cloneDefinition(definition) {
 function buildDraftEntryFromDefinition(definition, updatedAt) {
     const meta = deriveMeta(definition);
     const quizEntry = {
-        id: meta.id,
-        title: meta.title,
+        id: `file:local-draft`,
+        key: `file:local-draft`,
+        type: 'file',
+        label: meta.title,
         description: meta.description,
         inlineDefinition: cloneDefinition(definition),
         isLocalDraft: true
@@ -73,7 +75,8 @@ function buildDraftEntryFromDefinition(definition, updatedAt) {
         label: meta.title,
         builtIn: true,
         available: true,
-        quizzes: [quizEntry],
+        tree: [quizEntry],
+        nodeMap: new Map([[quizEntry.key, quizEntry]]),
         isLocal: true,
         hasDraftData: true,
         updatedAt
@@ -86,7 +89,8 @@ function buildEmptyDraftEntry() {
         label: 'Local draft',
         builtIn: true,
         available: false,
-        quizzes: [],
+        tree: [],
+        nodeMap: new Map(),
         isLocal: true,
         hasDraftData: false
     };
@@ -119,15 +123,17 @@ export function updateLocalDraftFromText(text) {
         throw new Error('JSON形式ではありません。');
     }
 
-    const converted = convertToV2(parsed);
-    validateDefinition(converted);
+    const definition = buildDefinitionFromQuizFile(parsed, 'draft', {
+        title: parsed.title,
+        description: parsed.description
+    });
 
     const payload = {
-        definition: converted,
+        definition,
         updatedAt: new Date().toISOString()
     };
     writeDraftToStorage(payload);
-    return buildDraftEntryFromDefinition(converted, payload.updatedAt);
+    return buildDraftEntryFromDefinition(definition, payload.updatedAt);
 }
 
 export function clearLocalDraft() {

@@ -1,5 +1,5 @@
 /**
- * Ruby Parser for "type": "content" tokens.
+ * Ruby Parser for string tokens (legacy content syntax).
  *
  * Implements a parser for the format:
  *   [Base/Reading] -> <ruby><rb>Base</rb><rt>Reading</rt></ruby>

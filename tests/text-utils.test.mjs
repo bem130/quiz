@@ -7,7 +7,11 @@ const sampleDefinition = {
         sample: {
             type: 'table',
             data: [
-                { id: 'r1', text: 'Alpha', detail: [{ type: 'text', value: 'Detail' }] }
+                {
+                    id: 'r1',
+                    text: 'Alpha',
+                    items: [['A'], ['B']]
+                }
             ]
         }
     }
@@ -19,7 +23,7 @@ const sampleQuestion = {
 
 test('tokensToPlainText flattens hide tokens and line breaks', () => {
     const tokens = [
-        { type: 'text', value: 'Line1' },
+        'Line1',
         { type: 'br' },
         {
             type: 'hide',
@@ -37,23 +41,21 @@ test('resolveQuestionContext finds table row by entityId', () => {
 });
 
 test('tokensToPlainText expands gloss content with alternates', () => {
-    const tokens = [
-        {
-            type: 'content',
-            value: 'A{[Base/Read]/[Alt/AltRead]/Alt2}C'
-        }
-    ];
+    const tokens = ['A{[Base/Read]/[Alt/AltRead]/Alt2}C'];
     const text = tokensToPlainText(tokens, null);
     assert.equal(text, 'ABase (Alt / Alt2)C');
 });
 
 test('tokensToPlainText omits parentheses when gloss has no alternates', () => {
-    const tokens = [
-        {
-            type: 'content',
-            value: '{Solo}'
-        }
-    ];
+    const tokens = ['{Solo}'];
     const text = tokensToPlainText(tokens, null);
     assert.equal(text, 'Solo');
+});
+
+test('tokensToPlainText joins listkey entries with separator', () => {
+    const tokens = [
+        { type: 'listkey', field: 'items', separatorTokens: [','] }
+    ];
+    const text = tokensToPlainText(tokens, sampleDefinition.dataSets.sample.data[0]);
+    assert.equal(text, 'A,B');
 });

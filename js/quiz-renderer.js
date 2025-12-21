@@ -168,6 +168,102 @@ function appendGlossSegmentsInto(parent, segments) {
     });
 }
 
+export function appendContentString(parent, value, styles = []) {
+    const raw = value != null ? String(value) : '';
+    const segments = parseContentToSegments(raw);
+
+    const wrapper = document.createElement('span');
+    wrapper.classList.add('content-token');
+    applyStyles(wrapper, styles);
+
+    segments.forEach((seg) => {
+        if (seg.kind === 'Plain') {
+            const txt = seg.text || '';
+            if (txt.indexOf('\n') === -1) {
+                wrapper.appendChild(document.createTextNode(txt));
+            } else {
+                const parts = txt.split('\n');
+                parts.forEach((p, idx) => {
+                    wrapper.appendChild(document.createTextNode(p));
+                    if (idx !== parts.length - 1) {
+                        wrapper.appendChild(document.createElement('br'));
+                    }
+                });
+            }
+            return;
+        }
+        if (seg.kind === 'Annotated') {
+            const rubyEl = document.createElement('ruby');
+            const rb = document.createElement('rb');
+            appendInlineSegmentsInto(rb, seg.base);
+            const rt = document.createElement('rt');
+            rt.textContent = seg.reading;
+            rubyEl.appendChild(rb);
+            rubyEl.appendChild(rt);
+            wrapper.appendChild(rubyEl);
+            return;
+        }
+        if (seg.kind === 'Math') {
+            const mathSpan = createStyledSpan(seg.tex, ['katex']);
+            wrapper.appendChild(mathSpan);
+            return;
+        }
+        if (seg.kind === 'Gloss') {
+            const glossSpan = document.createElement('span');
+            glossSpan.className = 'gloss';
+
+            const rubyEl = document.createElement('ruby');
+            (seg.base || []).forEach((child) => {
+                if (child.kind === 'Annotated') {
+                    const rb = document.createElement('rb');
+                    appendInlineSegmentsInto(rb, child.base);
+                    const rt = document.createElement('rt');
+                    rt.textContent = child.reading;
+                    rubyEl.appendChild(rb);
+                    rubyEl.appendChild(rt);
+                } else if (child.kind === 'Math') {
+                    const rb = document.createElement('rb');
+                    appendInlineSegmentsInto(rb, [child]);
+                    const rt = document.createElement('rt');
+                    rubyEl.appendChild(rb);
+                    rubyEl.appendChild(rt);
+                } else if (child.kind === 'Plain') {
+                    const rb = document.createElement('rb');
+                    rb.textContent = child.text;
+                    const rt = document.createElement('rt');
+                    rubyEl.appendChild(rb);
+                    rubyEl.appendChild(rt);
+                }
+            });
+            glossSpan.appendChild(rubyEl);
+
+            if (seg.glosses && seg.glosses.length) {
+                const altsWrapper = document.createElement('span');
+                altsWrapper.className = 'gloss-alts';
+                seg.glosses.forEach((gloss) => {
+                    const altSpan = document.createElement('span');
+                    altSpan.className = 'gloss-alt';
+                    appendGlossSegmentsInto(altSpan, gloss);
+                    altsWrapper.appendChild(altSpan);
+                });
+                glossSpan.appendChild(altsWrapper);
+            }
+            wrapper.appendChild(glossSpan);
+        }
+    });
+
+    parent.appendChild(wrapper);
+}
+
+/**
+ * Clear the parent element and append a rendered ruby/content string.
+ */
+export function replaceContentString(parent, value, styles = []) {
+    if (!parent) return;
+    parent.innerHTML = '';
+    appendContentString(parent, value, styles);
+}
+
 function renderRubyToken(token, row) {
     const rubyEl = document.createElement('ruby');
     if (token._loc) {
@@ -186,116 +282,23 @@ function renderRubyToken(token, row) {
 }
 
 function renderHideValueIntoSpan(span, token, row) {
-    if (Array.isArray(token.value)) {
-        appendTokens(span, token.value, row, null);
+    if (token.value != null) {
+        const values = Array.isArray(token.value) ? token.value : [token.value];
+        appendTokens(span, values, row, null);
         return;
     }
-    if (token.value && typeof token.value === 'object') {
-        appendTokens(span, [token.value], row, null);
-        return;
-    }
-    const field = token.field;
-    const value = field && row ? row[field] ?? '' : '';
-    span.appendChild(createStyledSpan(value || '____', token.styles || []));
+    span.appendChild(createStyledSpan('____', token.styles || []));
 }
 
 function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
     let answerIndexCounter = 0;
     (tokens || []).forEach((token) => {
-        if (!token || !token.type) return;
-        if (token.type === 'text') {
-            const span = createStyledSpan(token.value ?? '', token.styles || []);
-            if (token._loc) {
-                attachSourceInfo(span, token._loc);
-            }
-            parent.appendChild(span);
+        if (token == null) return;
+        if (typeof token === 'string') {
+            appendContentString(parent, token);
             return;
         }
-        if (token.type === 'content') {
-            const value = token.value != null ? String(token.value) : '';
-            const segments = parseContentToSegments(value);
-
-            const wrapper = document.createElement(token.block ? 'div' : 'span');
-            wrapper.classList.add('content-token');
-            applyStyles(wrapper, token.styles || []);
-
-            segments.forEach((seg) => {
-                if (seg.kind === 'Plain') {
-                        // Preserve newline characters in content segments
-                        const txt = seg.text || '';
-                        if (txt.indexOf('\n') === -1) {
-                            wrapper.appendChild(document.createTextNode(txt));
-                        } else {
-                            const parts = txt.split('\n');
-                            parts.forEach((p, idx) => {
-                                wrapper.appendChild(document.createTextNode(p));
-                                if (idx !== parts.length - 1) {
-                                    wrapper.appendChild(document.createElement('br'));
-                                }
-                            });
-                        }
-                } else if (seg.kind === 'Annotated') {
-                    const rubyEl = document.createElement('ruby');
-                    const rb = document.createElement('rb');
-                    appendInlineSegmentsInto(rb, seg.base);
-                    const rt = document.createElement('rt');
-                    rt.textContent = seg.reading;
-                    rubyEl.appendChild(rb);
-                    rubyEl.appendChild(rt);
-                    wrapper.appendChild(rubyEl);
-                } else if (seg.kind === 'Math') {
-                    const styles = ['katex'];
-                    if (seg.display) styles.push('katex-block');
-                    const mathSpan = createStyledSpan(seg.tex, styles);
-                    wrapper.appendChild(mathSpan);
-                } else if (seg.kind === 'Gloss') {
-                    const glossSpan = document.createElement('span');
-                    glossSpan.className = 'gloss';
-
-                    const rubyEl = document.createElement('ruby');
-                    (seg.base || []).forEach(child => {
-                        if (child.kind === 'Annotated') {
-                            const rb = document.createElement('rb');
-                            appendInlineSegmentsInto(rb, child.base);
-                            const rt = document.createElement('rt');
-                            rt.textContent = child.reading;
-                            rubyEl.appendChild(rb);
-                            rubyEl.appendChild(rt);
-                        } else if (child.kind === 'Math') {
-                            const rb = document.createElement('rb');
-                            appendInlineSegmentsInto(rb, [child]);
-                            const rt = document.createElement('rt');
-                            rubyEl.appendChild(rb);
-                            rubyEl.appendChild(rt);
-                        } else if (child.kind === 'Plain') {
-                            const rb = document.createElement('rb');
-                            rb.textContent = child.text;
-                            const rt = document.createElement('rt');
-                            // Empty rt for alignment
-                            rubyEl.appendChild(rb);
-                            rubyEl.appendChild(rt);
-                        }
-                    });
-                    glossSpan.appendChild(rubyEl);
-
-                    if (seg.glosses && seg.glosses.length) {
-                        const altsWrapper = document.createElement('span');
-                        altsWrapper.className = 'gloss-alts';
-                        seg.glosses.forEach((gloss) => {
-                            const altSpan = document.createElement('span');
-                            altSpan.className = 'gloss-alt';
-                            appendGlossSegmentsInto(altSpan, gloss);
-                            altsWrapper.appendChild(altSpan);
-                        });
-                        glossSpan.appendChild(altsWrapper);
-                    }
-                    wrapper.appendChild(glossSpan);
-                }
-            });
-
-            parent.appendChild(wrapper);
-            return;
-        }
+        if (!token.type) return;
         if (token.type === 'katex') {
             const text =
                 token.value != null
@@ -340,26 +343,51 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
 
             // 1) 配列なら tokens とみなして再帰
             if (Array.isArray(value)) {
-                appendTokens(parent, value, row, placeholders, promises);
+                const wrapper = document.createElement('span');
+                appendTokens(wrapper, value, row, placeholders, promises);
+                applyStyles(wrapper, token.styles || []);
+                parent.appendChild(wrapper);
                 return;
             }
 
             // 2) 単一トークンオブジェクトなら 1 要素配列として再帰
             if (value && typeof value === 'object' && value.type) {
-                appendTokens(parent, [value], row, placeholders, promises);
+                const wrapper = document.createElement('span');
+                appendTokens(wrapper, [value], row, placeholders, promises);
+                applyStyles(wrapper, token.styles || []);
+                parent.appendChild(wrapper);
                 return;
             }
 
-            // 3) それ以外（文字列など）は従来通りテキストとして扱う
-            parent.appendChild(
-                createStyledSpan(
-                    value != null ? String(value) : '',
-                    token.styles || []
-                )
-            );
+            // 3) 文字列は string token と同じパースで描画
+            if (typeof value === 'string') {
+                appendContentString(parent, value, token.styles || []);
+                return;
+            }
+
+            // 4) それ以外はテキストとして扱う
+            parent.appendChild(createStyledSpan(value != null ? String(value) : '', token.styles || []));
             return;
         }
-        if (token.type === 'ruby' || token.type === 'hideruby') {
+        if (token.type === 'listkey') {
+            const list = Array.isArray(row && token.field ? row[token.field] : null)
+                ? row[token.field]
+                : [];
+            const separators = Array.isArray(token.separatorTokens)
+                ? token.separatorTokens
+                : token.separatorTokens
+                    ? [token.separatorTokens]
+                    : [];
+
+            list.forEach((entryTokens, idx) => {
+                if (idx > 0 && separators.length) {
+                    appendTokens(parent, separators, row, placeholders, promises);
+                }
+                appendTokens(parent, entryTokens, row, placeholders, promises);
+            });
+            return;
+        }
+        if (token.type === 'ruby') {
             parent.appendChild(renderRubyToken(token, row));
             return;
         }
@@ -378,15 +406,15 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
             answerIndexCounter += 1;
             return;
         }
-        if (token.type === 'group') {
-            const span = document.createElement('span');
-            appendTokens(span, token.value || [], row, placeholders, promises);
-            applyStyles(span, token.styles || []);
-            parent.appendChild(span);
-            return;
-        }
         if (token.type === 'br') {
             parent.appendChild(document.createElement('br'));
+            return;
+        }
+        if (token.type === 'hr') {
+            const line = document.createElement('hr');
+            line.className = 'my-2 border-t app-border-subtle';
+            parent.appendChild(line);
+            return;
         }
     });
 }
@@ -468,9 +496,7 @@ function renderOptionLabel(option, dataSets, question) {
     const row = option.entityId && ds
         ? ds.type === 'table' && Array.isArray(ds.data)
             ? ds.data.find((r) => r.id === option.entityId)
-            : ds.type === 'factSentences' && Array.isArray(ds.sentences)
-                ? ds.sentences.find((s) => s.id === option.entityId)
-                : null
+            : null
         : null;
     if (option.labelTokens) {
         const span = document.createElement('span');
@@ -532,209 +558,6 @@ function renderAnswerGroup(question, dataSets, answerIndex, onSelect) {
     });
 
     group.appendChild(optionsWrapper);
-    return group;
-}
-
-function renderTableMatchingQuestion(question, dataSets, onSelect) {
-    const group = document.createElement('div');
-    group.className =
-        'flex flex-col sm:flex-row gap-4 sm:gap-6';
-
-    const answers = question.answers || [];
-    if (!answers.length || !answers[0].options || !answers[0].options.length) {
-        console.warn('[quiz][table_matching] answers が空です');
-        return group;
-    }
-
-    const optionCount = answers[0].options.length;
-
-    // 右側の候補は全ての穴で同じ並びになっている前提
-    const globalOptions = answers[0].options;
-
-    const leftCol = document.createElement('div');
-    leftCol.className = 'flex-1 flex flex-col gap-3';
-
-    const rightCol = document.createElement('div');
-    rightCol.className = 'flex-1 flex flex-col gap-3';
-
-    group.appendChild(leftCol);
-    group.appendChild(rightCol);
-
-    // マッチング用の状態
-    const matchingState = {
-        leftButtons: [],
-        rightButtons: [],
-        firstSelection: null, // { side: 'left' | 'right', index: number }
-        pairsByLeft: new Array(answers.length).fill(null),
-        pairsByRight: new Array(optionCount).fill(null),
-        updateStyles: null
-    };
-
-    // すでに userSelectedIndex が入っている場合はそこからペアを復元
-    answers.forEach((answer, leftIndex) => {
-        const selected =
-            typeof answer.userSelectedIndex === 'number'
-                ? answer.userSelectedIndex
-                : null;
-        if (
-            selected == null ||
-            selected < 0 ||
-            selected >= optionCount
-        ) {
-            return;
-        }
-
-        // 同じ右側にすでに別の左が割り当てられていた場合は、後勝ちにしておく
-        const oldLeft = matchingState.pairsByRight[selected];
-        if (oldLeft != null) {
-            matchingState.pairsByLeft[oldLeft] = null;
-        }
-        matchingState.pairsByLeft[leftIndex] = selected;
-        matchingState.pairsByRight[selected] = leftIndex;
-    });
-
-    question._matchingState = matchingState;
-
-    function updateStyles() {
-        const first = matchingState.firstSelection;
-
-        // いったん全ての強調クラスを外す
-        matchingState.leftButtons.forEach((btn) => {
-            if (!btn) return;
-            btn.classList.remove(
-                'app-focus-outline',
-                'app-match-highlight'
-            );
-        });
-
-        matchingState.rightButtons.forEach((btn) => {
-            if (!btn) return;
-            btn.classList.remove(
-                'app-focus-outline',
-                'app-match-highlight'
-            );
-        });
-
-        // まず「確定しているペア」を両側ハイライト
-        matchingState.pairsByLeft.forEach((rightIndex, leftIndex) => {
-            if (rightIndex == null) return;
-
-            const leftBtn = matchingState.leftButtons[leftIndex];
-            const rightBtn = matchingState.rightButtons[rightIndex];
-            if (!leftBtn || !rightBtn) return;
-
-            leftBtn.classList.add('app-match-highlight');
-            rightBtn.classList.add('app-match-highlight');
-        });
-
-        // その上で「今 1 個目として選択中」のボタンにリングを付ける
-        if (first) {
-            const list =
-                first.side === 'left'
-                    ? matchingState.leftButtons
-                    : matchingState.rightButtons;
-            const btn = list[first.index];
-            if (btn) {
-                btn.classList.add('app-focus-outline');
-            }
-        }
-    }
-    matchingState.updateStyles = updateStyles;
-
-    function handleClick(side, index) {
-        if (question.meta && question.meta.disabled) return;
-
-        const first = matchingState.firstSelection;
-
-        // 同じボタンをもう一度押した → 選択解除
-        if (first && first.side === side && first.index === index) {
-            matchingState.firstSelection = null;
-            updateStyles();
-            return;
-        }
-
-        // まだ 1 個目が選ばれていない → 1 個目として記録
-        if (!first) {
-            matchingState.firstSelection = { side, index };
-            updateStyles();
-            return;
-        }
-
-        // 1 個目と同じ側を押した → 1 個目を差し替え
-        if (first.side === side) {
-            matchingState.firstSelection = { side, index };
-            updateStyles();
-            return;
-        }
-
-        // ここに来ると「左右 1 個ずつ」が揃ったのでペア確定
-        const leftIndex = first.side === 'left' ? first.index : index;
-        const rightIndex = first.side === 'right' ? first.index : index;
-
-        // 既存ペアがあれば解除してから新しいペアを張る
-        const oldRight = matchingState.pairsByLeft[leftIndex];
-        if (oldRight != null) {
-            matchingState.pairsByRight[oldRight] = null;
-        }
-        const oldLeft = matchingState.pairsByRight[rightIndex];
-        if (oldLeft != null) {
-            matchingState.pairsByLeft[oldLeft] = null;
-        }
-
-        matchingState.pairsByLeft[leftIndex] = rightIndex;
-        matchingState.pairsByRight[rightIndex] = leftIndex;
-
-        matchingState.firstSelection = null;
-        updateStyles();
-
-        // 内部状態（userSelectedIndex）と採点ロジックを更新
-        answers[leftIndex].userSelectedIndex = rightIndex;
-        onSelect(leftIndex, rightIndex);
-    }
-
-    // 左列（アミノ酸名）
-    answers.forEach((answer, i) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = [
-            'choice-button choice-default',
-            'w-full',
-            'px-3 py-2 rounded-xl border app-text-strong app-focus-ring',
-            'text-sm text-left',
-            'transition-colors'
-        ].join(' ');
-
-        btn.textContent =
-            answer.meta && answer.meta.leftText
-                ? answer.meta.leftText
-                : '';
-
-        btn.addEventListener('click', () => handleClick('left', i));
-
-        matchingState.leftButtons[i] = btn;
-        leftCol.appendChild(btn);
-    });
-
-    // 右列（分類）
-    globalOptions.forEach((opt, j) => {
-        const labelNodes = renderOptionLabel(opt, dataSets, question);
-        const btn = createOptionButton(
-            labelNodes,
-            question.meta && question.meta.disabled,
-            () => handleClick('right', j),
-            { fullHeight: false }
-        );
-
-        // マッチング専用 UI では data-* は使わない（従来ロジックと混線しないように）
-        delete btn.dataset.answerIndex;
-        delete btn.dataset.optionIndex;
-
-        matchingState.rightButtons[j] = btn;
-        rightCol.appendChild(btn);
-    });
-
-    // 初期状態（既存の userSelectedIndex も含めて）を反映
-    updateStyles();
     return group;
 }
 
@@ -831,39 +654,8 @@ export function renderQuestion(question, dataSets, onSelect) {
 
     const contextRow = resolveQuestionContext(question, dataSets);
 
-    // table_matching 専用のヘッダー
-    if (question.format === 'table_matching') {
-        const header = document.createElement('div');
-        header.className = 'text-sm app-text-muted mb-2';
-        header.textContent =
-            'Match the items on the left with the correct options on the right.';
-        dom.questionText.appendChild(header);
-    }
-
     const promises = [];
     appendTokens(dom.questionText, question.tokens, contextRow, true, promises);
-
-    // ───────────────────────────────────────
-    // ① マッチング形式は専用 UI で 4+4 ボタンを描画
-    // ───────────────────────────────────────
-    if (question.format === 'table_matching') {
-        const group = renderTableMatchingQuestion(question, dataSets, onSelect);
-        question._answerGroups = [group];
-        question.useNavigation = false;
-
-        group.classList.remove('hidden');
-        dom.optionsContainer.appendChild(group);
-
-        // 高さ予約は従来どおり (Wait for SMILES)
-        Promise.all(promises).then(() => {
-            reserveQuestionTextHeight(question, dataSets);
-        });
-        return;
-    }
-
-    // ───────────────────────────────────────
-    // ② それ以外（4択・穴埋め）は従来どおり
-    // ───────────────────────────────────────
     const answerGroups = question.answers.map((_, idx) =>
         renderAnswerGroup(question, dataSets, idx, onSelect)
     );
@@ -892,11 +684,11 @@ export function renderQuestion(question, dataSets, onSelect) {
 
 // 1問ごとに「最悪ケースの高さ」を min-height として予約する
 function reserveQuestionTextHeight(question, dataSets) {
-    // 「穴埋めトークン (hide / hideruby) を含むか」で判定する
+    // 「穴埋めトークン (hide) を含むか」で判定する
     const hasInlineBlank =
         Array.isArray(question.tokens) &&
         question.tokens.some(
-            (t) => t && (t.type === 'hide' || t.type === 'hideruby')
+            (t) => t && t.type === 'hide'
         );
 
     // 穴埋めが無い問題は今まで通り可変でOK
@@ -1002,14 +794,6 @@ export function updateInlineBlank(
                 ? ds.data.find((r) => r.id === opt.entityId) || null
                 : null;
         }
-        if (
-            ds.type === 'factSentences' &&
-            Array.isArray(ds.sentences)
-        ) {
-            return opt.entityId
-                ? ds.sentences.find((s) => s.id === opt.entityId) || null
-                : null;
-        }
         return null;
     }
 
@@ -1078,42 +862,6 @@ export function updateInlineBlank(
     });
 }
 
-function buildSentencePreview(question, dataSets, answerIndex, optionIndex) {
-    if (question.format !== 'sentence_fill_choice') return null;
-
-    const container = document.createElement('span');
-
-    // 現在の選択状態をバックアップ
-    const backup = (question.answers || []).map((ans) =>
-        ans ? ans.userSelectedIndex : null
-    );
-
-    // 「この穴だけ optionIndex を選んだ」状態を仮に作る
-    (question.answers || []).forEach((ans, i) => {
-        if (!ans) return;
-        if (i === answerIndex) {
-            ans.userSelectedIndex = optionIndex;
-        }
-        // 他の穴は backup のまま → 未回答は null → ___ のまま
-    });
-
-    // プレビュー用の文章ノードを生成
-    const contextRow = resolveQuestionContext(question, dataSets);
-    appendTokens(container, question.tokens, contextRow, true);
-
-    // 全ての穴を更新（未回答は ___）
-    (question.answers || []).forEach((_, i) => {
-        updateInlineBlank(question, dataSets, i, container);
-    });
-
-    // 状態を元に戻す
-    (question.answers || []).forEach((ans, i) => {
-        if (ans) ans.userSelectedIndex = backup[i];
-    });
-
-    return container;
-}
-
 export function renderProgress(currentIndex, total, score) {
     dom.currentQNum.textContent = `${currentIndex + 1}`;
     const totalLabel =
@@ -1123,138 +871,8 @@ export function renderProgress(currentIndex, total, score) {
 }
 
 export function showOptionFeedback(question) {
-    // ───────────────────────────────────────
-    // table_matching（1:1 マッチング）用のフィードバック
-    // ───────────────────────────────────────
-    if (
-        question &&
-        question.format === 'table_matching' &&
-        question._matchingState &&
-        Array.isArray(question._matchingState.leftButtons)
-    ) {
-        const state = question._matchingState;
-
-        // 左側ボタンの正誤表示
-        (question.answers || []).forEach((answer, answerIndex) => {
-            const btn = state.leftButtons[answerIndex];
-            if (!btn) return;
-
-            resetChoiceButtonState(btn);
-
-            const selected = answer.userSelectedIndex;
-            const correct = answer.correctIndex;
-
-            if (selected == null || selected < 0) {
-                // 未回答はそのまま
-                return;
-            }
-
-            addChoiceStateClasses(
-                btn,
-                selected === correct ? 'correct' : 'incorrect'
-            );
-        });
-
-        // 右側ボタンも、実際に選ばれたペアに応じて色分け
-        if (
-            Array.isArray(state.rightButtons) &&
-            Array.isArray(state.pairsByRight)
-        ) {
-            state.rightButtons.forEach((btn, rightIndex) => {
-                if (!btn) return;
-
-                resetChoiceButtonState(btn);
-
-                const leftIndex = state.pairsByRight[rightIndex];
-                if (leftIndex == null) return;
-
-                const answer =
-                    question.answers && question.answers[leftIndex];
-                if (!answer) return;
-
-                const isCorrect = answer.correctIndex === rightIndex;
-
-                addChoiceStateClasses(
-                    btn,
-                    isCorrect ? 'correct' : 'incorrect'
-                );
-            });
-        }
-
-        return;
-    }
-
-    // ───────────────────────────────────────
-    // 従来フォーマット（4択など）
-    // ───────────────────────────────────────
-
-    // Pre-calculate satisfied unordered groups
-    const satisfiedGroups = new Set();
-    const unorderedIndices = new Set();
-
-    if (
-        question.format === 'sentence_fill_choice' &&
-        question.meta &&
-        Array.isArray(question.meta.unorderedAnswerGroups)
-    ) {
-        question.meta.unorderedAnswerGroups.forEach((group) => {
-            if (!Array.isArray(group)) return;
-            group.forEach((idx) => unorderedIndices.add(idx));
-
-            const expectedLabels = [];
-            const selectedLabels = [];
-
-            let groupComplete = true;
-            for (const idx of group) {
-                const ans = question.answers[idx];
-                if (!ans || ans.userSelectedIndex == null) {
-                    groupComplete = false;
-                    break;
-                }
-                const correctOpt = ans.options[ans.correctIndex];
-                const selectedOpt = ans.options[ans.userSelectedIndex];
-                if (correctOpt) expectedLabels.push(correctOpt.label);
-                if (selectedOpt) selectedLabels.push(selectedOpt.label);
-            }
-
-            if (groupComplete) {
-                expectedLabels.sort();
-                selectedLabels.sort();
-                let match = true;
-                if (expectedLabels.length !== selectedLabels.length) {
-                    match = false;
-                } else {
-                    for (let i = 0; i < expectedLabels.length; i++) {
-                        if (expectedLabels[i] !== selectedLabels[i]) {
-                            match = false;
-                            break;
-                        }
-                    }
-                }
-                if (match) {
-                    satisfiedGroups.add(group);
-                }
-            }
-        });
-    }
     question.answers.forEach((answer, answerIndex) => {
         if (!answer || !Array.isArray(answer.options)) return;
-
-        // Determine if this answer is part of a satisfied unordered group
-        let isInSatisfiedGroup = false;
-        let isUnordered = unorderedIndices.has(answerIndex);
-
-        if (isUnordered) {
-            // Find which group it belongs to and check if satisfied
-            if (question.meta && question.meta.unorderedAnswerGroups) {
-                for (const group of question.meta.unorderedAnswerGroups) {
-                    if (group.includes(answerIndex) && satisfiedGroups.has(group)) {
-                        isInSatisfiedGroup = true;
-                        break;
-                    }
-                }
-            }
-        }
 
         answer.options.forEach((opt, optIndex) => {
             const btn = dom.optionsContainer.querySelector(
@@ -1265,28 +883,6 @@ export function showOptionFeedback(question) {
             const isSelected = answer.userSelectedIndex === optIndex;
             const isCorrectChoice = optIndex === answer.correctIndex;
             const hasAnswered = answer.userSelectedIndex != null;
-
-            if (isUnordered) {
-                if (isInSatisfiedGroup) {
-                    if (isSelected) {
-                        setChoiceState(btn, 'correct');
-                    } else {
-                        resetChoiceButtonState(btn);
-                    }
-                    return;
-                }
-
-                if (isSelected) {
-                    setChoiceState(btn, 'incorrect');
-                } else if (isCorrectChoice) {
-                    setChoiceState(btn, 'correct');
-                } else if (hasAnswered) {
-                    resetChoiceButtonState(btn);
-                } else {
-                    resetChoiceButtonState(btn);
-                }
-                return;
-            }
 
             if (isSelected && isCorrectChoice) {
                 setChoiceState(btn, 'correct');
@@ -1304,25 +900,8 @@ export function showOptionFeedback(question) {
 export function showOptionFeedbackForAnswer(question, answerIndex) {
     if (!question || !Array.isArray(question.answers)) return;
 
-    // sentence_fill_choice 以外は従来どおり「問題全体」を採点
-    if (question.format !== 'sentence_fill_choice') {
-        showOptionFeedback(question);
-        return;
-    }
-
     const answer = question.answers[answerIndex];
     if (!answer || !Array.isArray(answer.options)) return;
-
-    // Check if this answer is part of an unordered group
-    let isUnordered = false;
-    if (question.meta && Array.isArray(question.meta.unorderedAnswerGroups)) {
-        for (const group of question.meta.unorderedAnswerGroups) {
-            if (group.includes(answerIndex)) {
-                isUnordered = true;
-                break;
-            }
-        }
-    }
 
     answer.options.forEach((opt, optIndex) => {
         const btn = dom.optionsContainer.querySelector(
@@ -1333,15 +912,6 @@ export function showOptionFeedbackForAnswer(question, answerIndex) {
         const isSelected = answer.userSelectedIndex === optIndex;
         const isCorrectChoice = optIndex === answer.correctIndex;
         const hasAnswered = answer.userSelectedIndex != null;
-
-        if (isUnordered) {
-            if (isSelected) {
-                setChoiceState(btn, 'selected');
-            } else {
-                resetChoiceButtonState(btn);
-            }
-            return;
-        }
 
         if (isSelected && isCorrectChoice) {
             setChoiceState(btn, 'correct');
@@ -1370,46 +940,11 @@ export function revealNextAnswerGroup() {
 }
 
 export function revealCorrectAnswerInPreviews(question, dataSets, answerIndex) {
-    if (!question || !Array.isArray(question.answers)) return;
-    const answer = question.answers[answerIndex];
-    if (!answer) return;
-
-    // Only for sentence_fill_choice as per request context
-    if (question.format !== 'sentence_fill_choice') return;
-
-    // Iterate over all options for this answer group
-    (answer.options || []).forEach((opt, optIndex) => {
-        const btn = dom.optionsContainer.querySelector(
-            `button[data-answer-index="${answerIndex}"][data-option-index="${optIndex}"]`
-        );
-        if (!btn) return;
-
-        const preview = btn.querySelector('.option-preview');
-        if (!preview) return;
-
-        // We overwrite existing content
-        preview.innerHTML = '';
-        preview.dataset.filled = '1'; // Mark as filled so appendPatternPreviewToOptions skips it later
-
-        // Use correctIndex to show the "correct path"
-        const node = buildSentencePreview(
-            question,
-            dataSets,
-            answerIndex,
-            answer.correctIndex // Force correct answer
-        );
-        if (node) {
-            preview.appendChild(node);
-        }
-    });
+    return;
 }
 
 export function appendPatternPreviewToOptions(question, dataSets) {
     if (!question || !Array.isArray(question.answers)) return;
-
-    if (question.format === 'table_matching') {
-        return;
-    }
 
     question.answers.forEach((answer, answerIndex) => {
         (answer.options || []).forEach((opt, optIndex) => {
@@ -1422,22 +957,6 @@ export function appendPatternPreviewToOptions(question, dataSets) {
             if (!preview) return;
             if (preview.dataset.filled === '1') return;
 
-            // sentence_fill_choice は従来通り
-            if (question.format === 'sentence_fill_choice') {
-                const node = buildSentencePreview(
-                    question,
-                    dataSets,
-                    answerIndex,
-                    optIndex
-                );
-                if (node) {
-                    preview.innerHTML = '';
-                    preview.appendChild(node);
-                    preview.dataset.filled = '1';
-                }
-                return;
-            }
-
             // ------- ここから: 行データを特定 -------
             let rowContext = null;
             const sourceDataSetId =
@@ -1448,12 +967,6 @@ export function appendPatternPreviewToOptions(question, dataSets) {
                 if (ds.type === 'table' && Array.isArray(ds.data)) {
                     rowContext =
                         ds.data.find((r) => r.id === opt.entityId) || null;
-                } else if (
-                    ds.type === 'factSentences' &&
-                    Array.isArray(ds.sentences)
-                ) {
-                    rowContext =
-                        ds.sentences.find((s) => s.id === opt.entityId) || null;
                 }
             }
 
@@ -1474,23 +987,15 @@ export function appendPatternPreviewToOptions(question, dataSets) {
                 `[data-answer-index="${answerIndex}"]`
             );
             if (placeholder) {
-                // 対応する hide トークンを探す
-                let targetToken = null;
-                let counter = 0;
-                (question.tokens || []).forEach((t) => {
-                    if (t && t.type === 'hide' && t.answer) {
-                        if (counter === answerIndex) {
-                            targetToken = t;
-                        }
-                        counter += 1;
+                // 一度空にしてから、この span の「中に」値を描画
+                placeholder.textContent = '';
+                if (opt.labelTokens && opt.labelTokens.length) {
+                    appendTokens(placeholder, opt.labelTokens, rowContext);
+                } else {
+                    const targetToken = (question.tokens || []).find((t) => t && t.type === 'hide');
+                    if (targetToken) {
+                        renderHideValueIntoSpan(placeholder, targetToken, rowContext);
                     }
-                });
-
-                if (targetToken) {
-                    // 一度空にしてから、この span の「中に」値を描画
-                    placeholder.textContent = '';
-                    renderHideValueIntoSpan(placeholder, targetToken, rowContext);
-                    // class はそのままなので、下線付きの枠の中に値が入る
                 }
             }
 

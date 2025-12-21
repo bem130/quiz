@@ -1,6 +1,4 @@
 // js/dataset-utils.js
-import { evaluateFilter } from './filters.js';
-
 /**
  * Resolve dataset by id.
  * @param {object} dataSets
@@ -18,11 +16,11 @@ export function getDataSet(dataSets, id) {
  * @param {object|null} filter
  * @returns {Array<object>}
  */
-export function getFilteredRows(table, filter) {
+export function getFilteredRows(table) {
     if (!table || !Array.isArray(table.data)) {
         return [];
     }
-    return table.data.filter((row) => evaluateFilter(row, filter));
+    return table.data.slice();
 }
 
 export function getRowById(table, rowId) {
@@ -72,33 +70,3 @@ export function pickN(arr, count) {
     return pool.slice(0, Math.min(count, pool.length));
 }
 
-export function findGroupDefinition(dataSets, groupRef, fallbackDataSetId) {
-    if (!groupRef || !dataSets) {
-        return null;
-    }
-
-    const ref =
-        typeof groupRef === 'string'
-            ? { dataSetId: fallbackDataSetId, groupId: groupRef }
-            : groupRef;
-
-    const dsId = ref && ref.dataSetId ? ref.dataSetId : fallbackDataSetId;
-    if (dsId && dataSets[dsId]) {
-        const ds = dataSets[dsId];
-        if (ds.type === 'factSentences' && ds.groups && ds.groups[ref.groupId]) {
-            return { group: ds.groups[ref.groupId], dataSetId: dsId };
-        }
-        if (ds.type === 'groups' && ds.groups && ds.groups[ref.groupId]) {
-            return { group: ds.groups[ref.groupId], dataSetId: dsId };
-        }
-    }
-
-    const anyEntry = Object.entries(dataSets).find(
-        ([, d]) => d && d.type === 'groups' && d.groups && ref.groupId && d.groups[ref.groupId]
-    );
-    if (anyEntry) {
-        return { group: anyEntry[1].groups[ref.groupId], dataSetId: anyEntry[0] };
-    }
-
-    return null;
-}

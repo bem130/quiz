@@ -1,25 +1,24 @@
 // js/quiz-model.js
-import { getQuizNameFromLocation } from './config.js';
-
-const ALLOWED_DATASET_TYPES = new Set(['table', 'factSentences', 'groups']);
-const ALLOWED_FORMATS = new Set([
-    'table_fill_choice',
-    'table_matching',
-    'sentence_fill_choice'
-]);
 const ALLOWED_TOKEN_TYPES = new Set([
-    'text',
     'key',
+    'listkey',
     'ruby',
-    'hide',
     'katex',
     'smiles',
+    'hide',
     'br',
-    'group',
-    'content'
+    'hr'
 ]);
 
-function resolveRuntimeUrl(path) {
+function resolveRuntimeUrl(path, baseUrl = null) {
+    if (!path) {
+        return null;
+    }
+
+    if (baseUrl) {
+        return new URL(path, baseUrl);
+    }
+
     return new URL(path, RUNTIME_BASE_URL);
 }
 
@@ -51,7 +50,7 @@ const RUNTIME_BASE_URL = (() => {
 })();
 
 function normalizeTokenArray(value) {
-    if (!value) {
+    if (value == null) {
         return [];
     }
     if (Array.isArray(value)) {
@@ -60,17 +59,45 @@ function normalizeTokenArray(value) {
     return [value];
 }
 
-function assertNoHideInRubyPart(part, label) {
-    if (!part) return;
-    const candidates = normalizeTokenArray(part.value);
-    if (candidates.some((child) => child && (child.type === 'hide' || child.type === 'hideruby'))) {
-        throw new Error(`Ruby token ${label} must not include hide tokens.`);
+function isTokenObject(token) {
+    return token && typeof token === 'object' && !Array.isArray(token);
+}
+
+function hasHideToken(token) {
+    if (!token) return false;
+    if (typeof token === 'string') return false;
+    if (Array.isArray(token)) {
+        return token.some((child) => hasHideToken(child));
+    }
+    if (!isTokenObject(token)) return false;
+    if (token.type === 'hide') return true;
+    if (token.type === 'ruby') {
+        return hasHideToken(token.base) || hasHideToken(token.ruby);
+    }
+    if (token.type === 'listkey' && token.separatorTokens) {
+        return hasHideToken(token.separatorTokens);
+    }
+    if (token.type === 'hide' && token.value) {
+        return hasHideToken(token.value);
+    }
+    return false;
+}
+
+function assertNoHideToken(token, label) {
+    if (hasHideToken(token)) {
+        throw new Error(`Token at ${label} must not include hide tokens.`);
     }
 }
 
 function validateToken(token, label) {
-    if (!token || typeof token !== 'object') {
-        throw new Error(`Token at ${label} must be an object.`);
+    if (token == null) {
+        return;
+    }
+    if (typeof token === 'string') {
+        return;
+    }
+    if (!isTokenObject(token)) {
+        throw new Error(`Token at ${label} must be a string or object.`);
     }
     if (!token.type) {
         throw new Error(`Token at ${label} is missing type.`);
@@ -79,22 +106,70 @@ function validateToken(token, label) {
         throw new Error(`Token at ${label} has unsupported type: ${token.type}`);
     }
 
+    if (token.type === 'key') {
+        if (!token.field || typeof token.field !== 'string') {
+            throw new Error(`Key token at ${label} requires a field.`);
+        }
+    }
+
+    if (token.type === 'listkey') {
+        if (!token.field || typeof token.field !== 'string') {
+            throw new Error(`ListKey token at ${label} requires a field.`);
+        }
+        if (token.separatorTokens != null) {
+            const separators = normalizeTokenArray(token.separatorTokens);
+            separators.forEach((child, idx) => validateToken(child, `${label}.separatorTokens[${idx}]`));
+        }
+    }
+
     if (token.type === 'ruby') {
-        assertNoHideInRubyPart(token.base, `${label}.base`);
-        assertNoHideInRubyPart(token.ruby, `${label}.ruby`);
+        if (!token.base || !token.ruby) {
+            throw new Error(`Ruby token at ${label} requires base and ruby.`);
+        }
+        assertNoHideToken(token.base, `${label}.base`);
+        assertNoHideToken(token.ruby, `${label}.ruby`);
     }
 
     if (token.type === 'hide') {
+        if (!token.id || typeof token.id !== 'string') {
+            throw new Error(`Hide token at ${label} requires an id.`);
+        }
+        if (token.field != null) {
+            throw new Error(`Hide token at ${label} must use value (field is not supported in v3).`);
+        }
+        if (!token.answer || token.answer.mode !== 'choice_from_entities') {
+            throw new Error(`Hide token at ${label} must use answer.mode "choice_from_entities".`);
+        }
+        const answer = token.answer || {};
+        if (answer.choiceCount != null) {
+            throw new Error(`Hide token at ${label} must not include answer.choiceCount (v3 fixed to 4 choices).`);
+        }
+        if (answer.avoidSameId != null || answer.avoidSameText != null) {
+            throw new Error(`Hide token at ${label} must not include avoidSameId/avoidSameText (v3 default behavior).`);
+        }
+        if (answer.distractorSource != null) {
+            if (!isTokenObject(answer.distractorSource)) {
+                throw new Error(`Hide token at ${label} has invalid distractorSource.`);
+            }
+            const { groupField, ...rest } = answer.distractorSource;
+            if (groupField != null && typeof groupField !== 'string') {
+                throw new Error(`Hide token at ${label} distractorSource.groupField must be a string.`);
+            }
+            const extraKeys = Object.keys(rest);
+            if (extraKeys.length > 0) {
+                throw new Error(`Hide token at ${label} distractorSource has unsupported keys: ${extraKeys.join(', ')}`);
+            }
+        }
         const values = normalizeTokenArray(token.value);
         if (!values.length) {
             throw new Error(`Hide token at ${label} must have a non-empty value array.`);
         }
-        values.forEach((child, idx) => validateToken(child, `${label}.value[${idx}]`));
-    }
-
-    if (token.type === 'group') {
-        const values = normalizeTokenArray(token.value);
-        values.forEach((child, idx) => validateToken(child, `${label}.value[${idx}]`));
+        values.forEach((child, idx) => {
+            if (hasHideToken(child)) {
+                throw new Error(`Hide token at ${label}.value[${idx}] must not include nested hide tokens.`);
+            }
+            validateToken(child, `${label}.value[${idx}]`);
+        });
     }
 
     if ((token.type === 'katex' || token.type === 'smiles') && token.value == null && !token.field) {
@@ -103,749 +178,284 @@ function validateToken(token, label) {
 }
 
 function validateTokens(tokens, label) {
-    (tokens || []).forEach((token, idx) => {
-        validateToken(token, `${label}[${idx}]`);
-    });
+    const list = normalizeTokenArray(tokens);
+    list.forEach((token, idx) => validateToken(token, `${label}[${idx}]`));
 }
 
-function cloneData(value) {
-    if (value == null) {
-        return value;
-    }
-    return JSON.parse(JSON.stringify(value));
-}
-
-function normalizeMeta(json) {
-    return {
-        id: json.id || json.title || 'quiz',
-        title: json.title || json.id || 'quiz',
-        description: json.description || '',
-        colorHue: json.color,
-        version: json.version || 2
-    };
-}
-
-function warnUnknownKeys(obj, allowedKeys, label) {
-    Object.keys(obj || {}).forEach((key) => {
-        if (!allowedKeys.has(key)) {
-            console.warn(`[quiz] Unknown key in ${label}: ${key}`);
+function countHideTokens(tokens) {
+    let count = 0;
+    normalizeTokenArray(tokens).forEach((token) => {
+        if (!token || typeof token === 'string') return;
+        if (token.type === 'hide') {
+            count += 1;
         }
     });
+    return count;
 }
 
-function convertTokenValue(tokenValue, options) {
-    if (Array.isArray(tokenValue)) {
-        return tokenValue.map((child) => convertTokenToV2(child, options));
+function validatePattern(pattern, label) {
+    if (!pattern || typeof pattern !== 'object') {
+        throw new Error(`Pattern ${label} must be an object.`);
     }
-    if (tokenValue && typeof tokenValue === 'object' && tokenValue.type) {
-        return convertTokenToV2(tokenValue, options);
+    if (pattern.questionFormat != null) {
+        throw new Error(`Pattern ${label} must not include questionFormat (v3 only supports table_fill_choice).`);
     }
-    return tokenValue;
-}
+    if (pattern.tokensFromData != null) {
+        throw new Error(`Pattern ${label} must not include tokensFromData (v3 uses table only).`);
+    }
+    if (pattern.entityFilter != null) {
+        throw new Error(`Pattern ${label} must not include entityFilter (filters are removed in v3).`);
+    }
+    if (pattern.matchingSpec != null) {
+        throw new Error(`Pattern ${label} must not include matchingSpec (matching is removed in v3).`);
+    }
+    if (!Array.isArray(pattern.tokens)) {
+        throw new Error(`Pattern ${label} must include tokens array.`);
+    }
 
-function convertTokenToV2(token, options = {}) {
-    if (!token || typeof token !== 'object') {
-        return token;
+    validateTokens(pattern.tokens, `${label}.tokens`);
+
+    const hideCount = countHideTokens(pattern.tokens);
+    if (hideCount !== 1) {
+        throw new Error(`Pattern ${label} must include exactly one hide token.`);
     }
 
-    if (token.type === 'hideruby' && options.allowHiderubyConversion !== false) {
-        const converted = {
-            ...token,
-            type: 'hide',
-            value: {
-                type: 'ruby',
-                base: token.base,
-                ruby: token.ruby,
-                styles: token.styles || []
+    if (Array.isArray(pattern.tips)) {
+        pattern.tips.forEach((tip, idx) => {
+            if (!tip || typeof tip !== 'object') {
+                throw new Error(`Tip ${label}.tips[${idx}] must be an object.`);
             }
-        };
-        converted.value = convertTokenValue(converted.value, options);
-        return converted;
-    }
-
-    const converted = {
-        ...token
-    };
-
-    if (converted.type === 'hide' && options.convertHideField && !converted.value && converted.field) {
-        converted.value = {
-            type: 'key',
-            field: converted.field,
-            styles: converted.styles || []
-        };
-    }
-
-    converted.value = convertTokenValue(converted.value, options);
-    if (converted.type === 'hide' && converted.value && !Array.isArray(converted.value)) {
-        converted.value = [converted.value];
-    }
-    return converted;
-}
-
-function convertTokenArrayToV2(tokens, options = {}) {
-    return (tokens || []).map((token) => convertTokenToV2(token, options));
-}
-
-function convertTipsToV2(tips, options = {}) {
-    return (tips || []).map((tip) => ({
-        ...tip,
-        tokens: convertTokenArrayToV2(tip.tokens, options)
-    }));
-}
-
-function convertEntitySetToDataSet(entitySet) {
-    if (!entitySet || !entitySet.entities) {
-        return {};
-    }
-
-    const id = entitySet.id || 'entity-set';
-    const data = Object.entries(entitySet.entities).map(([entityId, value]) => ({
-        id: entityId,
-        ...(value || {})
-    }));
-
-    return {
-        [id]: {
-            type: 'table',
-            idField: 'id',
-            data
-        }
-    };
-}
-
-function convertDataSetsToV2(dataSets, options = {}) {
-    const cloned = cloneData(dataSets || {});
-    Object.entries(cloned).forEach(([id, ds]) => {
-        if (ds && ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
-            ds.sentences = ds.sentences.map((sentence, idx) => ({
-                ...sentence,
-                id: sentence.id || `${id}_s${idx}`,
-                tokens: convertTokenArrayToV2(sentence.tokens, options)
-            }));
-        }
-    });
-    return cloned;
-}
-
-function detectQuestionFormat(pattern) {
-    if (pattern.questionFormat) {
-        return pattern.questionFormat;
-    }
-    if (pattern.tokensFromData === 'sentences') {
-        return 'sentence_fill_choice';
-    }
-    if (pattern.matchingSpec) {
-        return 'table_matching';
-    }
-    return 'table_fill_choice';
-}
-
-function normalizePatterns(rawPatterns, dataSetId, convertOptions = {}) {
-    return (rawPatterns || []).map((p, index) => ({
-        id: p.id || `p_${index}`,
-        label: p.label,
-        questionFormat: detectQuestionFormat(p),
-        dataSet: p.dataSet || dataSetId,
-        tokens: convertTokenArrayToV2(p.tokens || [], convertOptions),
-        entityFilter: p.entityFilter,
-        tokensFromData: p.tokensFromData,
-        matchingSpec: p.matchingSpec,
-        tips: convertTipsToV2(p.tips || [], convertOptions)
-    }));
-}
-
-function normalizeModes(rawModes, patterns) {
-    const patternIds = new Set((patterns || []).map((p) => p.id));
-    const flatModes = [];
-
-    function normalizeNodeList(nodes) {
-        const result = [];
-        (nodes || []).forEach((node, idx) => {
-            if (!node) {
-                return;
+            if (!Array.isArray(tip.tokens)) {
+                throw new Error(`Tip ${label}.tips[${idx}] must include tokens array.`);
             }
-
-            if (node.type === 'modes') {
-                const group = {
-                    type: 'modes',
-                    label: node.label || `Group ${idx + 1}`,
-                    description: node.description,
-                    children: normalizeNodeList(node.value || node.children || [])
-                };
-                result.push(group);
-                return;
+            if (countHideTokens(tip.tokens) > 0) {
+                throw new Error(`Tip ${label}.tips[${idx}] must not include hide tokens.`);
             }
-
-            const modeId = node.id || `mode_${flatModes.length}`;
-            const mode = {
-                id: modeId,
-                label: node.label || node.id || `Mode ${flatModes.length + 1}`,
-                description: node.description,
-                patternWeights: (node.patternWeights || []).filter((pw) => {
-                    const exists = patternIds.has(pw.patternId);
-                    if (!exists) {
-                        console.warn(
-                            `[quiz] Mode ${modeId} references missing pattern ${pw.patternId}, ignoring during normalization.`
-                        );
-                    }
-                    return exists;
-                })
-            };
-            flatModes.push(mode);
-            result.push({ type: 'mode', modeId });
+            validateTokens(tip.tokens, `${label}.tips[${idx}].tokens`);
         });
-        return result;
     }
-
-    const tree = normalizeNodeList(rawModes || []);
-
-    if (flatModes.length === 0) {
-        const weights = patterns.map((p) => ({ patternId: p.id, weight: 1 }));
-        const defaultMode = {
-            id: 'default',
-            label: 'Standard',
-            description: 'Default mode',
-            patternWeights: weights
-        };
-        return {
-            modes: [defaultMode],
-            modeTree: [{ type: 'mode', modeId: defaultMode.id }]
-        };
-    }
-
-    const modeTree = tree.length > 0 ? tree : flatModes.map((mode) => ({ type: 'mode', modeId: mode.id }));
-
-    return { modes: flatModes, modeTree };
 }
 
-function hasHideLikeToken(tokens) {
-    return (tokens || []).some((token) => {
-        if (!token) return false;
-        if (token.type === 'hide' || token.type === 'hideruby') return true;
-        if (Array.isArray(token.value) && hasHideLikeToken(token.value)) return true;
-        if (token.value && token.value.type) {
-            return hasHideLikeToken([token.value]);
+function validateTable(table, label) {
+    if (!Array.isArray(table)) {
+        throw new Error(`Table ${label} must be an array.`);
+    }
+    const seenIds = new Set();
+    table.forEach((row, idx) => {
+        if (!row || typeof row !== 'object') {
+            throw new Error(`Table row at ${label}[${idx}] must be an object.`);
         }
-        return false;
+        if (row.id == null || row.id === '') {
+            throw new Error(`Table row at ${label}[${idx}] is missing id.`);
+        }
+        if (typeof row.id !== 'string') {
+            throw new Error(`Table row at ${label}[${idx}] id must be a string.`);
+        }
+        if (seenIds.has(row.id)) {
+            throw new Error(`Table row id "${row.id}" is duplicated.`);
+        }
+        seenIds.add(row.id);
     });
 }
 
-function validateGroupDefinition(dataSetId, groupId, group) {
-    if (!group || typeof group !== 'object') {
-        throw new Error(`Group ${groupId} in ${dataSetId} must be an object.`);
-    }
-    if (!Array.isArray(group.choices)) {
-        throw new Error(`Group ${groupId} in ${dataSetId} must have a choices array.`);
-    }
-    if (group.drawWithoutReplacement != null && typeof group.drawWithoutReplacement !== 'boolean') {
-        throw new Error(
-            `Group ${groupId} in ${dataSetId} has invalid drawWithoutReplacement flag.`
-        );
-    }
+function normalizeFileKey(path) {
+    if (!path) return '';
+    const normalized = String(path).replace(/\\/g, '/').replace(/^\.?\//, '');
+    return normalized.replace(/\.json$/i, '');
 }
 
-function validateDataSets(dataSets, options = {}) {
-    const entries = Object.entries(dataSets || {});
-    if (!entries.length) {
-        if (options.allowEmpty) {
-            return;
+function buildMeta({ id, title, description, version }) {
+    return {
+        id: id || title || 'quiz',
+        title: title || id || 'quiz',
+        description: description || '',
+        version: version || 3
+    };
+}
+
+function buildModesFromPatterns(patterns) {
+    const weights = patterns.map((p) => ({ patternId: p.id, weight: 1 }));
+    const allMode = {
+        id: 'all',
+        label: 'All patterns',
+        description: 'All available patterns.',
+        patternWeights: weights
+    };
+
+    const patternModes = patterns.map((pattern) => ({
+        id: `pattern::${pattern.id}`,
+        label: pattern.label || pattern.localId || pattern.id,
+        description: pattern.description || '',
+        patternWeights: [{ patternId: pattern.id, weight: 1 }]
+    }));
+
+    const modeTree = [
+        { type: 'mode', modeId: allMode.id },
+        {
+            type: 'modes',
+            label: 'Patterns',
+            description: 'Choose a single pattern',
+            children: patternModes.map((mode) => ({ type: 'mode', modeId: mode.id }))
         }
-        throw new Error('Quiz definition must include at least one dataSet.');
+    ];
+
+    return {
+        modes: [allMode, ...patternModes],
+        modeTree
+    };
+}
+
+function normalizePattern(pattern, fileKey, dataSetId, index) {
+    const id = pattern.id || `p_${index}`;
+    return {
+        id: `${fileKey}::${id}`,
+        localId: id,
+        label: pattern.label || id,
+        description: pattern.description || '',
+        dataSet: dataSetId,
+        tokens: normalizeTokenArray(pattern.tokens || []),
+        tips: Array.isArray(pattern.tips) ? pattern.tips : [],
+        _sourceFile: fileKey
+    };
+}
+
+function normalizeQuizFile(json, fileKey) {
+    if (!json || typeof json !== 'object') {
+        throw new Error('Quiz definition is missing or invalid.');
     }
 
-    entries.forEach(([id, ds]) => {
-        if (!ds || typeof ds !== 'object') {
-            throw new Error(`DataSet ${id} must be an object.`);
+    const version = json.version != null ? json.version : 3;
+    if (version !== 3) {
+        console.warn(`[quiz] Non-v3 version specified: ${version}`);
+    }
+
+    const unsupportedFields = ['imports', 'dataSets', 'questionRules', 'modes'];
+    unsupportedFields.forEach((field) => {
+        if (json[field] != null) {
+            throw new Error(`Quiz file uses unsupported field "${field}" in v3.`);
         }
-        if (!ALLOWED_DATASET_TYPES.has(ds.type)) {
-            throw new Error(`DataSet ${id} has unsupported type: ${ds.type}`);
-        }
-        if (ds.type === 'table') {
-            if (!Array.isArray(ds.data)) {
-                throw new Error(`Table DataSet ${id} must have a data array.`);
-            }
-            ds.data.forEach((row, idx) => {
-                if (!row || row.id === undefined) {
-                    throw new Error(`Table DataSet ${id} has row without id at index ${idx}.`);
-                }
-            });
-        }
-        if (ds.type === 'factSentences') {
-            if (!Array.isArray(ds.sentences)) {
-                throw new Error(`factSentences DataSet ${id} must have sentences array.`);
-            }
-            ds.sentences.forEach((sentence, idx) => {
-                if (!sentence || sentence.id === undefined) {
-                    throw new Error(`Sentence entry missing id in DataSet ${id} at index ${idx}.`);
-                }
-                if (!Array.isArray(sentence.tokens)) {
-                    throw new Error(`Sentence ${sentence.id} in DataSet ${id} must have tokens array.`);
-                }
-                validateTokens(sentence.tokens, `dataSets.${id}.sentences[${idx}].tokens`);
-            });
-            if (ds.groups && typeof ds.groups === 'object') {
-                Object.entries(ds.groups).forEach(([groupId, group]) => {
-                    validateGroupDefinition(id, groupId, group);
-                });
-            }
-        }
-        if (ds.type === 'groups') {
-            if (!ds.groups || typeof ds.groups !== 'object') {
-                throw new Error(`groups DataSet ${id} must have groups object.`);
-            }
-            Object.entries(ds.groups).forEach(([groupId, group]) => {
-                validateGroupDefinition(id, groupId, group);
-            });
-        }
+    });
+
+    if (typeof json.title !== 'string' || !json.title.trim()) {
+        throw new Error('Quiz file title is required.');
+    }
+    if (typeof json.description !== 'string' || !json.description.trim()) {
+        throw new Error('Quiz file description is required.');
+    }
+
+    const table = json.table;
+    validateTable(table, 'table');
+
+    if (!Array.isArray(json.patterns) || json.patterns.length === 0) {
+        throw new Error('At least one pattern is required.');
+    }
+
+    json.patterns.forEach((pattern, idx) => {
+        validatePattern(pattern, `patterns[${idx}]`);
+    });
+
+    const dataSetId = `file:${fileKey}`;
+    const dataSet = {
+        type: 'table',
+        idField: 'id',
+        data: json.table
+    };
+
+    const patterns = json.patterns.map((pattern, index) =>
+        normalizePattern(pattern, fileKey, dataSetId, index)
+    );
+
+    return {
+        meta: buildMeta({
+            id: json.id || fileKey,
+            title: json.title || fileKey,
+            description: json.description || '',
+            version
+        }),
+        dataSetId,
+        dataSet,
+        patterns
+    };
+}
+
+export function buildDefinitionFromQuizFile(json, fileKey, overrides = {}) {
+    const normalizedKey = normalizeFileKey(fileKey || overrides.fileKey || 'quiz');
+    const file = normalizeQuizFile(json, normalizedKey);
+    const { modes, modeTree } = buildModesFromPatterns(file.patterns);
+    return validateDefinition({
+        meta: buildMeta({
+            id: overrides.id || file.meta.id,
+            title: overrides.title || file.meta.title,
+            description: overrides.description || file.meta.description,
+            version: file.meta.version
+        }),
+        dataSets: { [file.dataSetId]: file.dataSet },
+        patterns: file.patterns,
+        modes,
+        modeTree
     });
 }
 
-function validateDefinition(definition, options = {}) {
+function filterDefinitionByPatternIds(definition, patternIds) {
+    if (!definition || !Array.isArray(patternIds) || patternIds.length === 0) {
+        return definition;
+    }
+    const allowed = new Set(patternIds.map((id) => String(id)));
+    const filteredPatterns = (definition.patterns || []).filter((pattern) => allowed.has(pattern.id));
+    const { modes, modeTree } = buildModesFromPatterns(filteredPatterns);
+    return validateDefinition({
+        ...definition,
+        patterns: filteredPatterns,
+        modes,
+        modeTree
+    });
+}
+
+function validateDefinition(definition) {
     if (!definition || typeof definition !== 'object') {
         throw new Error('Quiz definition is missing or invalid.');
+    }
+
+    if (!definition.meta || typeof definition.meta !== 'object') {
+        throw new Error('Quiz definition must include meta.');
+    }
+    if (typeof definition.meta.title !== 'string' || !definition.meta.title.trim()) {
+        throw new Error('Quiz definition meta.title is required.');
+    }
+    if (typeof definition.meta.description !== 'string' || !definition.meta.description.trim()) {
+        throw new Error('Quiz definition meta.description is required.');
     }
 
     if (!definition.dataSets || typeof definition.dataSets !== 'object') {
         throw new Error('Quiz definition must include dataSets.');
     }
 
-    validateDataSets(definition.dataSets, { allowEmpty: options.allowEmptyDataSets });
-
     if (!Array.isArray(definition.patterns) || definition.patterns.length === 0) {
         throw new Error('At least one pattern is required.');
     }
 
-    definition.patterns.forEach((pattern) => {
-        if (!ALLOWED_FORMATS.has(pattern.questionFormat)) {
-            throw new Error(`Unsupported questionFormat: ${pattern.questionFormat}`);
-        }
-        validateTokens(pattern.tokens, `patterns.${pattern.id}.tokens`);
-        const ds = definition.dataSets[pattern.dataSet];
-        if (!ds) {
+    definition.patterns.forEach((pattern, idx) => {
+        validatePattern(pattern, `patterns[${idx}]`);
+        if (!definition.dataSets[pattern.dataSet]) {
             throw new Error(`Pattern ${pattern.id} references missing dataSet ${pattern.dataSet}.`);
-        }
-        if (pattern.questionFormat === 'table_matching') {
-            if (ds.type !== 'table') {
-                throw new Error(`Pattern ${pattern.id} requires a table dataSet.`);
-            }
-            if (!pattern.matchingSpec) {
-                throw new Error(`Pattern ${pattern.id} is missing matchingSpec.`);
-            }
-            return;
-        }
-        if (pattern.questionFormat === 'sentence_fill_choice') {
-            if (ds.type !== 'factSentences') {
-                throw new Error(`Pattern ${pattern.id} requires a factSentences dataSet.`);
-            }
-            if (pattern.tokensFromData !== 'sentences') {
-                throw new Error(`Pattern ${pattern.id} must set tokensFromData to "sentences".`);
-            }
-            const hasHideInSentences = (ds.sentences || []).some((s) => hasHideLikeToken(s.tokens));
-            if (!hasHideInSentences) {
-                throw new Error(`factSentences dataSet ${pattern.dataSet} must include at least one hide token.`);
-            }
-            return;
-        }
-        if (ds.type !== 'table') {
-            throw new Error(`Pattern ${pattern.id} requires a table dataSet.`);
-        }
-        if (!hasHideLikeToken(pattern.tokens)) {
-            throw new Error(`Pattern ${pattern.id} must include at least one hide token.`);
         }
     });
 
-    (definition.modes || []).forEach((mode) => {
-        const weights = mode.patternWeights || [];
-        weights.forEach((pw) => {
-            const exists = definition.patterns.some((p) => p.id === pw.patternId);
-            if (!exists) {
-                console.warn(
-                    `[quiz] Mode ${mode.id} references missing pattern ${pw.patternId}, ignoring.`
-                );
-            }
-        });
-    });
+    if (!Array.isArray(definition.modes) || definition.modes.length === 0) {
+        const { modes, modeTree } = buildModesFromPatterns(definition.patterns);
+        definition.modes = modes;
+        definition.modeTree = modeTree;
+    }
 
     return definition;
 }
 
-function convertToV2(json, options = {}) {
-    const meta = normalizeMeta(json);
-    if (json.version && json.version !== 2) {
-        console.warn(`[quiz] Non-v2 version specified: ${json.version}`);
+async function fetchJson(path, baseUrl = null) {
+    const url = resolveRuntimeUrl(path, baseUrl);
+    if (!url) {
+        throw new Error('Quiz path is required to load definition.');
     }
 
-    const treatAsV2 = json.version === 2 || !!json.dataSets || options.isBundle;
-    const convertOptions = {
-        allowHiderubyConversion: treatAsV2,
-        convertHideField: treatAsV2
-    };
-    const patternsSource = json.questionRules?.patterns || json.patterns;
-    const modesSource =
-        json.questionRules?.modeTree ||
-        json.modeTree ||
-        json.questionRules?.modes ||
-        json.modes ||
-        [];
-
-    const dataSets = json.dataSets
-        ? convertDataSetsToV2(json.dataSets || {}, convertOptions)
-        : convertEntitySetToDataSet(json.entitySet || {});
-    const dataSetId = Object.keys(dataSets)[0];
-    const patterns = normalizePatterns(patternsSource, dataSetId, convertOptions);
-
-    let modes = [];
-    let modeTree = [];
-
-    if (!options.skipModeNormalization) {
-        const result = normalizeModes(modesSource, patterns);
-        modes = result.modes;
-        modeTree = result.modeTree;
-    }
-
-    warnUnknownKeys(
-        json,
-        new Set([
-            'id',
-            'title',
-            'description',
-            'version',
-            'color',
-            'imports',
-            'dataSets',
-            'questionRules',
-            'patterns',
-            'modes',
-            'modeTree', // Added modeTree to allowed keys
-            'entitySet'
-        ]),
-        'quiz definition'
-    );
-
-    const definition = {
-        meta,
-        dataSets,
-        patterns,
-        modes,
-        modeTree
-    };
-
-    if (options.skipValidation) {
-        return definition;
-    }
-
-    return validateDefinition(definition, {
-        allowEmptyDataSets: options.allowEmptyDataSets
-    });
-}
-
-function mergeDataSets(target, source, label) {
-    Object.entries(source || {}).forEach(([id, ds]) => {
-        if (target[id]) {
-            console.warn(`[quiz] DataSet ${id} overridden by ${label}`);
-        }
-        target[id] = cloneData(ds);
-    });
-}
-
-function mergePatterns(target, source, label) {
-    const existing = new Map((target || []).map((pattern) => [pattern.id, pattern]));
-    (source || []).forEach((pattern) => {
-        if (existing.has(pattern.id)) {
-            console.warn(`[quiz] Pattern ${pattern.id} overridden by ${label}`);
-            const index = target.findIndex((p) => p.id === pattern.id);
-            target.splice(index, 1, pattern);
-            return;
-        }
-        target.push(pattern);
-    });
-}
-
-function mergeModes(target, source, label) {
-    const existing = new Map((target || []).map((mode) => [mode.id, mode]));
-    (source || []).forEach((mode) => {
-        if (existing.has(mode.id)) {
-            console.warn(`[quiz] Mode ${mode.id} overridden by ${label}`);
-            const index = target.findIndex((m) => m.id === mode.id);
-            target.splice(index, 1, mode);
-            return;
-        }
-        target.push(mode);
-    });
-}
-
-function resolveImportUrl(mainPath, importPath) {
-    const absoluteMainUrl = resolveRuntimeUrl(mainPath);
-    const directoryUrl = new URL('.', absoluteMainUrl);
-    return new URL(importPath, directoryUrl).toString();
-}
-
-
-
-/**
- * URL の指定とエントリ一覧を突き合わせて使用するクイズ ID を決定する。
- *
- * - URL パラメータがエントリ一覧に存在する場合はそれを優先
- * - 見つからなければ先頭のエントリをデフォルトとして採用
- * - エントリが空で URL だけある場合は URL の値をそのまま利用（互換性用）
- * @param {Array<object>} entries - クイズエントリの配列。
- * @returns {string} 使用するクイズの ID。
- */
-function selectQuizIdFromEntries(entries) {
-    const requested = getQuizNameFromLocation();
-
-    if (Array.isArray(entries) && entries.length > 0) {
-        const hasRequested =
-            requested && entries.some((entry) => entry && entry.id === requested);
-        if (hasRequested) {
-            console.log(
-                '[quiz] selectQuizIdFromEntries: using requested quiz id =',
-                requested
-            );
-            return requested;
-        }
-
-        const fallbackId = entries[0].id;
-        console.log(
-            '[quiz] selectQuizIdFromEntries: requested id not found, fallback to first entry id =',
-            fallbackId
-        );
-        return fallbackId;
-    }
-
-    if (requested) {
-        console.log(
-            '[quiz] selectQuizIdFromEntries: no entries, using requested id =',
-            requested
-        );
-        return requested;
-    }
-
-    throw new Error(
-        'No quiz entries are available and no quiz id was specified in the URL.'
-    );
-}
-
-/**
- * エントリ定義に基づいてクイズ JSON の URL を解決する。
- * @param {object} entry - クイズエントリ。
- * @returns {string|null} 解決された URL。要素不足の場合は null。
- */
-export function resolveQuizJsonFromEntry(entry) {
-    if (!entry) {
-        return null;
-    }
-
-    const base = entry._entryBaseUrl
-        ? new URL('.', entry._entryBaseUrl)
-        : new URL('.', RUNTIME_BASE_URL);
-
-    if (typeof entry.file === 'string' && entry.file) {
-        return new URL(entry.file, base).toString();
-    }
-
-    if (typeof entry.dir === 'string' && entry.dir && entry.id) {
-        const trimmed = entry.dir.replace(/\/+$/, '');
-        const relative = `${trimmed}/${entry.id}.json`;
-        return new URL(relative, base).toString();
-    }
-
-    return null;
-}
-
-function resolvePathFromEntry(entry, quizId) {
-    const resolved = resolveQuizJsonFromEntry(entry);
-    if (!resolved) {
-        console.warn(
-            '[quiz] resolvePathFromEntry: entry has no dir/file for quizId =',
-            quizId,
-            'entry =',
-            entry
-        );
-        return null;
-    }
-
-    console.log('[quiz] resolvePathFromEntry: using entry-based path =', resolved);
-    return resolved;
-}
-
-
-
-/**
- * クイズエントリ配列からクイズ定義を読み込む（互換 API）。
- * @param {Array<object>} entries - クイズエントリの配列。
- * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
- */
-
-
-/**
- * 個別のクイズエントリからクイズ定義を読み込む。
- * @param {object} quizEntry - 読み込むクイズエントリ。
- * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
- */
-
-
-export { convertToV2, validateDefinition, resolveImportUrl };
-
-// ─────────────────────────────────────────────────────────────
-// Source Map Generation Logic
-// ─────────────────────────────────────────────────────────────
-
-function escapeJsonString(value) {
-    const json = JSON.stringify(value);
-    return json.slice(1, -1);
-}
-
-function findValuePosition(rawText, key, value, fromIndex = 0) {
-    const escaped = escapeJsonString(value);
-    // Simple regex to find "key": "value"
-    // Note: This is a heuristic and might be fooled by similar strings in other contexts,
-    // but for a read-only source map it's usually sufficient.
-    const pattern = `"${key}"` + /: */.source + `"${escaped}"`;
-
-    const regex = new RegExp(pattern, 'g');
-    regex.lastIndex = fromIndex;
-
-    const match = regex.exec(rawText);
-    if (!match) {
-        return null;
-    }
-
-    const startOffset = match.index;
-    const endOffset = regex.lastIndex;
-    return { startOffset, endOffset };
-}
-
-function offsetToLineCol(text, startOffset, endOffset) {
-    const before = text.slice(0, startOffset);
-    const lines = before.split('\n');
-    const line = lines.length;
-    const lastNewlineIdx = before.lastIndexOf('\n');
-    const column = startOffset - (lastNewlineIdx + 1) + 1;
-
-    const beforeEnd = text.slice(0, endOffset);
-    const endLines = beforeEnd.split('\n');
-    const endLine = endLines.length;
-    const lastNlEnd = beforeEnd.lastIndexOf('\n');
-    const endColumn = endOffset - (lastNlEnd + 1) + 1;
-
-    return { line, column, endLine, endColumn };
-}
-
-function buildSourceIndex(definition, rawText, fileUrl) {
-    const index = {};
-    let cursor = 0;
-
-    // Scan dataSets
-    const dataSets = definition.dataSets || {};
-    for (const [dsId, ds] of Object.entries(dataSets)) {
-        // Table rows
-        if (ds.type === 'table' && Array.isArray(ds.data)) {
-            ds.data.forEach((row, rowIdx) => {
-                const rowId = row.id;
-                Object.entries(row).forEach(([key, val]) => {
-                    if (key === 'id') return; // ID is usually not what we want to correct
-                    if (typeof val === 'string') {
-                        const pos = findValuePosition(rawText, key, val, cursor);
-                        if (pos) {
-                            const path = `dataSets.${dsId}.data[${rowIdx}].${key}`;
-                            index[path] = {
-                                file: fileUrl,
-                                ...offsetToLineCol(rawText, pos.startOffset, pos.endOffset)
-                            };
-                            // We don't update cursor aggressively here because keys might be out of order in JSON vs Object iteration
-                            // But for a linear scan, we ideally should.
-                            // For now, let's NOT update cursor to be safe against out-of-order iteration,
-                            // OR we rely on the fact that we usually iterate in order.
-                            // To be safer with duplicates, we should track cursor.
-                            // Let's try to be stateless for now (searching from 0) or use a smarter approach?
-                            // Searching from 0 is bad for duplicates.
-                            // Let's try to search from `cursor` but only update it if we are sure.
-                            // Actually, `JSON.parse` order is usually consistent with file order.
-                            cursor = pos.endOffset;
-                        }
-                    }
-                });
-            });
-        }
-
-        // FactSentences
-        if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
-            ds.sentences.forEach((sentence, sIdx) => {
-                const rowId = sentence.id;
-                // Tokens
-                (sentence.tokens || []).forEach((token, tIdx) => {
-                    if (!token || typeof token.value !== 'string') return;
-                    const key = 'value';
-                    const val = token.value;
-                    const pos = findValuePosition(rawText, key, val, cursor);
-                    if (pos) {
-                        // We use a specific key format to look it up later
-                        // For tokens, we might need a more robust path or just attach directly if we were doing this inline.
-                        // But here we build an index first.
-                        const path = `dataSets.${dsId}.sentences[${sIdx}].tokens[${tIdx}].value`;
-                        index[path] = {
-                            file: fileUrl,
-                            ...offsetToLineCol(rawText, pos.startOffset, pos.endOffset)
-                        };
-                        cursor = pos.endOffset;
-                    }
-                });
-            });
-        }
-    }
-
-    return index;
-}
-
-function applySourceInfo(definition, sourceIndex, fileUrl) {
-    const dataSets = definition.dataSets || {};
-    for (const [dsId, ds] of Object.entries(dataSets)) {
-        if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
-            ds.sentences.forEach((sentence, sIdx) => {
-                const rowId = sentence.id;
-                (sentence.tokens || []).forEach((token, tIdx) => {
-                    if (!token) return;
-
-                    // Try to find exact match in index
-                    const path = `dataSets.${dsId}.sentences[${sIdx}].tokens[${tIdx}].value`;
-                    const loc = sourceIndex[path];
-
-                    if (loc) {
-                        token._loc = {
-                            file: loc.file,
-                            line: loc.line,
-                            column: loc.column,
-                            endLine: loc.endLine,
-                            endColumn: loc.endColumn,
-                            dataSetId: dsId,
-                            rowId,
-                            field: 'tokens',
-                            tokenIndex: tIdx
-                        };
-                    } else {
-                        // Fallback: just file info if we couldn't pinpoint line/col
-                        token._loc = {
-                            file: fileUrl,
-                            dataSetId: dsId,
-                            rowId,
-                            field: 'tokens',
-                            tokenIndex: tIdx
-                        };
-                    }
-                });
-            });
-        }
-        // Table data support could be added here if we treat table cells as tokens
-    }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Modified Loading Logic
-// ─────────────────────────────────────────────────────────────
-
-async function fetchJsonWithRaw(path) {
-    const url = resolveRuntimeUrl(path);
     if (url.protocol === 'file:') {
         const [{ readFile }, { fileURLToPath }] = await Promise.all([
             import('node:fs/promises'),
@@ -854,179 +464,105 @@ async function fetchJsonWithRaw(path) {
         const filePath = fileURLToPath(url);
         const rawText = await readFile(filePath, 'utf8');
         const json = JSON.parse(rawText);
-        return { json, rawText };
+        return { json, url };
     }
 
-    const res = await fetch(url);
+    const res = await fetch(url.toString());
     if (!res.ok) {
         console.error('[quiz] fetch not OK for', path, res.status, res.statusText);
         throw new Error(`Failed to load quiz JSON: ${path}`);
     }
-    const rawText = await res.text();
-    const json = JSON.parse(rawText);
-    return { json, rawText };
+    const json = await res.json();
+    return { json, url };
 }
 
+async function loadQuizFiles(filePaths, baseUrl, metaOverrides = {}) {
+    if (!Array.isArray(filePaths) || filePaths.length === 0) {
+        throw new Error('Quiz definition requires at least one file.');
+    }
 
-async function loadDataBundle(mainJson, mainPath, mainRawText) {
-    const visited = new Set();
-    // Pass skipModeNormalization: true to defer mode processing
-    const merged = convertToV2(mainJson, { skipValidation: true, isBundle: true, skipModeNormalization: true });
-    merged.dataSets = merged.dataSets || {};
-    merged.patterns = merged.patterns || [];
-    merged.modes = merged.modes || [];
+    const dataSets = {};
+    const patterns = [];
+    const fileMetas = [];
 
-    // Initial Source Map for Main File
-    if (mainRawText) {
-        try {
-            const mainUrlObj = resolveRuntimeUrl(mainPath);
-            const sourcePath = readablePathFromUrl(mainUrlObj);
-            const sourceIndex = buildSourceIndex(mainJson, mainRawText, sourcePath);
-            applySourceInfo(merged, sourceIndex, sourcePath);
-        } catch (e) {
-            console.warn('[quiz] Failed to build source map for main file', e);
+    for (const filePath of filePaths) {
+        const normalizedKey = normalizeFileKey(filePath);
+        const { json } = await fetchJson(filePath, baseUrl);
+        const file = normalizeQuizFile(json, normalizedKey);
+        dataSets[file.dataSetId] = file.dataSet;
+        patterns.push(...file.patterns);
+        fileMetas.push(file.meta);
+    }
+
+    if (patterns.length === 0) {
+        throw new Error('At least one pattern is required.');
+    }
+
+    const meta = buildMeta({
+        id: metaOverrides.id || metaOverrides.title,
+        title: metaOverrides.title,
+        description: metaOverrides.description,
+        version: 3
+    });
+
+    if (!meta.title || meta.title === 'quiz') {
+        meta.title = metaOverrides.title || patterns[0].label || 'Quiz';
+    }
+    if (!meta.description || !meta.description.trim()) {
+        if (fileMetas.length === 1 && fileMetas[0] && fileMetas[0].description) {
+            meta.description = fileMetas[0].description;
+        } else {
+            meta.description = `Combined quiz files (${fileMetas.length})`;
         }
     }
 
-    // Store raw modes for later normalization
-    let accumulatedRawModes = mainJson.questionRules?.modeTree ||
-        mainJson.modeTree ||
-        mainJson.questionRules?.modes ||
-        mainJson.modes ||
-        [];
+    const { modes, modeTree } = buildModesFromPatterns(patterns);
 
-    const mainUrl = resolveRuntimeUrl(mainPath).toString();
-    visited.add(mainUrl);
-
-    async function processImports(json, currentPath) {
-        const imports = Array.isArray(json.imports) ? json.imports : [];
-        for (const relPath of imports) {
-            const url = resolveImportUrl(currentPath, relPath);
-            if (visited.has(url)) {
-                throw new Error(`Circular import detected: ${url}`);
-            }
-            visited.add(url);
-
-            console.log('[quiz] loading import bundle:', url);
-            const { json: importedJson, rawText: importedRawText } = await fetchJsonWithRaw(url);
-
-            // Also skip mode normalization for imports
-            const importedDefinition = convertToV2(importedJson, { skipValidation: true, isBundle: true, skipModeNormalization: true });
-            if (!importedDefinition.dataSets || Object.keys(importedDefinition.dataSets).length === 0) {
-                throw new Error(`Import file must include at least one dataSet: ${url}`);
-            }
-
-            // Source Map for Imported File
-            if (importedRawText) {
-                try {
-                    const importUrlObj = resolveRuntimeUrl(url);
-                    const importFileUrl = readablePathFromUrl(importUrlObj);
-                    const sourceIndex = buildSourceIndex(importedJson, importedRawText, importFileUrl);
-                    applySourceInfo(importedDefinition, sourceIndex, importFileUrl);
-                } catch (e) {
-                    console.warn('[quiz] Failed to build source map for import', url, e);
-                }
-            }
-
-            mergeDataSets(merged.dataSets, importedDefinition.dataSets, url);
-            mergePatterns(merged.patterns, importedDefinition.patterns, url);
-
-            const importedRawModes = importedJson.questionRules?.modeTree ||
-                importedJson.modeTree ||
-                importedJson.questionRules?.modes ||
-                importedJson.modes ||
-                [];
-
-            if (importedRawModes.length > 0) {
-                if (Array.isArray(accumulatedRawModes)) {
-                    accumulatedRawModes = accumulatedRawModes.concat(importedRawModes);
-                }
-            }
-
-            await processImports(importedJson, url);
-        }
-    }
-
-    await processImports(mainJson, mainUrl);
-
-    if (!merged.dataSets || Object.keys(merged.dataSets).length === 0) {
-        throw new Error('Quiz definition must include at least one dataSet.');
-    }
-
-    // NOW normalize modes with the full set of patterns
-    const { modes, modeTree } = normalizeModes(accumulatedRawModes, merged.patterns);
-    merged.modes = modes;
-    merged.modeTree = modeTree;
-
-    return validateDefinition(merged);
+    return validateDefinition({
+        meta,
+        dataSets,
+        patterns,
+        modes,
+        modeTree
+    });
 }
 
-async function loadQuizDefinitionInternal(quizName, path) {
-    const { json, rawText } = await fetchJsonWithRaw(path);
-    const hasImports = Array.isArray(json?.imports) && json.imports.length > 0;
-    const useBundle = json && json.version === 2 && hasImports;
+async function loadQuizDefinitionInternal(quizName, path, baseUrl = null) {
+    const { json, url } = await fetchJson(path, baseUrl);
+    const fileKey = normalizeFileKey(path);
+    const file = normalizeQuizFile(json, fileKey);
 
-    let definition;
-    if (useBundle) {
-        definition = await loadDataBundle(json, path, rawText);
-    } else {
-        definition = convertToV2(json);
-        // Apply source info for single file case
-        try {
-            const resolvedUrl = resolveRuntimeUrl(path);
-            const sourcePath = readablePathFromUrl(resolvedUrl);
-            const sourceIndex = buildSourceIndex(json, rawText, sourcePath);
-            applySourceInfo(definition, sourceIndex, sourcePath);
-        } catch (e) {
-            console.warn('[quiz] Failed to build source map', e);
-        }
-    }
+    const { modes, modeTree } = buildModesFromPatterns(file.patterns);
+
+    const definition = validateDefinition({
+        meta: buildMeta({
+            id: file.meta.id || quizName,
+            title: file.meta.title || quizName,
+            description: file.meta.description || '',
+            version: file.meta.version
+        }),
+        dataSets: { [file.dataSetId]: file.dataSet },
+        patterns: file.patterns,
+        modes,
+        modeTree
+    });
 
     return {
         quizName,
-        definition
+        definition,
+        sourcePath: readablePathFromUrl(url)
     };
 }
 
-/**
- * クイズエントリ配列からクイズ定義を読み込む（互換 API）。
- * @param {Array<object>} entries - クイズエントリの配列。
- * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
- */
-export async function loadQuizDefinition(entries) {
-    const quizName = selectQuizIdFromEntries(entries);
-    const entry = Array.isArray(entries)
-        ? entries.find((e) => e && e.id === quizName)
-        : null;
-
-    const path = resolvePathFromEntry(entry, quizName);
-    if (!path) {
-        throw new Error('Failed to resolve quiz JSON path from entry.');
-    }
-
-    return loadQuizDefinitionInternal(quizName, path);
-}
-
-/**
- * ファイルパスから直接クイズ定義を読み込む。
- * @param {string} path - クイズ定義 JSON へのパスまたは URL。
- * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
- */
 export async function loadQuizDefinitionFromPath(path) {
     if (!path) {
         throw new Error('Quiz path is required to load definition.');
     }
 
     const quizName = deriveQuizNameFromPath(path);
-    const resolvedPath = resolveRuntimeUrl(path).toString();
-    return loadQuizDefinitionInternal(quizName, resolvedPath);
+    return loadQuizDefinitionInternal(quizName, path);
 }
 
-/**
- * 個別のクイズエントリからクイズ定義を読み込む。
- * @param {object} quizEntry - 読み込むクイズエントリ。
- * @returns {Promise<object>} 整形されたクイズ定義オブジェクト。
- */
 export async function loadQuizDefinitionFromQuizEntry(quizEntry) {
     if (!quizEntry) {
         throw new Error('Quiz entry is required to load definition.');
@@ -1039,9 +575,29 @@ export async function loadQuizDefinitionFromQuizEntry(quizEntry) {
             definition
         };
     }
-    const path = resolveQuizJsonFromEntry(quizEntry);
-    if (!path) {
-        throw new Error('Failed to resolve quiz JSON path from entry.');
+
+    const baseUrl = quizEntry._entryBaseUrl || null;
+    if (Array.isArray(quizEntry.files) && quizEntry.files.length > 0) {
+        let definition = await loadQuizFiles(quizEntry.files, baseUrl, {
+            id: quizEntry.id,
+            title: quizEntry.title,
+            description: quizEntry.description
+        });
+        if (quizEntry.patternKey) {
+            definition = filterDefinitionByPatternIds(definition, [quizEntry.patternKey]);
+        } else if (quizEntry.patternId && quizEntry.filePath) {
+            const fileKey = normalizeFileKey(quizEntry.filePath);
+            definition = filterDefinitionByPatternIds(definition, [`${fileKey}::${quizEntry.patternId}`]);
+        } else if (Array.isArray(quizEntry.patternIds) && quizEntry.patternIds.length > 0) {
+            definition = filterDefinitionByPatternIds(definition, quizEntry.patternIds);
+        }
+        return {
+            quizName: quizEntry.id,
+            definition
+        };
     }
-    return loadQuizDefinitionInternal(quizEntry.id, path);
+
+    throw new Error('Quiz entry is missing file information.');
 }
+
+export { validateDefinition };

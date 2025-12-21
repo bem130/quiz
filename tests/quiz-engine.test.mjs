@@ -1,217 +1,165 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { QuizEngine } from '../js/quiz-engine.js';
+import { optionToText, tokensToPlainText } from '../js/text-utils.js';
 
-test('QuizEngine generates sentence_fill_choice from factSentences', () => {
-    const definition = {
-        meta: { id: 'test', title: 'test' },
+function buildDefinition(tableData, patterns) {
+    return {
+        meta: { id: 'test', title: 'Test Quiz', description: 'Test' },
         dataSets: {
-            facts: {
-                type: 'factSentences',
-                sentences: [
-                    {
-                        id: 's1',
-                        tokens: [
-                            {
-                                type: 'hide',
-                                value: { type: 'text', value: 'alpha' },
-                                answer: { mode: 'choice_from_group', group: 'g1' }
-                            }
-                        ]
-                    }
-                ],
-                groups: {
-                    g1: { choices: ['alpha', 'beta', 'gamma', 'delta'] }
-                }
-            }
-        },
-        patterns: [
-            {
-                id: 'p1',
-                dataSet: 'facts',
-                questionFormat: 'sentence_fill_choice',
-                tokensFromData: 'sentences'
-            }
-        ],
-        modes: [
-            { id: 'm1', label: 'Mode', patternWeights: [{ patternId: 'p1', weight: 1 }] }
-        ]
-    };
-
-    const engine = new QuizEngine(definition);
-    engine.setMode('m1');
-    const question = engine.generateQuestion();
-
-    assert.equal(question.format, 'sentence_fill_choice');
-    assert.equal(question.patternId, 'p1');
-    assert.equal(question.answers.length, 1);
-    assert.equal(question.answers[0].options.length, 4);
-    assert.ok(question.meta && question.meta.sentenceId === 's1');
-    assert.ok(Array.isArray(question.tokens));
-    assert.ok(question.tokens.some((token) => token.type === 'hide'));
-});
-
-test('QuizEngine supports KaTeX tokens in group choices', () => {
-    const definition = {
-        meta: { id: 'test', title: 'test' },
-        dataSets: {
-            facts: {
-                type: 'factSentences',
-                sentences: [
-                    {
-                        id: 's1',
-                        tokens: [
-                            {
-                                type: 'hide',
-                                value: { type: 'katex', value: 'F_\\text{net}' },
-                                answer: { mode: 'choice_from_group', group: 'symbolGroup' }
-                            }
-                        ]
-                    }
-                ],
-                groups: {
-                    symbolGroup: {
-                        choices: [
-                            { type: 'katex', value: 'F_\\text{net}' },
-                            { type: 'katex', value: 'p' },
-                            { type: 'katex', value: 'v' },
-                            { type: 'katex', value: 'J' }
-                        ]
-                    }
-                }
-            }
-        },
-        patterns: [
-            {
-                id: 'p1',
-                dataSet: 'facts',
-                questionFormat: 'sentence_fill_choice',
-                tokensFromData: 'sentences'
-            }
-        ],
-        modes: [
-            { id: 'm1', label: 'Mode', patternWeights: [{ patternId: 'p1', weight: 1 }] }
-        ]
-    };
-
-    const engine = new QuizEngine(definition);
-    engine.setMode('m1');
-    const question = engine.generateQuestion();
-
-    assert.equal(question.answers.length, 1);
-    const answer = question.answers[0];
-
-    // 4 options as usual
-    assert.equal(answer.options.length, 4);
-
-    // At least one option must have labelTokens with a katex token
-    assert.ok(
-        answer.options.some(
-            (opt) =>
-                Array.isArray(opt.labelTokens) &&
-                opt.labelTokens.some((t) => t.type === 'katex')
-        )
-    );
-});
-
-test('QuizEngine builds choice options when ruby parts reference key fields', () => {
-    const definition = {
-        meta: { id: 'em', title: 'Electromagnetism' },
-        dataSets: {
-            em: {
+            table: {
                 type: 'table',
-                data: [
-                    { id: 'c1', nameEn: 'Current', nameJa: '電流' },
-                    { id: 'c2', nameEn: 'Resistance', nameJa: '抵抗' },
-                    { id: 'c3', nameEn: 'Capacitance', nameJa: '電気容量' },
-                    { id: 'c4', nameEn: 'Magnetic flux', nameJa: '磁束' }
-                ]
+                data: tableData
             }
         },
-        patterns: [
-            {
-                id: 'p_em_def_desc_to_name',
-                dataSet: 'em',
-                questionFormat: 'table_fill_choice',
-                tokens: [
-                    { type: 'text', value: '説明：' },
-                    {
-                        type: 'hide',
-                        value: [
-                            {
-                                type: 'ruby',
-                                base: { type: 'key', field: 'nameEn' },
-                                ruby: { type: 'key', field: 'nameJa' }
-                            }
-                        ],
-                        answer: {
-                            mode: 'choice_from_entities',
-                            choiceCount: 4,
-                            distractorSource: {
-                                scope: 'all'
-                            }
-                        }
-                    }
-                ]
-            }
-        ],
+        patterns,
         modes: [
             {
                 id: 'm1',
                 label: 'Mode',
-                patternWeights: [{ patternId: 'p_em_def_desc_to_name', weight: 1 }]
+                patternWeights: patterns.map((p) => ({ patternId: p.id, weight: 1 }))
             }
         ]
     };
+}
 
-    const engine = new QuizEngine(definition);
+test('QuizEngine generates table_fill_choice with 4 options', () => {
+    const data = [
+        { id: 'r1', name: 'Alpha' },
+        { id: 'r2', name: 'Beta' },
+        { id: 'r3', name: 'Gamma' },
+        { id: 'r4', name: 'Delta' }
+    ];
+    const patterns = [
+        {
+            id: 'p1',
+            dataSet: 'table',
+            tokens: [
+                'Name: ',
+                {
+                    type: 'hide',
+                    id: 'h1',
+                    value: [{ type: 'key', field: 'name' }],
+                    answer: { mode: 'choice_from_entities' }
+                }
+            ]
+        }
+    ];
+
+    const engine = new QuizEngine(buildDefinition(data, patterns));
     engine.setMode('m1');
     const question = engine.generateQuestion();
 
+    assert.equal(question.format, 'table_fill_choice');
+    assert.equal(question.patternId, 'p1');
     assert.equal(question.answers.length, 1);
+    assert.equal(question.answers[0].options.length, 4);
+});
+
+test('QuizEngine falls back to 2 choices when only two rows exist', () => {
+    const data = [
+        { id: 'r1', name: 'Alpha' },
+        { id: 'r2', name: 'Beta' }
+    ];
+    const patterns = [
+        {
+            id: 'p1',
+            dataSet: 'table',
+            tokens: [
+                'Pick: ',
+                {
+                    type: 'hide',
+                    id: 'h1',
+                    value: [{ type: 'key', field: 'name' }],
+                    answer: { mode: 'choice_from_entities' }
+                }
+            ]
+        }
+    ];
+
+    const engine = new QuizEngine(buildDefinition(data, patterns));
+    engine.setMode('m1');
+    const question = engine.generateQuestion();
+
+    assert.equal(question.answers[0].options.length, 2);
+});
+
+test('QuizEngine listkey answers avoid correct set in distractors', () => {
+    const data = [
+        {
+            id: 'set1',
+            conditionTokens: ['x^2 = 4'],
+            answersTokens: [['-2'], ['2']]
+        },
+        {
+            id: 'set2',
+            conditionTokens: ['x^2 = 9'],
+            answersTokens: [['-3'], ['3']]
+        },
+        {
+            id: 'set3',
+            conditionTokens: ['x^2 = 16'],
+            answersTokens: [['-4'], ['4']]
+        },
+        {
+            id: 'set4',
+            conditionTokens: ['x^2 = 1'],
+            answersTokens: [['-1'], ['1']]
+        }
+    ];
+    const patterns = [
+        {
+            id: 'p1',
+            dataSet: 'table',
+            tokens: [
+                { type: 'key', field: 'conditionTokens' },
+                {
+                    type: 'hide',
+                    id: 'h1',
+                    value: [{ type: 'listkey', field: 'answersTokens' }],
+                    answer: { mode: 'choice_from_entities' }
+                }
+            ]
+        }
+    ];
+
+    const engine = new QuizEngine(buildDefinition(data, patterns));
+    engine.setMode('m1');
+    const question = engine.generateQuestion();
     const answer = question.answers[0];
-    assert.equal(answer.options.length, 4);
-    assert.ok(
-        answer.options.every(
-            (opt) =>
-                Array.isArray(opt.labelTokens) &&
-                opt.labelTokens.some((token) => token.type === 'ruby')
-        )
+
+    const correctRow = data.find((row) => row.id === answer.meta.correctRowId);
+    const correctSet = new Set(
+        correctRow.answersTokens.map((tokens) => tokensToPlainText(tokens, correctRow))
     );
+
+    const optionTexts = answer.options.map((opt) =>
+        optionToText(opt, { table: { type: 'table', data } }, question)
+    );
+
+    assert.ok(correctSet.has(optionTexts[answer.correctIndex]));
+    optionTexts.forEach((text, idx) => {
+        if (idx === answer.correctIndex) return;
+        assert.ok(!correctSet.has(text));
+    });
 });
 
 test('estimateModeCapacity counts each pattern once per mode', () => {
-    const definition = {
-        dataSets: {
-            tableSet: {
-                type: 'table',
-                data: [
-                    { id: 'r1', value: 'Alpha' },
-                    { id: 'r2', value: 'Beta' },
-                    { id: 'r3', value: 'Gamma' }
-                ]
-            }
-        },
-        patterns: [
-            {
-                id: 'p1',
-                dataSet: 'tableSet',
-                questionFormat: 'table_fill_choice',
-                tokens: []
-            }
-        ],
-        modes: [
-            {
-                id: 'modeA',
-                patternWeights: [
-                    { patternId: 'p1', weight: 1 },
-                    { patternId: 'p1', weight: 2 }
-                ]
-            }
-        ]
-    };
+    const data = [
+        { id: 'r1', value: 'Alpha' },
+        { id: 'r2', value: 'Beta' },
+        { id: 'r3', value: 'Gamma' }
+    ];
+    const patterns = [
+        {
+            id: 'p1',
+            dataSet: 'table',
+            tokens: []
+        }
+    ];
+    const definition = buildDefinition(data, patterns);
 
     const engine = new QuizEngine(definition);
     assert.equal(engine.getPatternCapacity('p1'), 3);
-    assert.equal(engine.estimateModeCapacity('modeA'), 3);
+    assert.equal(engine.estimateModeCapacity('m1'), 3);
 });

@@ -48,26 +48,83 @@ function contentSegmentsToPlainText(segments) {
     return text;
 }
 
+function normalizeTokenArray(value) {
+    if (value == null) {
+        return [];
+    }
+    if (Array.isArray(value)) {
+        return value;
+    }
+    return [value];
+}
+
+function normalizeTokenMatrix(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return value.map((entry) => normalizeTokenArray(entry));
+}
+
+function renderStringToken(value) {
+    const raw = value != null ? String(value) : '';
+    return contentSegmentsToPlainText(parseContentToSegments(raw));
+}
+
 export function resolveSubTokenValue(spec, row) {
     if (!spec) return '';
-    const source = spec.source || spec.type || 'text';
-    if (source === 'key') {
-        return row && spec.field ? row[spec.field] ?? '' : '';
+    if (typeof spec === 'string') {
+        return spec;
     }
-    return spec.value ?? '';
+    if (spec.type === 'key') {
+        const value = row && spec.field ? row[spec.field] : '';
+        if (Array.isArray(value)) {
+            return tokensToPlainText(value, row);
+        }
+        if (value && typeof value === 'object' && value.type) {
+            return tokensToPlainText([value], row);
+        }
+        return value != null ? String(value) : '';
+    }
+    if (spec.value != null) {
+        return String(spec.value);
+    }
+    return '';
 }
 
 export function tokensToPlainText(tokens, row) {
     let text = '';
-    (tokens || []).forEach((token) => {
-        if (!token || !token.type) return;
-        if (token.type === 'text') {
-            text += token.value ?? '';
+    normalizeTokenArray(tokens).forEach((token) => {
+        if (token == null) return;
+        if (typeof token === 'string') {
+            text += renderStringToken(token);
             return;
         }
-        if (token.type === 'content') {
-            const raw = token.value != null ? String(token.value) : '';
-            text += contentSegmentsToPlainText(parseContentToSegments(raw));
+        if (!token.type) return;
+        if (token.type === 'key') {
+            const value = token.field && row ? row[token.field] ?? '' : '';
+            if (Array.isArray(value)) {
+                text += tokensToPlainText(value, row);
+                return;
+            }
+            if (value && typeof value === 'object' && value.type) {
+                text += tokensToPlainText([value], row);
+                return;
+            }
+            text += String(value ?? '');
+            return;
+        }
+        if (token.type === 'listkey') {
+            const entries = normalizeTokenMatrix(row ? row[token.field] : null);
+            const separatorTokens = normalizeTokenArray(token.separatorTokens);
+            const separatorText = separatorTokens.length
+                ? tokensToPlainText(separatorTokens, row)
+                : '';
+            entries.forEach((entryTokens, idx) => {
+                if (idx > 0) {
+                    text += separatorText;
+                }
+                text += tokensToPlainText(entryTokens, row);
+            });
             return;
         }
         if (token.type === 'katex') {
@@ -80,42 +137,20 @@ export function tokensToPlainText(tokens, row) {
             text += String(value ?? '');
             return;
         }
-        if (token.type === 'key') {
-            const value = token.field && row ? row[token.field] ?? '' : '';
-
-            if (Array.isArray(value)) {
-                text += tokensToPlainText(value, row);
-                return;
-            }
-            if (value && typeof value === 'object' && value.type) {
-                text += tokensToPlainText([value], row);
-                return;
-            }
-
-            text += String(value ?? '');
-            return;
-        }
-        if (token.type === 'ruby' || token.type === 'hideruby') {
+        if (token.type === 'ruby') {
             text += resolveSubTokenValue(token.base, row);
             return;
         }
         if (token.type === 'hide') {
             if (token.value) {
-                if (Array.isArray(token.value)) {
-                    text += tokensToPlainText(token.value, row);
-                } else if (token.value && typeof token.value === 'object') {
-                    text += tokensToPlainText([token.value], row);
-                }
-            } else if (token.field && row) {
-                text += row[token.field] ?? '';
+                text += tokensToPlainText(token.value, row);
             }
             return;
         }
-        if (token.type === 'group') {
-            text += tokensToPlainText(token.value || [], row);
-            return;
-        }
         if (token.type === 'br') {
+            text += '\n';
+        }
+        if (token.type === 'hr') {
             text += '\n';
         }
     });
@@ -129,9 +164,6 @@ export function resolveQuestionContext(question, dataSets) {
     if (ds.type === 'table' && Array.isArray(ds.data)) {
         return ds.data.find((row) => row.id === question.meta.entityId) || null;
     }
-    if (ds.type === 'factSentences' && Array.isArray(ds.sentences)) {
-        return ds.sentences.find((s) => s.id === question.meta.sentenceId) || null;
-    }
     return null;
 }
 
@@ -143,9 +175,7 @@ export function optionToText(option, dataSets, question) {
     const row = option.entityId && ds
         ? ds.type === 'table' && Array.isArray(ds.data)
             ? ds.data.find((r) => r.id === option.entityId)
-            : ds.type === 'factSentences' && Array.isArray(ds.sentences)
-                ? ds.sentences.find((s) => s.id === option.entityId)
-                : null
+            : null
         : null;
     if (option.labelTokens) {
         return tokensToPlainText(option.labelTokens, row);

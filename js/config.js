@@ -1,6 +1,6 @@
 // js/config.js
 
-export const ENTRY_STORAGE_KEY = 'quizEntrySources.v1';
+export const ENTRY_STORAGE_KEY = 'quizEntrySources.v3';
 
 /**
  * URL クエリから entry パラメータを取得する。

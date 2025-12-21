@@ -72,15 +72,21 @@ async function main() {
 
     const { definition } = await loadQuizDefinitionFromPath(args.file);
     const engine = new QuizEngine(definition);
-    const targetPattern = engine.patterns.find((p) => p && p.id === args.pattern);
+    let targetPattern = engine.patterns.find((p) => p && p.id === args.pattern);
+    if (!targetPattern) {
+        const matches = engine.patterns.filter((p) => p && p.localId === args.pattern);
+        if (matches.length === 1) {
+            targetPattern = matches[0];
+        }
+    }
     if (!targetPattern) {
         console.error(`指定された pattern が見つかりません: ${args.pattern}`);
         process.exitCode = 1;
         return;
     }
 
-    engine.setSinglePatternMode(args.pattern);
-    const capacity = engine.getPatternCapacity(args.pattern);
+    engine.setSinglePatternMode(targetPattern.id);
+    const capacity = engine.getPatternCapacity(targetPattern.id);
     if (capacity <= 0) {
         console.error('指定された pattern では生成可能な問題がありません。');
         process.exitCode = 1;

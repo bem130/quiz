@@ -10,16 +10,16 @@ Node.js 18 以降を利用してください。プロジェクト直下で次の
 npm run cli -- --file <path/to/quiz.json> --pattern <patternId> --count <number>
 ```
 
-例: サンプルのアミノ酸クイズから 2 問を生成する場合:
+例: サンプルの v3 クイズから 2 問を生成する場合:
 
 ```sh
-npm run cli -- --file data/sample/amino-acid-quiz-ja-v2.json --pattern p_rgroup_to_name_ja_tips --count 2
+npm run cli -- --file data/sample/math-v3.json --pattern p_def_to_term --count 2
 ```
 
 ## オプション
 
-- `--file` / `-f`: クイズ定義 JSON のパスまたは URL。インポートを含むバンドルにも対応します。
-- `--pattern` / `-p`: 出題に使う pattern の ID。
+- `--file` / `-f`: v3 クイズ定義 JSON のパスまたは URL。
+- `--pattern` / `-p`: 出題に使う pattern の ID（ファイル内の `id` か `file::id` のどちらでも指定可能）。
 - `--count` / `-c`: 表示する問題数。pattern のキャパシティを超える場合は上限まで自動で切り詰めます。
 
 ## 出力内容

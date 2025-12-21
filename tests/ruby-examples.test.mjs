@@ -60,11 +60,11 @@ test('ruby.md: gloss with non-ruby alternates parses correctly', () => {
 });
 
 test('ruby.md: gloss with long alt text parses correctly', () => {
-    const input = '{トルストイ/Лев Николаевич Толстой}の[小説/しょうせつ]を読む';
+    const input = '{トルストイ/Лев Николаевич Толстой}の[小説/しょうせつ]を[読/よ]む';
     const segments = parseContentToSegments(input);
     const glosses = getGlossSegments(segments);
     assert.equal(glosses.length, 1);
-    assert.equal(countSegments(segments, 'Annotated'), 1);
+    assert.equal(countSegments(segments, 'Annotated'), 2);
 });
 
 test('ruby.md: english sentence with two gloss blocks parses', () => {
@@ -84,7 +84,7 @@ test('ruby.md: english sentence with ruby alternates parses', () => {
 });
 
 test('ruby.md: chinese sentence with multiple alternates parses', () => {
-    const input = '我明年想去{佛罗伦萨/Firenze/Florence}和{雅典/Αθήνα/Athens}旅行。';
+    const input = '[我/wǒ][明/míng][年/nián][想/xiǎng][去/qù]{[佛/fó][罗/luó][伦/lún][萨/sà]/Firenze/Florence}[和/hé]{[雅/yǎ][典/diǎn]/Αθήνα/Athens}[旅/lǚ][行/xíng]。';
     const segments = parseContentToSegments(input);
     const glosses = getGlossSegments(segments);
     assert.equal(glosses.length, 2);
@@ -93,7 +93,7 @@ test('ruby.md: chinese sentence with multiple alternates parses', () => {
 });
 
 test('ruby.md: chinese sentence with single alternate parses', () => {
-    const input = '我最近在读{维特根斯坦/Wittgenstein}的书。';
+    const input = '[我/wǒ][最/zuì][近/jìn][在/zài][读/dú]{[维/wéi][特/tè][根/gēn][斯/sī][坦/tǎn]/Wittgenstein}[的/de][书/shū]。';
     const segments = parseContentToSegments(input);
     const glosses = getGlossSegments(segments);
     assert.equal(glosses.length, 1);
@@ -122,9 +122,9 @@ test('ruby.md: greek sentence with gloss parses', () => {
 });
 
 test('ruby.md: math example keeps math segments intact', () => {
-    const input = '[地表/ちひょう][付近/ふきん]に[多/おお]く[含/ふく]まれる[元素/げんそ]に[酸素/さんそ]$\\mathrm{O_2}$・[珪素/けいそ]$\\mathrm{Si}$・[アルミニウム/アルミニウム]$\\mathrm{Al}$・[鉄/てつ]$\\mathrm{Fe}$がある';
+    const input = '[地表/ちひょう][付近/ふきん]に[多/おお]く[含/ふく]まれる{[元素/げんそ]/element}に{[酸素/さんそ]/oxygen}$\\mathrm{O_2}$・{[珪素/けいそ]/silicon}$\\mathrm{Si}$・{アルミニウム/aluminum}$\\mathrm{Al}$・{[鉄/てつ]/iron}$\\mathrm{Fe}$がある';
     const segments = parseContentToSegments(input);
-    assert.equal(countSegments(segments, 'Gloss'), 0);
+    assert.equal(countSegments(segments, 'Gloss'), 5);
     assert.equal(countSegments(segments, 'Math'), 4);
     assert.ok(countSegments(segments, 'Annotated') > 0);
 });

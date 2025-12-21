@@ -1,5 +1,6 @@
 // js/menu-renderer.js
 import { dom } from './dom-refs.js';
+import { replaceContentString } from './quiz-renderer.js';
 
 function createCapacityElement(status, capacityValue, context) {
     if (!status) {
@@ -22,7 +23,7 @@ function createCapacityElement(status, capacityValue, context) {
         } else {
             text.textContent = context === 'entry'
                 ? 'No questions available in this entry.'
-                : 'No questions in this quiz.';
+                : 'No questions in this selection.';
         }
         return text;
     }
@@ -73,9 +74,10 @@ export function renderEntryMenu(entrySources, currentEntry) {
         title.className = 'flex items-center gap-2';
         const labelSpan = document.createElement('span');
         labelSpan.className = 'font-semibold text-sm';
-        labelSpan.textContent = isLocal
+        const labelValue = isLocal
             ? (hasDraftData ? (entry.label || 'Local draft') : 'Local draft (No data)')
             : (entry.label || entry.url);
+        replaceContentString(labelSpan, labelValue);
 
         const status = document.createElement('span');
         status.className = 'text-[11px] font-semibold';
@@ -124,7 +126,6 @@ export function renderEntryMenu(entrySources, currentEntry) {
 
         wrapper.appendChild(button);
 
-        // Helper message for empty local draft
         if (isLocal && !hasDraftData) {
             const helper = document.createElement('div');
             helper.className = 'mt-2 text-[11px] app-text-muted px-1';
@@ -141,22 +142,18 @@ export function renderEntryMenu(entrySources, currentEntry) {
             wrapper.appendChild(addButton);
         }
 
-        // Action buttons container (Top Right)
         const actionContainer = document.createElement('div');
         actionContainer.className = 'absolute top-2 right-2 flex items-center gap-1';
 
         if (isLocal) {
-            // Local Draft: Update button (using Refresh icon)
             const updateButton = document.createElement('button');
             updateButton.type = 'button';
             updateButton.dataset.localDraftAction = 'update';
             updateButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-green-500 transition-colors';
             updateButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>';
             updateButton.title = 'Update from Clipboard';
-            // Stop propagation is handled in main.js delegation
             actionContainer.appendChild(updateButton);
 
-            // Local Draft: Delete button (using Trash icon) - only if data exists
             if (hasDraftData) {
                 const deleteButton = document.createElement('button');
                 deleteButton.type = 'button';
@@ -167,7 +164,6 @@ export function renderEntryMenu(entrySources, currentEntry) {
                 actionContainer.appendChild(deleteButton);
             }
         } else {
-            // Normal Entry: Share button
             const shareButton = document.createElement('button');
             shareButton.type = 'button';
             shareButton.dataset.shareEntryUrl = entry.url;
@@ -176,7 +172,6 @@ export function renderEntryMenu(entrySources, currentEntry) {
             shareButton.title = 'Share this entry';
             actionContainer.appendChild(shareButton);
 
-            // Normal Entry: Reload button
             const reloadButton = document.createElement('button');
             reloadButton.type = 'button';
             reloadButton.dataset.reloadEntryUrl = entry.url;
@@ -185,7 +180,6 @@ export function renderEntryMenu(entrySources, currentEntry) {
             reloadButton.title = 'Reload this entry';
             actionContainer.appendChild(reloadButton);
 
-            // Normal Entry: Remove button (if not built-in)
             if (!entry.builtIn) {
                 const removeButton = document.createElement('button');
                 removeButton.type = 'button';
@@ -203,153 +197,21 @@ export function renderEntryMenu(entrySources, currentEntry) {
     });
 }
 
-/**
- * クイズエントリ配列をディレクトリ構造のツリーに変換する。
- * @param {Array<object>} entries
- * @returns {Array<object>} root-level nodes
- */
-function buildQuizTree(entries) {
-    const root = {
-        type: 'dir',
-        name: '',
-        label: '',
-        children: []
-    };
-
-    function ensureDirNode(parent, segment) {
-        if (!segment) {
-            return parent;
-        }
-
-        let child = (parent.children || []).find(
-            (node) => node.type === 'dir' && node.name === segment
-        );
-
-        if (!child) {
-            child = {
-                type: 'dir',
-                name: segment,
-                label: segment,
-                children: []
-            };
-            parent.children.push(child);
-        }
-
-        return child;
-    }
-
-    (entries || []).forEach((entry) => {
-        if (!entry) {
-            return;
-        }
-
-        const rawDir = typeof entry.dir === 'string' ? entry.dir : '';
-        const normalized = rawDir
-            .replace(/^[.\/]+/, '')
-            .replace(/\/+$/, '');
-
-        const segments = normalized ? normalized.split('/') : [];
-        let parent = root;
-
-        segments.forEach((segment) => {
-            parent = ensureDirNode(parent, segment);
-        });
-
-        parent.children.push({
-            type: 'quiz',
-            quiz: entry
-        });
-    });
-
-    return root.children;
-}
-
-/**
- * ツリーノードの hierarchy スコアを計算する。
- * @param {object} node
- * @returns {number}
- */
-function getQuizNodeHierarchyScore(node) {
-    if (!node) {
-        return 0;
-    }
-
-    if (node.type === 'quiz') {
-        const quiz = node.quiz;
-        if (quiz && typeof quiz.hierarchy === 'number') {
-            return quiz.hierarchy;
-        }
-        return 0;
-    }
-
-    if (node.type === 'dir') {
-        const children = node.children || [];
-        let maxScore = 0;
-        for (const child of children) {
-            const score = getQuizNodeHierarchyScore(child);
-            if (score > maxScore) {
-                maxScore = score;
-            }
-        }
-        return maxScore;
-    }
-
-    return 0;
-}
-
-/**
- * ツリーノードの表示ラベルを取得する（ソートのサブキーとして利用）。
- * @param {object} node
- * @returns {string}
- */
-function getQuizNodeLabel(node) {
-    if (!node) {
-        return '';
-    }
-
-    if (node.type === 'quiz') {
-        const quiz = node.quiz;
-        if (!quiz) {
-            return '';
-        }
-        return (quiz.title || quiz.id || '') + '';
-    }
-
-    if (node.type === 'dir') {
-        return (node.label || node.name || '') + '';
-    }
-
-    return '';
-}
-
-/**
- * クイズツリーを再帰的に描画する。
- * @param {Array<object>} nodes
- * @param {HTMLElement} parentElement
- * @param {object|null} currentQuiz
- */
-function renderQuizTreeNodes(nodes, parentElement, currentQuiz) {
+function renderQuizTreeNodes(nodes, parentElement, currentSelectionKey) {
     if (!Array.isArray(nodes) || nodes.length === 0) {
         return;
     }
 
     const sortedNodes = [...nodes].sort((a, b) => {
-        const aScore = getQuizNodeHierarchyScore(a);
-        const bScore = getQuizNodeHierarchyScore(b);
-        if (aScore !== bScore) {
-            return bScore - aScore;
-        }
-
-        const aLabel = getQuizNodeLabel(a);
-        const bLabel = getQuizNodeLabel(b);
+        const aLabel = (a.label || a.name || '').toString();
+        const bLabel = (b.label || b.name || '').toString();
         return aLabel.localeCompare(bLabel, 'ja');
     });
 
     sortedNodes.forEach((node) => {
         if (node.type === 'dir') {
             const header = document.createElement('div');
-            header.className =
-                'mt-2 text-[11px] font-semibold app-text-muted';
+            header.className = 'mt-2 text-[11px] font-semibold app-text-muted';
             header.textContent = node.label || node.name || 'Group';
             parentElement.appendChild(header);
 
@@ -357,76 +219,73 @@ function renderQuizTreeNodes(nodes, parentElement, currentQuiz) {
             container.className = 'ml-3 space-y-1';
             parentElement.appendChild(container);
 
-            renderQuizTreeNodes(node.children || [], container, currentQuiz);
+            renderQuizTreeNodes(node.children || [], container, currentSelectionKey);
             return;
         }
 
-        if (node.type === 'quiz') {
-            const entry = node.quiz;
-            if (!entry) {
-                return;
-            }
-
-            const isCurrent =
-                currentQuiz && currentQuiz.id === entry.id;
+        if (node.type === 'file' || node.type === 'pattern') {
+            const isActive = currentSelectionKey && node.key === currentSelectionKey;
 
             const button = document.createElement('button');
             button.type = 'button';
-            button.dataset.quizId = entry.id;
+            button.dataset.selectionId = node.key;
             button.className = [
                 'w-full text-left rounded-xl border px-3 py-2 text-xs transition-colors app-list-button',
-                isCurrent ? 'app-list-button-active' : ''
+                isActive ? 'app-list-button-active' : ''
             ].join(' ');
 
             const title = document.createElement('div');
             title.className = 'font-semibold mb-0.5 pr-[3em]';
-            title.textContent = entry.title || entry.id;
+            replaceContentString(title, node.label || node.name);
 
             const desc = document.createElement('div');
-            desc.className =
-                'text-[11px] app-text-main pr-[3em]'; // Add padding for share button
-            desc.textContent = entry.description || '';
+            desc.className = 'text-[11px] app-text-main pr-[3em]';
+            replaceContentString(desc, node.description || '');
 
             button.appendChild(title);
             button.appendChild(desc);
 
-            // Share button for Quiz — place as absolute inside a relative wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative';
+            wrapper.appendChild(button);
+
             const shareButton = document.createElement('button');
             shareButton.type = 'button';
-            shareButton.dataset.shareQuizId = entry.id;
+            shareButton.dataset.shareSelectionId = node.key;
             shareButton.className = 'p-[0.3em] rounded-lg text-gray-400 hover:text-blue-500 transition-colors z-10';
             shareButton.style.position = 'absolute';
             shareButton.style.top = '8px';
             shareButton.style.right = '8px';
             shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
-            shareButton.title = 'Share this quiz';
-
-            const capacity = createCapacityElement(entry._capacityStatus, entry._capacity, 'quiz');
-
-            // Wrapper keeps absolute positioning context
-            const wrapper = document.createElement('div');
-            wrapper.className = 'relative';
-            wrapper.appendChild(button);
+            shareButton.title = 'Share this selection';
             wrapper.appendChild(shareButton);
+
+            const capacity = createCapacityElement(node._capacityStatus, node._capacity, 'quiz');
             if (capacity) {
                 wrapper.appendChild(capacity);
             }
 
             parentElement.appendChild(wrapper);
+
+            if (node.type === 'file' && Array.isArray(node.children) && node.children.length) {
+                const container = document.createElement('div');
+                container.className = 'ml-3 space-y-1';
+                parentElement.appendChild(container);
+                renderQuizTreeNodes(node.children, container, currentSelectionKey);
+            }
         }
     });
 }
 
 /**
  * クイズ一覧をサイドメニューに描画し、選択状態を示す。
- * @param {Array<object>} entries - 表示するクイズエントリの配列。
- * @param {object|null} currentQuiz - 現在選択中のクイズエントリ。
+ * @param {object|null} entry - 現在の entry.
+ * @param {object|null} currentSelection - 現在選択中のノード。
  */
-export function renderQuizMenu(entries, currentQuiz) {
+export function renderQuizMenu(entry, currentSelection) {
     dom.quizList.innerHTML = '';
 
-    const list = Array.isArray(entries) ? entries : [];
-    if (list.length === 0) {
+    if (!entry || !entry.available) {
         const empty = document.createElement('div');
         empty.className = 'text-xs app-text-muted';
         empty.textContent = 'No quizzes for this entry.';
@@ -434,6 +293,15 @@ export function renderQuizMenu(entries, currentQuiz) {
         return;
     }
 
-    const tree = buildQuizTree(list);
-    renderQuizTreeNodes(tree, dom.quizList, currentQuiz);
+    const tree = Array.isArray(entry.tree) ? entry.tree : [];
+    if (tree.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'text-xs app-text-muted';
+        empty.textContent = 'No quiz files available.';
+        dom.quizList.appendChild(empty);
+        return;
+    }
+
+    const currentKey = currentSelection && currentSelection.key ? currentSelection.key : null;
+    renderQuizTreeNodes(tree, dom.quizList, currentKey);
 }

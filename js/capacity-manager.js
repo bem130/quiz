@@ -103,6 +103,22 @@ export function enqueueEntryCapacityTask(entry, options = {}) {
     startCapacityWorkerIfNeeded();
 }
 
+function collectFileNodes(entry) {
+    const nodes = [];
+    const stack = Array.isArray(entry && entry.tree) ? [...entry.tree] : [];
+    while (stack.length > 0) {
+        const node = stack.pop();
+        if (!node) continue;
+        if (node.type === 'file') {
+            nodes.push(node);
+        }
+        if (Array.isArray(node.children) && node.children.length > 0) {
+            stack.push(...node.children);
+        }
+    }
+    return nodes;
+}
+
 function startCapacityWorkerIfNeeded() {
     if (workerRunning) {
         return;
@@ -212,14 +228,14 @@ function handleEntryCapacityTask(task) {
         return;
     }
 
-    const quizzes = Array.isArray(entry.quizzes) ? entry.quizzes : [];
-    const completed = quizzes.every((quiz) =>
-        quiz && (quiz._capacityStatus === 'done' || quiz._capacityStatus === 'error')
+    const fileNodes = collectFileNodes(entry);
+    const completed = fileNodes.every((node) =>
+        node && (node._capacityStatus === 'done' || node._capacityStatus === 'error')
     );
 
-    const total = quizzes.reduce((sum, quiz) => {
-        if (quiz && typeof quiz._capacity === 'number') {
-            return sum + quiz._capacity;
+    const total = fileNodes.reduce((sum, node) => {
+        if (node && typeof node._capacity === 'number') {
+            return sum + node._capacity;
         }
         return sum;
     }, 0);

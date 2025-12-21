@@ -4,8 +4,9 @@ import { estimateQuizCapacity } from '../js/capacity-manager.js';
 
 test('estimateQuizCapacity counts unique patterns across modes', () => {
     const definition = {
+        meta: { id: 'test', title: 'Test', description: 'Test' },
         dataSets: {
-            tableSet: {
+            table: {
                 type: 'table',
                 data: [
                     { id: 'r1', value: 'Alpha' },
@@ -17,10 +18,8 @@ test('estimateQuizCapacity counts unique patterns across modes', () => {
         patterns: [
             {
                 id: 'p-shared',
-                dataSet: 'tableSet',
-                questionFormat: 'table_fill_choice',
-                tokens: [],
-                answer: { mode: 'choice_from_entities' }
+                dataSet: 'table',
+                tokens: []
             }
         ],
         modes: [
@@ -41,94 +40,66 @@ test('estimateQuizCapacity counts unique patterns across modes', () => {
 
 test('estimateQuizCapacity sums distinct patterns once per quiz', () => {
     const definition = {
+        meta: { id: 'test', title: 'Test', description: 'Test' },
         dataSets: {
-            tableSet: {
+            table: {
                 type: 'table',
                 data: [
                     { id: 'r1', value: 'Alpha' },
                     { id: 'r2', value: 'Beta' }
                 ]
-            },
-            sentences: {
-                type: 'factSentences',
-                sentences: [
-                    { id: 's1', tokens: [] },
-                    { id: 's2', tokens: [] }
-                ]
             }
         },
         patterns: [
             {
-                id: 'p-fill',
-                dataSet: 'tableSet',
-                questionFormat: 'table_fill_choice',
-                tokens: [],
-                answer: { mode: 'choice_from_entities' }
+                id: 'p1',
+                dataSet: 'table',
+                tokens: []
             },
             {
-                id: 'p-match',
-                dataSet: 'tableSet',
-                questionFormat: 'table_matching',
-                matchingSpec: { pairCount: 2 },
-                tokens: [],
-                answer: { mode: 'matching' }
-            },
-            {
-                id: 'p-sentence',
-                dataSet: 'sentences',
-                questionFormat: 'sentence_fill_choice',
-                tokensFromData: 'sentences',
-                tokens: [],
-                answer: { mode: 'choice_from_entities' }
+                id: 'p2',
+                dataSet: 'table',
+                tokens: []
             }
         ],
         modes: [
             {
                 id: 'modeA',
                 patternWeights: [
-                    { patternId: 'p-fill', weight: 1 },
-                    { patternId: 'p-match', weight: 1 }
-                ]
-            },
-            {
-                id: 'modeB',
-                patternWeights: [
-                    { patternId: 'p-sentence', weight: 1 },
-                    { patternId: 'p-match', weight: 1 }
+                    { patternId: 'p1', weight: 1 },
+                    { patternId: 'p2', weight: 1 }
                 ]
             }
         ]
     };
 
     const estimated = estimateQuizCapacity(definition);
-    assert.equal(estimated, 5);
+    assert.equal(estimated, 4);
 });
 
 test('estimateQuizCapacity ignores zero-capacity patterns', () => {
     const definition = {
+        meta: { id: 'test', title: 'Test', description: 'Test' },
         dataSets: {
-            tableSet: {
+            emptyTable: {
                 type: 'table',
-                data: [
-                    { id: 'r1', value: 'Alpha' }
-                ]
+                data: []
+            },
+            liveTable: {
+                type: 'table',
+                data: [{ id: 'r1', value: 'Alpha' }]
             }
         },
         patterns: [
             {
                 id: 'p-zero',
-                dataSet: 'tableSet',
-                questionFormat: 'table_fill_choice',
-                entityFilter: { eq: { field: 'value', value: 'Nope' } },
-                tokens: [],
-                answer: { mode: 'choice_from_entities' }
+                dataSet: 'emptyTable',
+                tokens: []
             },
             {
                 id: 'p-live',
-                dataSet: 'tableSet',
-                questionFormat: 'table_fill_choice',
-                tokens: [],
-                answer: { mode: 'choice_from_entities' }
+                dataSet: 'liveTable',
+                tokens: []
             }
         ],
         modes: [

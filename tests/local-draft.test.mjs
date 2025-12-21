@@ -21,31 +21,26 @@ function createMockStorage() {
 
 function buildValidDraft() {
     return {
-        version: 2,
-        dataSets: {
-            sample: {
-                type: 'table',
-                data: [
-                    { id: 'r1', text: 'Hello' },
-                    { id: 'r2', text: 'World' }
+        title: 'Draft Quiz',
+        description: 'Draft description',
+        version: 3,
+        table: [
+            { id: 'r1', text: 'Hello' },
+            { id: 'r2', text: 'World' }
+        ],
+        patterns: [
+            {
+                id: 'p1',
+                tokens: [
+                    {
+                        type: 'hide',
+                        id: 'h1',
+                        value: [{ type: 'key', field: 'text' }],
+                        answer: { mode: 'choice_from_entities' }
+                    }
                 ]
             }
-        },
-        questionRules: {
-            patterns: [
-                {
-                    id: 'p1',
-                    dataSet: 'sample',
-                    tokens: [
-                        {
-                            type: 'hide',
-                            value: { type: 'key', field: 'text' },
-                            answer: { mode: 'choice_from_entities' }
-                        }
-                    ]
-                }
-            ]
-        }
+        ]
     };
 }
 
@@ -60,11 +55,12 @@ test('updateLocalDraftFromText saves valid clipboard content', async () => {
     const entry = updateLocalDraftFromText(draftJson);
     assert.equal(entry.url, LOCAL_DRAFT_ENTRY_URL);
     assert.equal(entry.hasDraftData, true);
-    assert.ok(entry.quizzes[0].inlineDefinition);
+    assert.equal(entry.tree.length, 1);
+    assert.ok(entry.tree[0].inlineDefinition);
 
     const loaded = loadLocalDraftEntry();
     assert.equal(loaded.available, true);
-    assert.equal(loaded.quizzes[0].title, entry.label);
+    assert.equal(loaded.tree[0].label, entry.label);
 });
 
 test('loadLocalDraftEntry returns empty entry when storage is missing', async () => {
