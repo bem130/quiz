@@ -767,11 +767,16 @@ function createStyledSpan(text, styles = []) {
     const span = document.createElement('span');
     if (styles.includes('katex') && window.katex) {
         try {
-            window.katex.render(text, span, {
+            const isBlock = styles.includes('katex-block');
+            const finalTex = (!isBlock && !text.includes('\\displaystyle'))
+                ? '\\displaystyle ' + text
+                : text;
+
+            window.katex.render(finalTex, span, {
                 throwOnError: false,
                 strict: false,
                 errorColor: '#cc0000',
-                displayMode: styles.includes('katex-block')
+                displayMode: isBlock
             });
             return span;
         } catch (e) {
@@ -843,7 +848,9 @@ function renderInlineSegments(parent, segments, node, offsetMode = 'decoded', cu
             ) {
                 appendCursorMarker(parent, cursorState);
             }
-            const span = createStyledSpan(seg.tex || '', ['katex']);
+            const styles = ['katex'];
+            if (seg.display && !isJsonPreview) styles.push('katex-block');
+            const span = createStyledSpan(seg.tex || '', styles);
             const offset = node && seg.range ? getOffsetForIndex(node, seg.range.start, offsetMode) : null;
             attachJump(span, offset);
             parent.appendChild(span);
@@ -900,7 +907,9 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorSta
                 appendCursorMarker(rubyEl, cursorState);
             }
             const rb = document.createElement('rb');
-            const span = createStyledSpan(child.tex || '', ['katex']);
+            const styles = ['katex'];
+            if (child.display && !isJsonPreview) styles.push('katex-block');
+            const span = createStyledSpan(child.tex || '', styles);
             const offset = node && child.range ? getOffsetForIndex(node, child.range.start, offsetMode) : null;
             attachJump(span, offset);
             rb.appendChild(span);
@@ -1023,7 +1032,9 @@ function renderSegments(parent, segments, node, offsetMode = 'decoded', cursorSt
             ) {
                 appendCursorMarker(parent, cursorState);
             }
-            const span = createStyledSpan(seg.tex || '', ['katex']);
+            const styles = ['katex'];
+            if (seg.display && !isJsonPreview) styles.push('katex-block');
+            const span = createStyledSpan(seg.tex || '', styles);
             const offset = node && seg.range ? getOffsetForIndex(node, seg.range.start, offsetMode) : null;
             attachJump(span, offset);
             parent.appendChild(span);
@@ -1409,7 +1420,9 @@ function renderKatexToken(parent, token, node, options) {
         valueNode = fieldPath ? findNodeByPath(lastParsedAst, fieldPath) : node;
     }
 
-    const span = createStyledSpan(String(value ?? ''), ['katex', ...(token.styles || [])]);
+    const styles = ['katex', ...(token.styles || [])];
+    if (token.block) styles.push('katex-block');
+    const span = createStyledSpan(String(value ?? ''), styles);
     attachJump(span, valueNode && valueNode.loc ? valueNode.loc.start.offset : null);
     parent.appendChild(span);
 }
