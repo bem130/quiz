@@ -15,6 +15,8 @@ let activePreviewTab = 'rendered';
 let activeRowIndex = null;
 let activeCursorOffset = null;
 let rubyGlossDecorations = null;
+let jsonPreviewState = null;
+let jsonCursorRaf = null;
 let toolbarInitialized = false;
 let previewTabsInitialized = false;
 let explorerInitialized = false;
@@ -118,7 +120,11 @@ function updatePreview(jsonText) {
         lastParsedAst = parseJsonWithLoc(jsonText);
         activeCursorOffset = getCurrentCursorOffset();
         activeRowIndex = findTableRowIndexForOffset(lastParsedAst, activeCursorOffset);
-        renderJsonPreview(jsonText, jsonContainer, activeCursorOffset);
+        if (activePreviewTab === 'json') {
+            renderJsonPreview(jsonText, jsonContainer, activeCursorOffset);
+        } else {
+            jsonPreviewState = null;
+        }
 
         const definition = buildDefinitionFromQuizFile(lastParsedAst.value, 'draft', {
             title: lastParsedAst.value && lastParsedAst.value.title ? lastParsedAst.value.title : 'Preview'
@@ -139,7 +145,11 @@ function updatePreview(jsonText) {
         // Parse error
         renderedContainer.innerHTML = '';
         lastParsedAst = null;
-        renderJsonPreview(jsonText, jsonContainer, getCurrentCursorOffset());
+        if (activePreviewTab === 'json') {
+            renderJsonPreview(jsonText, jsonContainer, getCurrentCursorOffset());
+        } else {
+            jsonPreviewState = null;
+        }
         setDraftStatus(`Syntax Error: ${e.message}`, 'app-text-danger');
         updateRubyGlossDecorations();
     }
@@ -157,9 +167,8 @@ function getCurrentCursorOffset() {
 function handleCursorChange(offset) {
     activeCursorOffset = offset;
     const renderedContainer = document.getElementById('draft-preview-rendered');
-    const jsonContainer = document.getElementById('draft-preview-json');
-    if (jsonContainer) {
-        renderJsonPreview(lastSourceText || '', jsonContainer, activeCursorOffset);
+    if (activePreviewTab === 'json') {
+        scheduleJsonCursorUpdate();
     }
     if (!lastParsedAst || !renderedContainer) return;
     const nextRowIndex = findTableRowIndexForOffset(lastParsedAst, activeCursorOffset);
@@ -168,6 +177,14 @@ function handleCursorChange(offset) {
         renderedContainer.innerHTML = '';
         renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
     }
+}
+
+function scheduleJsonCursorUpdate() {
+    if (jsonCursorRaf) return;
+    jsonCursorRaf = window.requestAnimationFrame(() => {
+        jsonCursorRaf = null;
+        updateJsonCursor(activeCursorOffset);
+    });
 }
 
 function findTableRowIndexForOffset(ast, offset) {
@@ -184,16 +201,6 @@ function findTableRowIndexForOffset(ast, offset) {
     return null;
 }
 
-function getRawRangeForStringSegment(node, startIndex, endIndex) {
-    if (!node || !node.loc) return null;
-    const start = Math.max(0, startIndex);
-    const end = Math.max(start, endIndex);
-    const rawStart = getOffsetForStringIndex(node, start);
-    const rawEnd = getOffsetForStringIndex(node, Math.max(end - 1, start)) + 1;
-    if (rawStart == null || rawEnd == null) return null;
-    return { rawStart, rawEnd };
-}
-
 function updateRubyGlossDecorations() {
     if (!editor || !rubyGlossDecorations) return;
     const model = editor.getModel();
@@ -204,27 +211,48 @@ function updateRubyGlossDecorations() {
     }
     const decorations = [];
     const stringNodes = collectStringNodes(lastParsedAst, []);
+
+    const addDelimiterDecoration = (node, index) => {
+        if (!node || index == null) return;
+        const rawOffset = getOffsetForStringIndex(node, index);
+        if (rawOffset == null) return;
+        const startPos = model.getPositionAt(rawOffset);
+        const endPos = model.getPositionAt(rawOffset + 1);
+        decorations.push({
+            range: new monaco.Range(
+                startPos.lineNumber,
+                startPos.column,
+                endPos.lineNumber,
+                endPos.column
+            ),
+            options: {
+                inlineClassName: 'ruby-gloss-delimiter'
+            }
+        });
+    };
+
     stringNodes.forEach((node) => {
         if (!node || typeof node.value !== 'string') return;
         const segments = parseContentToSegments(node.value);
         segments.forEach((seg) => {
             if (!seg || !seg.range) return;
-            if (seg.kind !== 'Annotated' && seg.kind !== 'Gloss') return;
-            const rawRange = getRawRangeForStringSegment(node, seg.range.start, seg.range.end);
-            if (!rawRange) return;
-            const startPos = model.getPositionAt(rawRange.rawStart);
-            const endPos = model.getPositionAt(rawRange.rawEnd);
-            decorations.push({
-                range: new monaco.Range(
-                    startPos.lineNumber,
-                    startPos.column,
-                    endPos.lineNumber,
-                    endPos.column
-                ),
-                options: {
-                    inlineClassName: 'ruby-gloss-highlight'
+            if (seg.kind === 'Annotated') {
+                const positions = new Set();
+                positions.add(seg.range.start);
+                if (seg.range.end != null) positions.add(seg.range.end - 1);
+                if (seg.baseRange && seg.baseRange.end != null) {
+                    positions.add(seg.baseRange.end);
                 }
-            });
+                positions.forEach((pos) => addDelimiterDecoration(node, pos));
+            } else if (seg.kind === 'Gloss') {
+                const positions = new Set();
+                positions.add(seg.range.start);
+                if (seg.range.end != null) positions.add(seg.range.end - 1);
+                if (Array.isArray(seg.slashPositions)) {
+                    seg.slashPositions.forEach((pos) => positions.add(pos));
+                }
+                positions.forEach((pos) => addDelimiterDecoration(node, pos));
+            }
         });
     });
     rubyGlossDecorations.set(decorations);
@@ -276,45 +304,29 @@ function appendPlainText(parent, text) {
 }
 
 function appendCursorMarker(parent, cursorState) {
+    if (!cursorState) return;
     const marker = document.createElement('span');
     marker.className = 'json-cursor';
     parent.appendChild(marker);
-    if (cursorState) {
-        cursorState.inserted = true;
-        cursorState.element = marker;
-    }
+    cursorState.inserted = true;
+    cursorState.element = marker;
 }
 
-function appendTokenText(parent, text, className) {
+function appendJsonToken(parent, text, startOffset, className, state) {
     if (!text) return;
-    if (!className) {
-        appendPlainText(parent, text);
-        return;
-    }
     const span = document.createElement('span');
-    span.className = className;
+    if (className) {
+        span.className = className;
+    }
     span.textContent = text;
     parent.appendChild(span);
-}
-
-function appendTokenWithCursor(parent, text, startOffset, cursorState, className) {
-    if (!text) return;
-    const cursorOffset = cursorState ? cursorState.offset : null;
-    const tokenEnd = startOffset + text.length;
-    if (
-        cursorState &&
-        !cursorState.inserted &&
-        cursorOffset != null &&
-        cursorOffset >= startOffset &&
-        cursorOffset <= tokenEnd
-    ) {
-        const index = Math.max(0, Math.min(text.length, cursorOffset - startOffset));
-        appendTokenText(parent, text.slice(0, index), className);
-        appendCursorMarker(parent, cursorState);
-        appendTokenText(parent, text.slice(index), className);
-        return;
+    if (state) {
+        state.tokenRanges.push({
+            start: startOffset,
+            end: startOffset + text.length,
+            element: span
+        });
     }
-    appendTokenText(parent, text, className);
 }
 
 function getTokenClass(tokenText) {
@@ -326,38 +338,38 @@ function getTokenClass(tokenText) {
     return null;
 }
 
-function appendJsonTextSegment(parent, text, startOffset, cursorState) {
+function appendJsonTextSegment(parent, text, startOffset, state) {
     if (!text) return;
     const tokenRegex = /\s+|true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[{}\[\]:,]/g;
     let lastIndex = 0;
     let match;
     while ((match = tokenRegex.exec(text)) !== null) {
         if (match.index > lastIndex) {
-            appendTokenWithCursor(
+            appendJsonToken(
                 parent,
                 text.slice(lastIndex, match.index),
                 startOffset + lastIndex,
-                cursorState,
-                null
+                null,
+                state
             );
         }
         const tokenText = match[0];
-        appendTokenWithCursor(
+        appendJsonToken(
             parent,
             tokenText,
             startOffset + match.index,
-            cursorState,
-            getTokenClass(tokenText)
+            getTokenClass(tokenText),
+            state
         );
         lastIndex = match.index + tokenText.length;
     }
     if (lastIndex < text.length) {
-        appendTokenWithCursor(
+        appendJsonToken(
             parent,
             text.slice(lastIndex),
             startOffset + lastIndex,
-            cursorState,
-            null
+            null,
+            state
         );
     }
 }
@@ -383,44 +395,40 @@ function getDecodedIndexForRawOffset(node, rawOffset) {
     return index;
 }
 
-function appendJsonStringSegment(parent, node, isKey, cursorState) {
+function appendJsonStringSegment(parent, node, isKey, state) {
     if (!node || !node.loc) return;
     const rawStart = node.loc.start.offset;
     const rawEnd = node.loc.end.offset;
     const stringClass = isKey ? 'json-token-string json-token-key' : 'json-token-string';
-    appendTokenWithCursor(parent, '"', rawStart, cursorState, stringClass);
+    appendJsonToken(parent, '"', rawStart, stringClass, state);
 
     const contentWrapper = document.createElement('span');
     contentWrapper.className = stringClass;
-    const cursorOffset = cursorState ? cursorState.offset : null;
-    let cursorIndex = null;
-    if (cursorOffset != null && cursorOffset >= rawStart + 1 && cursorOffset <= rawEnd - 1) {
-        cursorIndex = getDecodedIndexForRawOffset(node, cursorOffset);
-    }
-    renderStringValue(contentWrapper, node.value ?? '', node, [], 'decoded', cursorState, cursorIndex);
+    renderStringValue(contentWrapper, node.value ?? '', node, [], 'decoded');
     parent.appendChild(contentWrapper);
 
-    appendTokenWithCursor(parent, '"', rawEnd - 1, cursorState, stringClass);
+    appendJsonToken(parent, '"', rawEnd - 1, stringClass, state);
 }
 
-function renderPlainJsonWithCursor(container, jsonText, cursorState) {
+function renderPlainJsonPreview(container, jsonText, state) {
     const frag = document.createDocumentFragment();
-    appendJsonTextSegment(frag, jsonText, 0, cursorState);
-    if (cursorState && !cursorState.inserted && cursorState.offset != null) {
-        appendCursorMarker(frag, cursorState);
-    }
+    appendJsonTextSegment(frag, jsonText, 0, state);
     container.appendChild(frag);
-    if (cursorState && cursorState.element && activePreviewTab === 'json') {
-        cursorState.element.scrollIntoView({ block: 'center', inline: 'center' });
-    }
 }
 
-function renderJsonPreview(jsonText, container, cursorOffset = null) {
+function buildJsonPreview(jsonText, container) {
     container.innerHTML = '';
-    const cursorState = { offset: cursorOffset, inserted: false, element: null };
+    container.classList.add('json-preview');
+    const state = {
+        text: jsonText,
+        container,
+        tokenRanges: [],
+        offsetMap: new Map(),
+        cursorOverlay: null
+    };
     if (!lastParsedAst || !lastParsedAst.loc) {
-        renderPlainJsonWithCursor(container, jsonText, cursorState);
-        return;
+        renderPlainJsonPreview(container, jsonText, state);
+        return state;
     }
 
     const stringNodes = collectStringNodesWithMeta(lastParsedAst, []);
@@ -436,21 +444,117 @@ function renderJsonPreview(jsonText, container, cursorOffset = null) {
         const end = node.loc.end.offset;
         if (start < cursor) return;
 
-        appendJsonTextSegment(frag, jsonText.slice(cursor, start), cursor, cursorState);
-        appendJsonStringSegment(frag, node, entry.isKey, cursorState);
+        appendJsonTextSegment(frag, jsonText.slice(cursor, start), cursor, state);
+        appendJsonStringSegment(frag, node, entry.isKey, state);
         cursor = end;
     });
 
-    appendJsonTextSegment(frag, jsonText.slice(cursor), cursor, cursorState);
-
-    if (!cursorState.inserted && cursorState.offset != null) {
-        appendCursorMarker(frag, cursorState);
-    }
-
+    appendJsonTextSegment(frag, jsonText.slice(cursor), cursor, state);
     container.appendChild(frag);
-    if (cursorState.element && activePreviewTab === 'json') {
-        cursorState.element.scrollIntoView({ block: 'center', inline: 'center' });
+
+    const offsetNodes = container.querySelectorAll('[data-source-offset]');
+    offsetNodes.forEach((node) => {
+        const offsetValue = node.dataset ? node.dataset.sourceOffset : null;
+        if (!offsetValue) return;
+        const offset = Number(offsetValue);
+        if (!Number.isNaN(offset) && !state.offsetMap.has(offset)) {
+            state.offsetMap.set(offset, node);
+        }
+    });
+
+    return state;
+}
+
+function ensureJsonPreview(jsonText, container) {
+    if (!jsonPreviewState || jsonPreviewState.text !== jsonText || jsonPreviewState.container !== container) {
+        jsonPreviewState = buildJsonPreview(jsonText, container);
     }
+    return jsonPreviewState;
+}
+
+function findTokenRangeByOffset(offset, ranges) {
+    if (!ranges || !ranges.length) return null;
+    let low = 0;
+    let high = ranges.length - 1;
+    while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const entry = ranges[mid];
+        if (offset < entry.start) {
+            high = mid - 1;
+        } else if (offset > entry.end) {
+            low = mid + 1;
+        } else {
+            return entry;
+        }
+    }
+    return null;
+}
+
+function ensureJsonCursorOverlay(state) {
+    if (!state.cursorOverlay) {
+        const overlay = document.createElement('span');
+        overlay.className = 'json-cursor-overlay';
+        overlay.style.display = 'none';
+        state.container.appendChild(overlay);
+        state.cursorOverlay = overlay;
+    }
+    return state.cursorOverlay;
+}
+
+function positionCursorOverlay(overlay, container, rect) {
+    const containerRect = container.getBoundingClientRect();
+    const left = rect.left - containerRect.left + container.scrollLeft;
+    const top = rect.top - containerRect.top + container.scrollTop;
+    overlay.style.display = 'block';
+    overlay.style.left = `${left}px`;
+    overlay.style.top = `${top}px`;
+    overlay.style.height = `${rect.height || 16}px`;
+}
+
+function updateJsonCursor(offset) {
+    if (!jsonPreviewState || activePreviewTab !== 'json') return;
+    const state = jsonPreviewState;
+    const container = state.container;
+    if (!container) return;
+    const overlay = ensureJsonCursorOverlay(state);
+    if (offset == null) {
+        overlay.style.display = 'none';
+        return;
+    }
+
+    let target = state.offsetMap.get(offset);
+    if (!target && offset > 0) {
+        target = state.offsetMap.get(offset - 1);
+    }
+
+    if (target) {
+        positionCursorOverlay(overlay, container, target.getBoundingClientRect());
+        return;
+    }
+
+    const tokenEntry = findTokenRangeByOffset(offset, state.tokenRanges);
+    if (!tokenEntry || !tokenEntry.element) {
+        overlay.style.display = 'none';
+        return;
+    }
+
+    const textNode = tokenEntry.element.firstChild;
+    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+        const localOffset = Math.max(0, Math.min(textNode.length, offset - tokenEntry.start));
+        const range = document.createRange();
+        range.setStart(textNode, localOffset);
+        range.setEnd(textNode, localOffset);
+        const rects = range.getClientRects();
+        const rect = rects[0] || tokenEntry.element.getBoundingClientRect();
+        positionCursorOverlay(overlay, container, rect);
+    } else {
+        positionCursorOverlay(overlay, container, tokenEntry.element.getBoundingClientRect());
+    }
+}
+
+function renderJsonPreview(jsonText, container, cursorOffset = null) {
+    ensureJsonPreview(jsonText, container);
+    updateJsonCursor(cursorOffset);
 }
 
 // Map rendered elements back to JSON location

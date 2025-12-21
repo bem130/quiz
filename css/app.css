@@ -144,9 +144,21 @@ button:active {
 }
 
 /* Monaco inline highlight for ruby/gloss markers */
-.monaco-editor .ruby-gloss-highlight {
-    background-color: rgba(59, 130, 246, 0.15);
-    border-bottom: 1px dashed rgba(59, 130, 246, 0.7);
+.monaco-editor .ruby-gloss-delimiter {
+    color: var(--color-ruby-gloss-delimiter) !important;
+}
+
+/* JSON preview cursor */
+.json-preview {
+    position: relative;
+}
+
+.json-cursor-overlay {
+    position: absolute;
+    width: 2px;
+    background-color: var(--color-json-cursor);
+    pointer-events: none;
+    z-index: 1;
 }
 
 /* Long text block used in Mistakes / Result question text */

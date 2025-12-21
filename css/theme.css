@@ -94,6 +94,15 @@
     --color-input-placeholder: #94a3b8;
 
     --color-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+
+    --color-json-key: #0451a5;
+    --color-json-string: #a31515;
+    --color-json-number: #098658;
+    --color-json-boolean: #0000ff;
+    --color-json-null: #0000ff;
+    --color-json-punct: #000000;
+    --color-json-cursor: #005fb8;
+    --color-ruby-gloss-delimiter: #005fb8;
 }
 
 html[data-theme="dark"] {
@@ -190,6 +199,15 @@ html[data-theme="dark"] {
     --color-input-placeholder: #94a3b8;
 
     --color-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+
+    --color-json-key: #9cdcfe;
+    --color-json-string: #ce9178;
+    --color-json-number: #b5cea8;
+    --color-json-boolean: #569cd6;
+    --color-json-null: #569cd6;
+    --color-json-punct: #d4d4d4;
+    --color-json-cursor: #aeafad;
+    --color-ruby-gloss-delimiter: #4fc1ff;
 }
 
 html[data-theme="black"] {
@@ -286,6 +304,15 @@ html[data-theme="black"] {
     --color-input-placeholder: #cbd5e1;
 
     --color-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+
+    --color-json-key: #9cdcfe;
+    --color-json-string: #ce9178;
+    --color-json-number: #b5cea8;
+    --color-json-boolean: #569cd6;
+    --color-json-null: #569cd6;
+    --color-json-punct: #d4d4d4;
+    --color-json-cursor: #aeafad;
+    --color-ruby-gloss-delimiter: #4fc1ff;
 }
 
 body {
@@ -376,35 +403,34 @@ body.app-ready .layout-container {
 
 /* JSON preview highlight */
 .json-token-string {
-    color: var(--color-text-success);
+    color: var(--color-json-string);
 }
 
 .json-token-key {
-    color: var(--color-text-accent);
+    color: var(--color-json-key);
 }
 
 .json-token-number {
-    color: var(--color-text-strong);
+    color: var(--color-json-number);
 }
 
 .json-token-boolean {
-    color: var(--color-text-danger);
+    color: var(--color-json-boolean);
 }
 
 .json-token-null {
-    color: var(--color-text-muted);
-    font-style: italic;
+    color: var(--color-json-null);
 }
 
 .json-token-punct {
-    color: var(--color-text-muted);
+    color: var(--color-json-punct);
 }
 
 .json-cursor {
     display: inline-block;
     width: 2px;
     height: 1em;
-    background-color: var(--color-text-accent);
+    background-color: var(--color-json-cursor);
     vertical-align: text-bottom;
 }
 

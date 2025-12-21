@@ -1,10 +1,9 @@
 // js/main.js
-import { initThemeFromStorage, toggleTheme, setSize, initAppHeightObserver } from './theme.js';
+import { initThemeFromStorage, toggleTheme, toggleFont, setSize, initAppHeightObserver } from './theme.js';
 import { dom } from './dom-refs.js';
 import { loadQuizDefinitionFromQuizEntry } from './quiz-model.js';
 import { loadEntrySourceFromUrl, makeNodeKey, normalizeFilePath, stripJsonExtension } from './entry-model.js';
 import {
-    createDefaultEntrySources,
     getEntryUrlFromLocation,
     getQuizNameFromLocation,
     getModeIdFromLocation,
@@ -3448,6 +3447,12 @@ function attachMenuHandlers() {
     if (dom.menuThemeToggle) {
         dom.menuThemeToggle.addEventListener('click', () => {
             toggleTheme();
+        });
+    }
+
+    if (dom.menuFontToggle) {
+        dom.menuFontToggle.addEventListener('click', () => {
+            toggleFont();
         });
     }
 

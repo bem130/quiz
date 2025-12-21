@@ -30,6 +30,7 @@
  * @property {"Gloss"} kind
  * @property {GlossChildSegment[]} base
  * @property {GlossChildSegment[][]} glosses
+ * @property {number[]} [slashPositions]
  * @property {{ start: number, end: number }} [range]
  */
 
@@ -336,6 +337,7 @@ function parseGlossBlock(tokens, start) {
 
     let i = start + 1;
     const parts = [];
+    const slashPositions = [];
     let currentSegments = [];
     let buffer = "";
     let bufferStart = null;
@@ -369,6 +371,7 @@ function parseGlossBlock(tokens, start) {
                     kind: "Gloss",
                     base: parts[0] || [],
                     glosses: parts.slice(1),
+                    slashPositions,
                     range: { start: tokens[start].start, end: t.end }
                 },
                 nextIndex: i + 1
@@ -376,6 +379,7 @@ function parseGlossBlock(tokens, start) {
         }
 
         if (t.kind === 'Symbol' && t.value === '/') {
+            slashPositions.push(t.start);
             flushPart();
             i++;
             continue;

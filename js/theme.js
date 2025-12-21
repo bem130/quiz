@@ -4,6 +4,7 @@ import { dom } from './dom-refs.js';
 
 const THEME_KEY = 'quiz_theme';
 const SCALE_KEY = 'quiz_scale';
+const FONT_KEY = 'quiz_font';
 
 const SCALE_MAP = {
     xxs: 0.5,  // extra-extra small
@@ -61,11 +62,53 @@ function getCurrentTheme() {
     return normalizeTheme(savedTheme, prefersDark);
 }
 
+// フォント管理
+function applyFont(font) {
+    const body = document.body;
+
+    if (font === 'serif') {
+        body.classList.remove('font-sans');
+        body.classList.add('font-serif');
+    } else {
+        body.classList.remove('font-serif');
+        body.classList.add('font-sans');
+    }
+}
+
+function updateFontToggleLabel(font) {
+    if (!dom.menuFontToggle) {
+        return;
+    }
+
+    const label = font === 'serif' ? 'Serif' : 'Sans';
+    dom.menuFontToggle.textContent = label;
+    dom.menuFontToggle.setAttribute('aria-label', `Font: ${label}`);
+}
+
+function getCurrentFont() {
+    const savedFont = localStorage.getItem(FONT_KEY);
+    return savedFont === 'serif' ? 'serif' : 'sans';
+}
+
+export function toggleFont() {
+    const current = getCurrentFont();
+    const next = current === 'sans' ? 'serif' : 'sans';
+
+    localStorage.setItem(FONT_KEY, next);
+    applyFont(next);
+    updateFontToggleLabel(next);
+}
+
 export function initThemeFromStorage() {
     // --- Theme ---
     const mode = getCurrentTheme();
     applyTheme(mode);
     updateThemeToggleLabel(mode);
+
+    // --- Font ---
+    const font = getCurrentFont();
+    applyFont(font);
+    updateFontToggleLabel(font);
 
     // --- Font scale ---
     const savedScale = localStorage.getItem(SCALE_KEY) || 'm';

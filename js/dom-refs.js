@@ -76,6 +76,7 @@ export const dom = {
     menuSizeXLarge: document.getElementById('size-xl-menu'),
     menuSizeXXLarge: document.getElementById('size-xxl-menu'),
     menuThemeToggle: document.getElementById('theme-toggle-menu'),
+    menuFontToggle: document.getElementById('font-toggle-menu'),
     menuFullscreenToggle: document.getElementById('fullscreen-toggle-menu'),
     cacheClearButton: document.getElementById('cache-clear-button'),
     cacheClearStatus: document.getElementById('cache-clear-status'),
