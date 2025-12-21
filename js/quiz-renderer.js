@@ -87,11 +87,16 @@ function createStyledSpan(text, styles = []) {
                 console.warn('[katex] Potential invalid subscript in:', text);
             }
 
-            window.katex.render(text, span, {
+            const isBlock = styles.includes('katex-block');
+            const finalTex = (!isBlock && !text.includes('\\displaystyle'))
+                ? '\\displaystyle ' + text
+                : text;
+
+            window.katex.render(finalTex, span, {
                 throwOnError: false,
                 strict: false,
                 errorColor: '#cc0000',
-                displayMode: styles.includes('katex-block')
+                displayMode: isBlock
             });
             return span;
         } catch (e) {
