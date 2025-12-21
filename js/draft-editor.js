@@ -250,6 +250,8 @@ function updateRubyGlossDecorations() {
     const addMathDecorations = (node, seg) => {
         if (!seg || !seg.range) return;
         const delimLen = seg.display ? 2 : 1;
+        // Base decoration for math content ground color
+        addRangeDecoration(node, seg.range.start, seg.range.end, 'katex-content');
 
         // Highlighting for opening delimiter
         addDelimiterDecoration(node, seg.range.start, 'katex-delimiter');
@@ -329,6 +331,17 @@ function updateRubyGlossDecorations() {
     stringNodes.forEach(node => {
         if (!node || typeof node.value !== 'string') return;
         const segments = parseContentToSegments(node.value);
+
+        // Detect if there's any rich content (Ruby, Gloss, or Math)
+        const hasRichContent = segments.some(seg =>
+            seg.kind === 'Annotated' || seg.kind === 'Gloss' || seg.kind === 'Math'
+        );
+
+        if (hasRichContent) {
+            // Apply rich string base color (white/theme-gray) to override default orange
+            addRangeDecoration(node, 0, node.value.length, 'json-token-string-rich');
+        }
+
         addSegmentsToDecorations(node, segments, null);
     });
     rubyGlossDecorations.set(decorations);

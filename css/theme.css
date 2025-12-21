@@ -106,9 +106,11 @@
     --color-json-escape: #af8500;
     --color-ruby-delimiter: #2563eb;
     --color-gloss-delimiter: #16a34a;
-    --color-katex-delimiter: #7c3aed;
-    --color-katex-command: #c586c0;
-    --color-katex-brace: var(--color-json-punct);
+    --color-katex-delimiter: #c586c0;
+    --color-katex-command: #4fc1ff;
+    --color-katex-brace: #ffd700;
+    --color-katex-symbol: #c586c0;
+    --color-katex-content: #1a1a1a;
 
     /* Bracket nesting colors (Monaco-style) */
     --color-bracket-0: #ffd700;
@@ -233,9 +235,11 @@ html[data-theme="dark"] {
     --color-json-escape: #d7ba7d;
     --color-ruby-delimiter: #93c5fd;
     --color-gloss-delimiter: #86efac;
-    --color-katex-delimiter: #a78bfa;
-    --color-katex-command: #c586c0;
-    --color-katex-brace: var(--color-json-punct);
+    --color-katex-delimiter: #c586c0;
+    --color-katex-command: #4fc1ff;
+    --color-katex-brace: #ffd700;
+    --color-katex-symbol: #c586c0;
+    --color-katex-content: #d4d4d4;
 
     /* Bracket nesting colors (Monaco-style) */
     --color-bracket-0: #ffd700;
@@ -360,9 +364,11 @@ html[data-theme="black"] {
     --color-json-escape: #d7ba7d;
     --color-ruby-delimiter: #93c5fd;
     --color-gloss-delimiter: #86efac;
-    --color-katex-delimiter: #a78bfa;
-    --color-katex-command: #c586c0;
-    --color-katex-brace: var(--color-json-punct);
+    --color-katex-delimiter: #c586c0;
+    --color-katex-command: #4fc1ff;
+    --color-katex-brace: #ffd700;
+    --color-katex-symbol: #c586c0;
+    --color-katex-content: #d4d4d4;
 
     /* Bracket nesting colors (Monaco-style) */
     --color-bracket-0: #ffd700;

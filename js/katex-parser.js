@@ -94,7 +94,7 @@ export function tokenizeKatex(tex, baseOffset = 0) {
         let k = i;
         while (k < len) {
             const c = tex[k];
-            if (c === '\\' || c === '{' || c === '}' || /[_^&]/.test(c)) {
+            if (c === '\\' || c === '%' || BRACE_CHARS.has(c) || SYMBOL_CHARS.has(c)) {
                 break;
             }
             k++;
