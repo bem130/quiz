@@ -1,47 +1,9 @@
 // js/local-draft.js
 import { buildDefinitionFromQuizFile, validateDefinition } from './quiz-model.js';
+import { getDraft, saveDraft, deleteDraft } from './db.js';
 
-export const LOCAL_DRAFT_STORAGE_KEY = 'quizLocalDraft.v3';
 export const LOCAL_DRAFT_ENTRY_URL = '__local_draft__';
-
-function getStorage() {
-    if (typeof window !== 'undefined' && window.localStorage) {
-        return window.localStorage;
-    }
-    if (typeof localStorage !== 'undefined') {
-        return localStorage;
-    }
-    return null;
-}
-
-function readDraftFromStorage() {
-    const storage = getStorage();
-    if (!storage) {
-        return null;
-    }
-    try {
-        const raw = storage.getItem(LOCAL_DRAFT_STORAGE_KEY);
-        if (!raw) {
-            return null;
-        }
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object' || !parsed.definition) {
-            return null;
-        }
-        return parsed;
-    } catch (error) {
-        console.warn('[local-draft] Failed to parse draft from storage:', error);
-        return null;
-    }
-}
-
-function writeDraftToStorage(draft) {
-    const storage = getStorage();
-    if (!storage) {
-        throw new Error('localStorage is not available.');
-    }
-    storage.setItem(LOCAL_DRAFT_STORAGE_KEY, JSON.stringify(draft));
-}
+export const DEFAULT_DRAFT_PATH = 'drafts/local-draft.json';
 
 function deriveMeta(definition) {
     const meta = definition && definition.meta ? definition.meta : {};
@@ -96,50 +58,67 @@ function buildEmptyDraftEntry() {
     };
 }
 
-export function loadLocalDraftEntry() {
-    const stored = readDraftFromStorage();
-    if (!stored || !stored.definition) {
-        return buildEmptyDraftEntry();
-    }
-
+export async function loadLocalDraftEntry() {
     try {
-        validateDefinition(stored.definition);
-        return buildDraftEntryFromDefinition(stored.definition, stored.updatedAt);
+        const storedPath =
+            typeof window !== 'undefined' && window.localStorage
+                ? window.localStorage.getItem('draftEditorPath') || DEFAULT_DRAFT_PATH
+                : DEFAULT_DRAFT_PATH;
+        const stored = await getDraft(storedPath);
+        const rawData = stored ? (stored.data || stored.content) : null;
+        if (!rawData) {
+            return buildEmptyDraftEntry();
+        }
+
+        const parsed = JSON.parse(rawData);
+        const definition = buildDefinitionFromQuizFile(parsed, 'draft', {
+            title: parsed.title || 'Local Draft',
+            description: parsed.description || ''
+        });
+
+        validateDefinition(definition);
+        return buildDraftEntryFromDefinition(definition, stored.updatedAt);
     } catch (error) {
-        console.warn('[local-draft] Stored draft is invalid, ignoring:', error);
+        console.warn('[local-draft] Stored draft is invalid or load failed:', error);
         return buildEmptyDraftEntry();
     }
 }
 
-export function updateLocalDraftFromText(text) {
+export async function updateLocalDraftFromText(text) {
     if (!text || typeof text !== 'string') {
-        throw new Error('クリップボードの内容が空です。');
+        throw new Error('Content is empty.');
     }
 
     let parsed;
     try {
         parsed = JSON.parse(text);
     } catch (error) {
-        throw new Error('JSON形式ではありません。');
+        throw new Error('Invalid JSON format.');
     }
 
     const definition = buildDefinitionFromQuizFile(parsed, 'draft', {
-        title: parsed.title,
-        description: parsed.description
+        title: parsed.title || 'Local Draft',
+        description: parsed.description || ''
     });
 
+    const path =
+        typeof window !== 'undefined' && window.localStorage
+            ? window.localStorage.getItem('draftEditorPath') || DEFAULT_DRAFT_PATH
+            : DEFAULT_DRAFT_PATH;
     const payload = {
-        definition,
+        path,
+        data: text,
         updatedAt: new Date().toISOString()
     };
-    writeDraftToStorage(payload);
+
+    await saveDraft(payload);
     return buildDraftEntryFromDefinition(definition, payload.updatedAt);
 }
 
-export function clearLocalDraft() {
-    const storage = getStorage();
-    if (!storage) {
-        return;
-    }
-    storage.removeItem(LOCAL_DRAFT_STORAGE_KEY);
+export async function clearLocalDraft() {
+    const path =
+        typeof window !== 'undefined' && window.localStorage
+            ? window.localStorage.getItem('draftEditorPath') || DEFAULT_DRAFT_PATH
+            : DEFAULT_DRAFT_PATH;
+    await deleteDraft(path);
 }

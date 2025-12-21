@@ -1,23 +1,10 @@
 import assert from 'node:assert/strict';
 import { test, beforeEach } from 'node:test';
-
-function createMockStorage() {
-    const store = new Map();
-    return {
-        getItem(key) {
-            return store.has(key) ? store.get(key) : null;
-        },
-        setItem(key, value) {
-            store.set(key, String(value));
-        },
-        removeItem(key) {
-            store.delete(key);
-        },
-        clear() {
-            store.clear();
-        }
-    };
-}
+import {
+    clearLocalDraft,
+    loadLocalDraftEntry,
+    updateLocalDraftFromText
+} from '../js/local-draft.js';
 
 function buildValidDraft() {
     return {
@@ -44,36 +31,34 @@ function buildValidDraft() {
     };
 }
 
-beforeEach(() => {
-    globalThis.localStorage = createMockStorage();
+beforeEach(async () => {
+    await clearLocalDraft();
 });
 
 test('updateLocalDraftFromText saves valid clipboard content', async () => {
-    const { loadLocalDraftEntry, updateLocalDraftFromText, LOCAL_DRAFT_ENTRY_URL } = await import('../js/local-draft.js');
     const draftJson = JSON.stringify(buildValidDraft());
 
-    const entry = updateLocalDraftFromText(draftJson);
+    const entry = await updateLocalDraftFromText(draftJson);
+    const { LOCAL_DRAFT_ENTRY_URL } = await import('../js/local-draft.js');
     assert.equal(entry.url, LOCAL_DRAFT_ENTRY_URL);
     assert.equal(entry.hasDraftData, true);
     assert.equal(entry.tree.length, 1);
     assert.ok(entry.tree[0].inlineDefinition);
 
-    const loaded = loadLocalDraftEntry();
+    const loaded = await loadLocalDraftEntry();
     assert.equal(loaded.available, true);
     assert.equal(loaded.tree[0].label, entry.label);
 });
 
 test('loadLocalDraftEntry returns empty entry when storage is missing', async () => {
-    const { loadLocalDraftEntry } = await import('../js/local-draft.js');
-    const loaded = loadLocalDraftEntry();
+    const loaded = await loadLocalDraftEntry();
     assert.equal(loaded.hasDraftData, false);
     assert.equal(loaded.available, false);
 });
 
 test('updateLocalDraftFromText rejects invalid JSON', async () => {
-    const { updateLocalDraftFromText } = await import('../js/local-draft.js');
-    assert.throws(
+    await assert.rejects(
         () => updateLocalDraftFromText('not-json'),
-        /JSON形式ではありません/
+        /Invalid JSON format/
     );
 });

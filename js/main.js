@@ -67,6 +67,7 @@ import {
     updateConceptStatsFromAttempt,
     getConceptStatsMap
 } from './storage/concept-stats.js';
+import { initDraftEditor } from './draft-editor.js';
 
 let entrySources = [];
 let currentEntry = null;
@@ -1676,6 +1677,16 @@ function showScreen(name) {
     // Main
     dom.mainMenu.classList.add('hidden');
     dom.mainQuiz.classList.add('hidden');
+    const editorSection = document.getElementById('main-editor');
+    if (editorSection) editorSection.classList.add('hidden');
+
+    if (name === 'editor') {
+        if (editorSection) editorSection.classList.remove('hidden');
+    } else if (name === 'menu') {
+        dom.mainMenu.classList.remove('hidden');
+    } else if (name === 'quiz') {
+        dom.mainQuiz.classList.remove('hidden');
+    }
     if (dom.questionView) {
         dom.questionView.classList.remove('hidden');
     }
@@ -2800,7 +2811,7 @@ async function loadEntrySources() {
     }
 
     const filtered = sources.filter((entry) => entry.url !== LOCAL_DRAFT_ENTRY_URL);
-    const localDraft = loadLocalDraftEntry();
+    const localDraft = await loadLocalDraftEntry();
     return [localDraft, ...filtered];
 }
 
@@ -2829,9 +2840,9 @@ async function refreshEntryAvailability(baseSources) {
     return results;
 }
 
-function reloadLocalDraftEntry() {
+async function reloadLocalDraftEntry() {
     const withoutLocal = entrySources.filter((entry) => !entry.isLocal);
-    const localDraft = loadLocalDraftEntry();
+    const localDraft = await loadLocalDraftEntry();
     entrySources = [localDraft, ...withoutLocal];
     syncQuizDataUrlsToServiceWorker();
     if (currentEntry && currentEntry.isLocal) {
@@ -3005,7 +3016,7 @@ function renderDraftSummary(definition, entry, engineInstance) {
         const pLabel = document.createElement('strong');
         pLabel.textContent = 'Patterns:';
         pLine.appendChild(pLabel);
-        
+
         const pListDiv = document.createElement('div');
         pListDiv.className = 'pl-2 text-xs text-gray-500';
         d.patterns.forEach(p => {
@@ -3026,7 +3037,7 @@ function renderDraftSummary(definition, entry, engineInstance) {
         const mLabel = document.createElement('strong');
         mLabel.textContent = 'Modes: ';
         mLine.appendChild(mLabel);
-        
+
         d.modes.forEach((m, idx) => {
             if (idx > 0) mLine.appendChild(document.createTextNode(', '));
             const labelText = `${m.id}${m.label ? ` (${m.label})` : ''}`;
@@ -3381,8 +3392,8 @@ async function handleLocalDraftUpdate() {
             throw new Error('クリップボードへアクセスできません。');
         }
         const text = await navigator.clipboard.readText();
-        updateLocalDraftFromText(text);
-        reloadLocalDraftEntry();
+        await updateLocalDraftFromText(text);
+        await reloadLocalDraftEntry();
         renderMenus();
         persistEntrySources();
         const localEntry = entrySources.find((entry) => entry.isLocal) || null;
@@ -3398,8 +3409,8 @@ async function handleLocalDraftDelete() {
     if (!confirm('ローカル下書きを削除しますか？')) {
         return;
     }
-    clearLocalDraft();
-    reloadLocalDraftEntry();
+    await clearLocalDraft();
+    await reloadLocalDraftEntry();
     renderMenus();
     persistEntrySources();
 
@@ -3721,6 +3732,10 @@ function attachMenuHandlers() {
                     await handleLocalDraftUpdate();
                 } else if (action === 'delete') {
                     await handleLocalDraftDelete();
+                } else if (action === 'edit') {
+                    showScreen('editor');
+                    // Initialize editor logic
+                    await initDraftEditor('monaco-container');
                 }
                 return;
             }
@@ -3828,6 +3843,15 @@ function attachMenuHandlers() {
     if (dom.entryAddButton) {
         dom.entryAddButton.addEventListener('click', () => {
             addEntryFromInput();
+        });
+    }
+
+    const editorCloseBtn = document.getElementById('editor-close-button');
+    if (editorCloseBtn) {
+        editorCloseBtn.addEventListener('click', async () => {
+            await reloadLocalDraftEntry();
+            renderMenus();
+            showScreen('menu');
         });
     }
 }

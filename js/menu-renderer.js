@@ -146,6 +146,14 @@ export function renderEntryMenu(entrySources, currentEntry) {
         actionContainer.className = 'absolute top-2 right-2 flex items-center gap-1';
 
         if (isLocal) {
+            const editButton = document.createElement('button');
+            editButton.type = 'button';
+            editButton.dataset.localDraftAction = 'edit';
+            editButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-blue-500 transition-colors';
+            editButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>';
+            editButton.title = 'Edit Draft';
+            actionContainer.appendChild(editButton);
+
             const updateButton = document.createElement('button');
             updateButton.type = 'button';
             updateButton.dataset.localDraftAction = 'update';
@@ -153,6 +161,14 @@ export function renderEntryMenu(entrySources, currentEntry) {
             updateButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>';
             updateButton.title = 'Update from Clipboard';
             actionContainer.appendChild(updateButton);
+
+            // const editButton = document.createElement('button');
+            // editButton.type = 'button';
+            // editButton.dataset.localDraftAction = 'edit';
+            // editButton.className = 'p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-blue-500 transition-colors';
+            // editButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>';
+            // editButton.title = 'Edit Draft';
+            // actionContainer.appendChild(editButton);
 
             if (hasDraftData) {
                 const deleteButton = document.createElement('button');

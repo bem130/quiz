@@ -12,6 +12,7 @@
  * @typedef {Object} SegmentPlain
  * @property {"Plain"} kind
  * @property {string} text
+ * @property {{ start: number, end: number }} [range]
  */
 
 /**
@@ -19,6 +20,9 @@
  * @property {"Annotated"} kind
  * @property {InlineSegment[]} base
  * @property {string} reading
+ * @property {{ start: number, end: number }} [range]
+ * @property {{ start: number, end: number }} [baseRange]
+ * @property {{ start: number, end: number }} [rubyRange]
  */
 
 /**
@@ -26,6 +30,7 @@
  * @property {"Gloss"} kind
  * @property {GlossChildSegment[]} base
  * @property {GlossChildSegment[][]} glosses
+ * @property {{ start: number, end: number }} [range]
  */
 
 /**
@@ -33,6 +38,7 @@
  * @property {"Math"} kind
  * @property {string} tex
  * @property {boolean} display
+ * @property {{ start: number, end: number }} [range]
  */
 
 /**
@@ -91,22 +97,22 @@ function tokenize(input) {
                 const next = input[i + 1];
                 // If next is special or backslash, treat as literal text
                 if ([...SPECIAL_CHARS, '\\'].includes(next)) {
-                    tokens.push({ kind: "Text", value: next });
+                    tokens.push({ kind: "Text", value: next, start: i, end: i + 2 });
                     i += 2;
                 } else {
                     // Backslash followed by normal char -> keep backslash?
                     // Or just treat backslash as literal?
                     // Usually \a -> \a if a is not special.
-                    tokens.push({ kind: "Text", value: '\\' });
+                    tokens.push({ kind: "Text", value: '\\', start: i, end: i + 1 });
                     i++;
                 }
             } else {
                 // Trailing backslash
-                tokens.push({ kind: "Text", value: '\\' });
+                tokens.push({ kind: "Text", value: '\\', start: i, end: i + 1 });
                 i++;
             }
         } else if (SPECIAL_CHARS.includes(char)) {
-            tokens.push({ kind: "Symbol", value: char });
+            tokens.push({ kind: "Symbol", value: char, start: i, end: i + 1 });
             i++;
         } else {
             // Accumulate normal chars
@@ -118,7 +124,7 @@ function tokenize(input) {
                 }
                 j++;
             }
-            tokens.push({ kind: "Text", value: input.slice(i, j) });
+            tokens.push({ kind: "Text", value: input.slice(i, j), start: i, end: j });
             i = j;
         }
     }
@@ -132,16 +138,25 @@ function tokenize(input) {
  * @param {string} text
  * @returns {InlineSegment[]}
  */
-function splitInlineMathSegments(text) {
+function splitInlineMathSegments(text, baseOffset = 0) {
     const segments = [];
     let i = 0;
     const len = text.length;
     let plainBuffer = "";
+    let plainStart = 0;
 
     const flushPlain = () => {
         if (plainBuffer.length > 0) {
-            segments.push({ kind: "Plain", text: plainBuffer });
+            segments.push({
+                kind: "Plain",
+                text: plainBuffer,
+                range: {
+                    start: baseOffset + plainStart,
+                    end: baseOffset + plainStart + plainBuffer.length
+                }
+            });
             plainBuffer = "";
+            plainStart = 0;
         }
     };
 
@@ -165,7 +180,11 @@ function splitInlineMathSegments(text) {
                 segments.push({
                     kind: "Math",
                     tex: text.slice(i + 2, end),
-                    display: true
+                    display: true,
+                    range: {
+                        start: baseOffset + i,
+                        end: baseOffset + end + 2
+                    }
                 });
                 i = end + 2;
                 continue;
@@ -183,13 +202,20 @@ function splitInlineMathSegments(text) {
                 segments.push({
                     kind: "Math",
                     tex: text.slice(i + 1, end),
-                    display: false
+                    display: false,
+                    range: {
+                        start: baseOffset + i,
+                        end: baseOffset + end + 1
+                    }
                 });
                 i = end + 1;
                 continue;
             }
         }
 
+        if (!plainBuffer.length) {
+            plainStart = i;
+        }
         plainBuffer += text[i];
         i++;
     }
@@ -209,6 +235,9 @@ function appendInlineSegments(target, incoming) {
             const last = target[target.length - 1];
             if (last && last.kind === 'Plain') {
                 last.text += seg.text;
+                if (last.range && seg.range) {
+                    last.range.end = seg.range.end;
+                }
             } else {
                 target.push(seg);
             }
@@ -234,6 +263,10 @@ function parseRubyBlock(tokens, start) {
     let base = "";
     let reading = "";
     let foundSlash = false;
+    let baseStart = null;
+    let baseEnd = null;
+    let rubyStart = null;
+    let rubyEnd = null;
 
     while (i < tokens.length) {
         const t = tokens[i];
@@ -245,7 +278,14 @@ function parseRubyBlock(tokens, start) {
                 return null;
             }
             return {
-                segment: { kind: "Annotated", base: splitInlineMathSegments(base), reading },
+                segment: {
+                    kind: "Annotated",
+                    base: splitInlineMathSegments(base, baseStart == null ? tokens[start].end : baseStart),
+                    reading,
+                    range: { start: tokens[start].start, end: t.end },
+                    baseRange: baseStart != null ? { start: baseStart, end: baseEnd } : null,
+                    rubyRange: rubyStart != null ? { start: rubyStart, end: rubyEnd } : null
+                },
                 nextIndex: i + 1
             };
         } else if (t.kind === 'Symbol' && t.value === '/') {
@@ -263,8 +303,16 @@ function parseRubyBlock(tokens, start) {
             // Text or other symbols (like { } inside ruby?)
             // Treat as content
             if (foundSlash) {
+                if (rubyStart == null) {
+                    rubyStart = t.start;
+                }
+                rubyEnd = t.end;
                 reading += t.value;
             } else {
+                if (baseStart == null) {
+                    baseStart = t.start;
+                }
+                baseEnd = t.end;
                 base += t.value;
             }
             i++;
@@ -290,12 +338,19 @@ function parseGlossBlock(tokens, start) {
     const parts = [];
     let currentSegments = [];
     let buffer = "";
+    let bufferStart = null;
+    let bufferEnd = null;
 
     const flushBuffer = () => {
         if (!buffer) return;
-        const inlineSegments = splitInlineMathSegments(buffer);
+        const inlineSegments = splitInlineMathSegments(
+            buffer,
+            bufferStart == null ? 0 : bufferStart
+        );
         appendInlineSegments(currentSegments, inlineSegments);
         buffer = "";
+        bufferStart = null;
+        bufferEnd = null;
     };
 
     const flushPart = () => {
@@ -313,7 +368,8 @@ function parseGlossBlock(tokens, start) {
                 segment: {
                     kind: "Gloss",
                     base: parts[0] || [],
-                    glosses: parts.slice(1)
+                    glosses: parts.slice(1),
+                    range: { start: tokens[start].start, end: t.end }
                 },
                 nextIndex: i + 1
             };
@@ -337,6 +393,10 @@ function parseGlossBlock(tokens, start) {
         }
 
         // Plain text or unparsed symbols in gloss part
+        if (bufferStart == null) {
+            bufferStart = t.start;
+        }
+        bufferEnd = t.end;
         buffer += t.value;
         i++;
     }
@@ -351,8 +411,14 @@ function parseGlossBlock(tokens, start) {
  * @param {string} line
  * @returns {Segment[]}
  */
-function parseLineToSegments(line) {
+function parseLineToSegments(line, baseOffset = 0) {
     const tokens = tokenize(line);
+    if (baseOffset) {
+        tokens.forEach((token) => {
+            token.start += baseOffset;
+            token.end += baseOffset;
+        });
+    }
     const segments = [];
     let i = 0;
 
@@ -381,8 +447,15 @@ function parseLineToSegments(line) {
         const last = segments[segments.length - 1];
         if (last && last.kind === "Plain") {
             last.text += t.value;
+            if (last.range) {
+                last.range.end = t.end;
+            }
         } else {
-            segments.push({ kind: "Plain", text: t.value });
+            segments.push({
+                kind: "Plain",
+                text: t.value,
+                range: { start: t.start, end: t.end }
+            });
         }
         i++;
     }
@@ -473,13 +546,20 @@ function splitMathAndPlain(src) {
     let i = 0;
     const len = src.length;
     let plainBuffer = "";
+    let plainStart = 0;
     let bracketDepth = 0;
     let braceDepth = 0;
 
     const flushPlain = () => {
         if (plainBuffer.length > 0) {
-            parts.push({ kind: "plain", text: plainBuffer });
+            parts.push({
+                kind: "plain",
+                text: plainBuffer,
+                start: plainStart,
+                end: plainStart + plainBuffer.length
+            });
             plainBuffer = "";
+            plainStart = 0;
         }
     };
 
@@ -529,7 +609,13 @@ function splitMathAndPlain(src) {
                 const end = src.indexOf('$$', i + 2);
                 if (end !== -1) {
                     flushPlain();
-                    parts.push({ kind: "math", tex: src.slice(i + 2, end), display: true });
+                    parts.push({
+                        kind: "math",
+                        tex: src.slice(i + 2, end),
+                        display: true,
+                        start: i,
+                        end: end + 2
+                    });
                     i = end + 2;
                     continue;
                 }
@@ -540,13 +626,22 @@ function splitMathAndPlain(src) {
                 const end = src.indexOf('$', i + 1);
                 if (end !== -1) {
                     flushPlain();
-                    parts.push({ kind: "math", tex: src.slice(i + 1, end), display: false });
+                    parts.push({
+                        kind: "math",
+                        tex: src.slice(i + 1, end),
+                        display: false,
+                        start: i,
+                        end: end + 1
+                    });
                     i = end + 1;
                     continue;
                 }
             }
         }
 
+        if (!plainBuffer.length) {
+            plainStart = i;
+        }
         plainBuffer += ch;
         i++;
     }
@@ -566,10 +661,15 @@ export function parseContentToSegments(line) {
 
     for (const part of parts) {
         if (part.kind === 'math') {
-            segments.push({ kind: "Math", tex: part.tex, display: part.display });
+            segments.push({
+                kind: "Math",
+                tex: part.tex,
+                display: part.display,
+                range: { start: part.start, end: part.end }
+            });
         } else {
             // Plain text part -> parse for Ruby/Gloss
-            const subSegments = parseLineToSegments(part.text);
+            const subSegments = parseLineToSegments(part.text, part.start);
             segments.push(...subSegments);
         }
     }
