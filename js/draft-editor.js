@@ -214,15 +214,6 @@ function updateRenderedPreview() {
         return;
     }
 
-    if (lastParseErrors && lastParseErrors.length) {
-        renderedContainer.innerHTML = '';
-        const note = document.createElement('div');
-        note.className = 'text-xs app-text-danger';
-        note.textContent = 'Fix JSON syntax to preview questions.';
-        renderedContainer.appendChild(note);
-        return;
-    }
-
     if (!lastParsedAst || !lastParsedAst.value) {
         renderedContainer.innerHTML = '';
         return;
@@ -236,6 +227,12 @@ function updateRenderedPreview() {
     }
 
     renderedContainer.innerHTML = '';
+    if (lastParseErrors && lastParseErrors.length) {
+        const note = document.createElement('div');
+        note.className = 'text-xs app-text-danger';
+        note.textContent = 'Preview is based on recovered JSON and may be incomplete.';
+        renderedContainer.appendChild(note);
+    }
     renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
     lastRenderedSnapshot = { text: lastSourceText, rowIndex: activeRowIndex };
 }
@@ -308,15 +305,20 @@ function handleCursorChange(offset) {
     }
     if (!lastParsedAst || !renderedContainer) return;
     if (lastParsedText !== lastSourceText) return;
+    if (!lastParsedAst.value) return;
     const nextRowIndex = findTableRowIndexForOffset(lastParsedAst, activeCursorOffset);
     if (nextRowIndex !== activeRowIndex) {
         activeRowIndex = nextRowIndex;
         if (activePreviewTab !== 'rendered') return;
-        if (!lastParseErrors || lastParseErrors.length === 0) {
-            renderedContainer.innerHTML = '';
-            renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
-            lastRenderedSnapshot = { text: lastSourceText, rowIndex: activeRowIndex };
+        renderedContainer.innerHTML = '';
+        if (lastParseErrors && lastParseErrors.length) {
+            const note = document.createElement('div');
+            note.className = 'text-xs app-text-danger';
+            note.textContent = 'Preview is based on recovered JSON and may be incomplete.';
+            renderedContainer.appendChild(note);
         }
+        renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
+        lastRenderedSnapshot = { text: lastSourceText, rowIndex: activeRowIndex };
     }
 }
 
