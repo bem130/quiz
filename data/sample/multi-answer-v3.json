@@ -1,12 +1,12 @@
 {
-  "title": "複数正答の4択サンプル v3",
-  "description": "複数の正答候補から1つを選ぶ問題の例。",
+  "title": "[複数/ふくすう]{[正答/せいとう]/correct answer}の4[択/たく]サンプル v3",
+  "description": "[複数/ふくすう]の{[正答/せいとう]/correct answer}[候補/こうほ]から1つを[選/えら]ぶ[問題/もんだい]の[例/れい]。",
   "version": 3,
   "table": [
     {
       "id": "quad_root_6",
       "conditionTokens": [
-        { "type": "content", "value": "$x^2 - 5x + 6 = 0$ の解" }
+        { "type": "content", "value": "$x^2 - 5x + 6 = 0$ の{[解/かい]/solution}" }
       ],
       "answersTokens": [
         [{ "type": "content", "value": "2" }],
@@ -16,7 +16,7 @@
     {
       "id": "square_1",
       "conditionTokens": [
-        { "type": "content", "value": "$x^2 = 1$ の解" }
+        { "type": "content", "value": "$x^2 = 1$ の{[解/かい]/solution}" }
       ],
       "answersTokens": [
         [{ "type": "content", "value": "-1" }],
@@ -26,7 +26,7 @@
     {
       "id": "square_16",
       "conditionTokens": [
-        { "type": "content", "value": "$x^2 = 16$ の解" }
+        { "type": "content", "value": "$x^2 = 16$ の{[解/かい]/solution}" }
       ],
       "answersTokens": [
         [{ "type": "content", "value": "-4" }],
@@ -37,9 +37,9 @@
   "patterns": [
     {
       "id": "p_pick_one_from_set",
-      "label": "条件に当てはまるものの1つを選ぶ",
+      "label": "{[条件/じょうけん]/condition}に[当/あ]てはまるものの1つを[選/えら]ぶ",
       "tokens": [
-        { "type": "content", "value": "次の条件に当てはまるものの1つを選べ。" },
+        { "type": "content", "value": "[次/つぎ]の{[条件/じょうけん]/condition}に[当/あ]てはまるものの1つを[選/えら]べ。" },
         { "type": "br" },
         { "type": "key", "field": "conditionTokens" },
         { "type": "br" },
@@ -55,7 +55,7 @@
           "id": "t_answer_set",
           "when": "after_answer",
           "tokens": [
-            { "type": "content", "value": "この条件に当てはまる集合：" },
+            { "type": "content", "value": "この{[条件/じょうけん]/condition}に[当/あ]てはまる{[集合/しゅうごう]/set}：" },
             {
               "type": "listkey",
               "field": "answersTokens",

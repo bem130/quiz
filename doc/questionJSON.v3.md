@@ -209,7 +209,7 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 ```
 
 * `answersTokens`: **正答集合**（Token[][]）
-* 正答が 1 つだけの行は `answerTokens: Token[]` を使い、`key` で参照します。
+* 正答が 1 つだけの行は `Token[]` または文字列のフィールドを用意し、`key` で参照します。
 * 複数正答は `answersTokens` を使い、`listkey` で参照します。
 
 #### listkey の表示（区切りは pattern 側で指定）

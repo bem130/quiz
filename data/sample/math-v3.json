@@ -1,12 +1,12 @@
 {
-  "title": "高校数学ミニクイズ v3",
-  "description": "基本用語と公式の対応を確認するためのサンプル問題セット。",
+  "title": "{[高校/こうこう][数学/すうがく]/high school mathematics}ミニクイズ v3",
+  "description": "[基本/きほん]{[用語/ようご]/term}と{[公式/こうしき]/formula}の[対応/たいおう]を[確認/かくにん]するためのサンプル[問題/もんだい]セット。",
   "version": 3,
   "table": [
     {
       "id": "pyt",
-      "termJa": "ピタゴラスの定理",
-      "definition": "直角三角形で、斜辺の長さの二乗は他の二辺の二乗和に等しい。",
+      "termJa": "{ピタゴラスの[定理/ていり]/Pythagorean theorem/Πυθαγόρειον θεώρημα}",
+      "definition": "{[直角/ちょっかく][三角形/さんかくけい]/right triangle}で、{[斜辺/しゃへん]/hypotenuse}の[長/なが]さの{[二乗/にじょう]/square}は[他/ほか]の[二辺/にへん]の{[二乗/にじょう]/square}{[和/わ]/sum}に[等/ひと]しい。",
       "formulaTokens": [
         {
           "type": "content",
@@ -16,19 +16,19 @@
     },
     {
       "id": "diff",
-      "termJa": "微分係数",
-      "definition": "関数の変化率の極限で定義される値。",
+      "termJa": "{[微分/びぶん][係数/けいすう]/derivative}",
+      "definition": "{[関数/かんすう]/function}の{[変化率/へんかりつ]/rate of change}の{[極限/きょくげん]/limit}で[定義/ていぎ]される[値/あたい]。",
       "formulaTokens": [
         {
           "type": "content",
-          "value": "$f'(a) = \\\\lim_{h\\\\to 0} (f(a+h) - f(a)) / h$"
+          "value": "$f'(a) = \\lim_{h\\to 0} (f(a+h) - f(a)) / h$"
         }
       ]
     },
     {
       "id": "sum",
-      "termJa": "等差数列の和",
-      "definition": "等差数列の初項から n 項までの和。",
+      "termJa": "{[等差/とうさ][数列/すうれつ]の[和/わ]/arithmetic series sum}",
+      "definition": "{[等差/とうさ][数列/すうれつ]/arithmetic sequence}の{[初項/しょこう]/first term}から n [項/こう]までの{[和/わ]/sum}。",
       "formulaTokens": [
         {
           "type": "content",
@@ -38,12 +38,12 @@
     },
     {
       "id": "area",
-      "termJa": "円の面積",
-      "definition": "半径 r の円の面積。",
+      "termJa": "{[円/えん]の[面積/めんせき]/circle area}",
+      "definition": "{[半径/はんけい]/radius} r の[円/えん]の{[面積/めんせき]/area}。",
       "formulaTokens": [
         {
           "type": "content",
-          "value": "$S = \\\\pi r^2$"
+          "value": "$S = \\pi r^2$"
         }
       ]
     }
@@ -51,9 +51,9 @@
   "patterns": [
     {
       "id": "p_def_to_term",
-      "label": "定義 → 用語",
+      "label": "{[定義/ていぎ]/definition} → {[用語/ようご]/term}",
       "tokens": [
-        { "type": "text", "value": "次の定義に当てはまる用語は " },
+        { "type": "text", "value": "[次/つぎ]の{[定義/ていぎ]/definition}に[当/あ]てはまる{[用語/ようご]/term}は " },
         {
           "type": "hide",
           "id": "h_term",
@@ -69,11 +69,11 @@
     },
     {
       "id": "p_term_to_formula",
-      "label": "用語 → 公式",
+      "label": "{[用語/ようご]/term} → {[公式/こうしき]/formula}",
       "tokens": [
-        { "type": "text", "value": "用語 " },
+        { "type": "text", "value": "{[用語/ようご]/term} " },
         { "type": "key", "field": "termJa" },
-        { "type": "text", "value": " の公式は " },
+        { "type": "text", "value": " の{[公式/こうしき]/formula}は " },
         {
           "type": "hide",
           "id": "h_formula",

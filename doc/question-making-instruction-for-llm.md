@@ -161,7 +161,7 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
 同じ条件に対して **複数の正答がある**場合は、1 行に **正答集合**を持たせます  
 この行の正答は指定せず、集合から 1 つが選ばれる想定です
 
-正答が 1 つだけの行は `answerTokens: Token[]` を使い、`key` で参照します
+正答が 1 つだけの行は `Token[]` または文字列のフィールドを用意し、`key` で参照します
 
 - `answersTokens`: 正答集合（Token[][]）
 - hide は `listkey` で `answersTokens` を参照します
