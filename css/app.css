@@ -325,6 +325,38 @@ ruby rt {
     font-size: 0.5em;
 }
 
+/* Gloss Layout (Stacked Base and Alts) */
+.gloss {
+    display: inline-grid;
+    grid-template-areas: 
+        "base"
+        "alts";
+    vertical-align: top;
+    text-align: center;
+    line-height: 1.1;
+    margin: 0 0.1em;
+}
+
+.gloss ruby {
+    grid-area: base;
+    display: inline-block;
+}
+
+.gloss-alts {
+    grid-area: alts;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.25em;
+    font-size: 0.5em;
+    opacity: 0.8;
+}
+
+.gloss-alt {
+    display: inline-block;
+    white-space: nowrap;
+}
+
 .chem-inline-viewer {
     display: inline-block;
     vertical-align: baseline;

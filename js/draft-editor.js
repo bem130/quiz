@@ -119,12 +119,25 @@ function updatePreview(jsonText) {
         lastSourceText = jsonText;
         lastSourceMapCache = new Map();
         lastParsedAst = parseJsonWithLoc(jsonText);
+        const parseErrors = lastParsedAst && Array.isArray(lastParsedAst.errors) ? lastParsedAst.errors : [];
         activeCursorOffset = getCurrentCursorOffset();
         activeRowIndex = findTableRowIndexForOffset(lastParsedAst, activeCursorOffset);
         if (activePreviewTab === 'json') {
             renderJsonPreview(jsonText, jsonContainer, activeCursorOffset);
         } else {
             jsonPreviewState = null;
+        }
+
+        if (parseErrors.length) {
+            renderedContainer.innerHTML = '';
+            const note = document.createElement('div');
+            note.className = 'text-xs app-text-danger';
+            note.textContent = 'Fix JSON syntax to preview questions.';
+            renderedContainer.appendChild(note);
+            setDraftStatus(`Syntax Error: ${parseErrors[0].message}`, 'app-text-danger');
+            setPreviewTab(activePreviewTab);
+            updateRubyGlossDecorations();
+            return;
         }
 
         const definition = buildDefinitionFromQuizFile(lastParsedAst.value, 'draft', {
@@ -143,7 +156,7 @@ function updatePreview(jsonText) {
         }
         updateRubyGlossDecorations();
     } catch (e) {
-        // Parse error
+        // Parse error (unexpected)
         renderedContainer.innerHTML = '';
         lastParsedAst = null;
         if (activePreviewTab === 'json') {
@@ -206,12 +219,10 @@ function updateRubyGlossDecorations() {
     if (!editor || !rubyGlossDecorations) return;
     const model = editor.getModel();
     if (!model) return;
-    if (!lastParsedAst) {
-        rubyGlossDecorations.set([]);
-        return;
-    }
     const decorations = [];
-    const stringNodes = collectStringNodes(lastParsedAst, []);
+    const stringNodes = lastParsedAst
+        ? collectStringNodes(lastParsedAst, [])
+        : scanStringNodesFromRaw(lastSourceText || '');
 
     const addDelimiterDecoration = (node, index, className) => {
         if (!node || index == null) return;
@@ -385,6 +396,113 @@ function collectStringNodesWithMeta(node, list = []) {
         });
     }
     return list;
+}
+
+function decodeJsonStringContent(rawText) {
+    let decoded = '';
+    const map = [];
+    let rawIndex = 0;
+    let decodedIndex = 0;
+
+    while (rawIndex < rawText.length) {
+        const ch = rawText[rawIndex];
+        if (ch === '\\') {
+            const next = rawText[rawIndex + 1];
+            if (next === 'u' && rawIndex + 5 < rawText.length) {
+                const hex = rawText.slice(rawIndex + 2, rawIndex + 6);
+                if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+                    decoded += String.fromCharCode(parseInt(hex, 16));
+                    map[decodedIndex] = rawIndex;
+                    decodedIndex += 1;
+                    rawIndex += 6;
+                    continue;
+                }
+            }
+            let decodedChar = next;
+            if (next === 'n') decodedChar = '\n';
+            else if (next === 'r') decodedChar = '\r';
+            else if (next === 't') decodedChar = '\t';
+            else if (next === 'b') decodedChar = '\b';
+            else if (next === 'f') decodedChar = '\f';
+            else if (next === '"') decodedChar = '"';
+            else if (next === '\\') decodedChar = '\\';
+            else if (next === '/') decodedChar = '/';
+
+            if (next != null) {
+                decoded += decodedChar;
+                map[decodedIndex] = rawIndex;
+                decodedIndex += 1;
+                rawIndex += 2;
+                continue;
+            }
+        }
+
+        decoded += ch;
+        map[decodedIndex] = rawIndex;
+        decodedIndex += 1;
+        rawIndex += 1;
+    }
+
+    return { decoded, map };
+}
+
+function scanStringNodesFromRaw(rawText) {
+    const nodes = [];
+    if (!rawText) return nodes;
+    let inString = false;
+    let escape = false;
+    let start = 0;
+
+    for (let i = 0; i < rawText.length; i += 1) {
+        const ch = rawText[i];
+        if (inString) {
+            if (escape) {
+                escape = false;
+                continue;
+            }
+            if (ch === '\\') {
+                escape = true;
+                continue;
+            }
+            if (ch === '"') {
+                const content = rawText.slice(start + 1, i);
+                const { decoded, map } = decodeJsonStringContent(content);
+                const node = {
+                    type: 'String',
+                    value: decoded,
+                    loc: {
+                        start: { offset: start },
+                        end: { offset: i + 1 }
+                    }
+                };
+                node.__rawMap = map;
+                nodes.push(node);
+                inString = false;
+            }
+            continue;
+        }
+        if (ch === '"') {
+            inString = true;
+            start = i;
+        }
+    }
+
+    if (inString && start < rawText.length - 1) {
+        const content = rawText.slice(start + 1);
+        const { decoded, map } = decodeJsonStringContent(content);
+        const node = {
+            type: 'String',
+            value: decoded,
+            loc: {
+                start: { offset: start },
+                end: { offset: rawText.length }
+            }
+        };
+        node.__rawMap = map;
+        nodes.push(node);
+    }
+
+    return nodes;
 }
 
 function appendPlainText(parent, text) {
@@ -727,6 +845,9 @@ function attachJump(element, offset) {
 
 function getStringOffsetMap(node) {
     if (!node || node.type !== 'String' || !node.loc) return null;
+    if (node.__rawMap) {
+        return node.__rawMap;
+    }
     const key = `${node.loc.start.offset}:${node.loc.end.offset}`;
     if (lastSourceMapCache.has(key)) {
         return lastSourceMapCache.get(key);
@@ -743,10 +864,13 @@ function getStringOffsetMap(node) {
         if (ch === '\\') {
             const next = raw[rawIndex + 1];
             if (next === 'u') {
-                map[decodedIndex] = rawIndex;
-                rawIndex += 6;
-                decodedIndex += 1;
-                continue;
+                const hex = raw.slice(rawIndex + 2, rawIndex + 6);
+                if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+                    map[decodedIndex] = rawIndex;
+                    rawIndex += 6;
+                    decodedIndex += 1;
+                    continue;
+                }
             }
             if (next) {
                 map[decodedIndex] = rawIndex;
