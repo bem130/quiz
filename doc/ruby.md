@@ -1,5 +1,5 @@
 ## 適用範囲（v3）
-ruby 記法と gloss 記法は、title / description / label / text / content など **表示される文字列すべて**に使用できます  
+ruby 記法と gloss 記法は、title / description / label / text など **表示される文字列すべて**に使用できます  
 識別子（id / type / field など）には使用しないでください  
 
 ## 日本語ふりがな

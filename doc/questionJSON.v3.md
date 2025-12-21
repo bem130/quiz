@@ -126,11 +126,11 @@ v3 では、**UI 表示用の文字列フィールドのすべて**で ruby 記�
 
   * `title`, `description`
   * `label`（Pattern など）
-  * Token の `text.value` や `content.value`
+  * 文字列トークンや Token の文字列値
 
 * 逆に、`id` や `type`、`field` など **識別子・キー用途の文字列**には使いません。
-* 記法は `content` の Gloss / Ruby と同一です（詳細は `doc/ruby.md` を参照）。
-* KaTeX の数式記法は **`content` トークンのみ**でサポートします。
+* 記法の詳細は `doc/ruby.md` を参照してください。
+* KaTeX の数式記法は **文字列トークン**（`$...$` / `$$...$$`）および `katex` トークンでサポートします。
 
 #### 処理
 
@@ -215,7 +215,7 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 #### listkey の表示（区切りは pattern 側で指定）
 
 ```jsonc
-{ "type": "listkey", "field": "answersTokens", "separatorTokens": [{ "type": "text", "value": "、" }] }
+{ "type": "listkey", "field": "answersTokens", "separatorTokens": ["、"] }
 ```
 
 * `separatorTokens` に「、」「・」などを指定して連結します。
@@ -294,12 +294,10 @@ table 行に **選択肢グループ用のフィールド**を追加します。
     "id": "t_abbr_correct",
     "when": "after_correct",
     "tokens": [
-      { "type": "text", "value": "🎉 正解！豆知識：" },
-      { "type": "br" },
+      "🎉 正解！豆知識：\n",
       { "type": "key",  "field": "desc" },
-      { "type": "br" },
-      { "type": "text", "value": "語源メモ：" },
-      { "type": "br" },
+      "\n\n",
+      "語源メモ：\n",
       { "type": "key",  "field": "mnemonic" }
     ]
   }
@@ -335,88 +333,60 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 
 #### 記述
 
-すべての Token は次の基本構造を持ちます：
+Token は **文字列**または次のオブジェクト形式です：
 
 ```jsonc
 {
-  "type": "text" | "content" | "key" | "listkey" | "ruby" | "katex" | "smiles" | "hide" | "br",
+  "type": "key" | "listkey" | "ruby" | "katex" | "smiles" | "hide" | "br" | "hr",
   "styles": ["bold", "italic", "sans", "serif"] // 任意
 }
 ```
 
 #### 処理
 
-* `type` に応じて描画ロジックを切り替えます。
+* 文字列トークンは旧 `content` と同等に扱います。
+* オブジェクトトークンは `type` に応じて描画ロジックを切り替えます。
 * `styles` はフォントスタイルなどの装飾ヒントとして使用します。
 * v3 では上記 4 種類のスタイル名のみを正式サポートとし、それ以外の値は無視して構いません（将来拡張用）。
 
 ---
 
-### 5.2 `text` / `br`
+### 5.2 文字列トークン
 
 #### 記述
 
 ```jsonc
-{ "type": "text", "value": "略号 " }
-{ "type": "br" }
+"略号 "
+"[日本語/にほんご]と{英語/English}"
+"$a^2 + b^2 = c^2$"
 ```
 
-* `text` は固定文字列（Ruby / Gloss 記法を含めてよい）
-* `br` は改行
+* 文字列は Ruby / Gloss / KaTeX 記法を含めてよい
+* 文字列中の改行（`\n`）は `<br>` 相当として表示します
 
 #### 処理
 
-* `text.value` は Ruby / Gloss を解釈して表示（v3 では全テキストで有効）
-* `br` は `<br>` 相当の改行として表示
+* 文字列を解析し、Ruby タグや KaTeX レンダリングを適用して表示します。
+* 旧 `content` と同様に、柔軟な表現が可能です。
 
 ---
 
-### 5.3 `content`（リッチテキスト）
+### 5.3 `br` / `hr`
 
 #### 記述
 
 ```jsonc
-{
-  "type": "content",
-  "value": "[数学/すうがく]B：[等比数列/とうひすうれつ]の[漸化式/ぜんかしき]"
-}
+{ "type": "br" }
+{ "type": "hr" }
 ```
 
-* `value`: 特殊な記法を含む文字列
-* `block`: `true` の場合、全体を `<div>` で囲み、ブロック要素として扱います（省略時は `false` = インライン）。
-* v3 では Ruby / Gloss 記法は `text` 系の文字列でも使えますが、**数式やブロック表示が必要な場合は `content` を使用**します。
-
-#### 記法ルール
-
-1. **Gloss（用語/併記）**: `{Base/Alt1/Alt2}` の形式で記述します。
-
-   * ベース部分（Base）には Ruby 記法を含めることができます。
-   * 併記部分（Alt1/Alt2...）は省略可能で、複数言語の併記もできます。
-   * 併記部分はベースの下に 1 行で並べ、長い場合は折り返します。
-
-   * 例: `{[漸化式/ぜんかしき]/recurrence relation}`
-
-     → `<span class="gloss"><ruby><rb>漸化式</rb><rt>ぜんかしき</rt></ruby><span class="gloss-alts"><span class="gloss-alt">recurrence relation</span></span></span>`
-
-   * 例: `{専門用語}` → `<span class="gloss"><ruby><rb>専門用語</rb><rt></rt></ruby></span>`
-
-   * 併記部分でも Ruby 記法を使用できます（例: `{[台湾/たいわん]/[台灣/Taiwan]}`）。
-
-   * `{` `}` `/` を文字として使いたい場合は `\` でエスケープします（例: `\{`, `\}`, `\/`）。
-
-2. **Ruby（ルビ）**: `[Base/Reading]` の形式で記述します。
-   * 例: `[漢字/かんじ]` → `<ruby><rb>漢字</rb><rt>かんじ</rt></ruby>`
-   * `[` `]` `/` を文字として使いたい場合は `\` でエスケープします（例: `\[`, `\]`, `\/`）。
-
-3. **KaTeX（数式）**: `$` で囲むとインライン数式、`$$` で囲むとブロック数式になります。
-   * 例: `$a_n = a_1 r^{n-1}$` → インライン数式
-   * 例: `$$ \sum_{k=1}^n k $$` → ブロック数式
+* `br` は改行
+* `hr` は区切り線（水平線）
 
 #### 処理
 
-* パーサーが `value` を解析し、Ruby タグや KaTeX レンダリングを適用して表示します。
-* `text` トークンよりも柔軟な表現が可能です。
-* `block: true` が指定された場合、生成される HTML 要素が `div` となり、スタイル適用時にブロックとして振る舞います。
+* `br` は `<br>` 相当の改行として表示します。
+* `hr` は `<hr>` 相当の区切り線として表示します。
 
 ---
 
@@ -453,12 +423,13 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 {
   "type": "listkey",
   "field": "answersTokens",
-  "separatorTokens": [{ "type": "text", "value": "、" }]
+  "separatorTokens": ["、"]
 }
 ```
 
 * `field`: `Token[][]` を格納した table フィールド名
 * `separatorTokens`: 要素どうしを連結する区切り Token 配列（省略可）
+  * 文字列トークンを使うのが簡潔です。
 
 #### 処理
 

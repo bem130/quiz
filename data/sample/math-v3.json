@@ -7,45 +7,25 @@
       "id": "pyt",
       "termJa": "{ピタゴラスの[定理/ていり]/Pythagorean theorem/Πυθαγόρειον θεώρημα}",
       "definition": "{[直角/ちょっかく][三角形/さんかくけい]/right triangle}で、{[斜辺/しゃへん]/hypotenuse}の[長/なが]さの{[二乗/にじょう]/square}は[他/ほか]の[二辺/にへん]の{[二乗/にじょう]/square}{[和/わ]/sum}に[等/ひと]しい。",
-      "formulaTokens": [
-        {
-          "type": "content",
-          "value": "$a^2 + b^2 = c^2$"
-        }
-      ]
+      "formula": "$a^2 + b^2 = c^2$"
     },
     {
       "id": "diff",
       "termJa": "{[微分/びぶん][係数/けいすう]/derivative}",
       "definition": "{[関数/かんすう]/function}の{[変化率/へんかりつ]/rate of change}の{[極限/きょくげん]/limit}で[定義/ていぎ]される[値/あたい]。",
-      "formulaTokens": [
-        {
-          "type": "content",
-          "value": "$f'(a) = \\lim_{h\\to 0} (f(a+h) - f(a)) / h$"
-        }
-      ]
+      "formula": "$f'(a) = \\lim_{h\\to 0} (f(a+h) - f(a)) / h$"
     },
     {
       "id": "sum",
       "termJa": "{[等差/とうさ][数列/すうれつ]の[和/わ]/arithmetic series sum}",
-      "definition": "{[等差/とうさ][数列/すうれつ]/arithmetic sequence}の{[初項/しょこう]/first term}から n [項/こう]までの{[和/わ]/sum}。",
-      "formulaTokens": [
-        {
-          "type": "content",
-          "value": "$S_n = n(a_1 + a_n) / 2$"
-        }
-      ]
+      "definition": "{[等差/とうさ][数列/すうれつ]/arithmetic sequence}の{[初項/しょこう]/first term}から $n$ [項/こう]までの{[和/わ]/sum}。",
+      "formula": "$S_n = n(a_1 + a_n) / 2$"
     },
     {
       "id": "area",
       "termJa": "{[円/えん]の[面積/めんせき]/circle area}",
-      "definition": "{[半径/はんけい]/radius} r の[円/えん]の{[面積/めんせき]/area}。",
-      "formulaTokens": [
-        {
-          "type": "content",
-          "value": "$S = \\pi r^2$"
-        }
-      ]
+      "definition": "{[半径/はんけい]/radius} $r$ の[円/えん]の{[面積/めんせき]/area}。",
+      "formula": "$S = \\pi r^2$"
     }
   ],
   "patterns": [
@@ -53,7 +33,7 @@
       "id": "p_def_to_term",
       "label": "{[定義/ていぎ]/definition} → {[用語/ようご]/term}",
       "tokens": [
-        { "type": "text", "value": "[次/つぎ]の{[定義/ていぎ]/definition}に[当/あ]てはまる{[用語/ようご]/term}は " },
+        "[次/つぎ]の{[定義/ていぎ]/definition}に[当/あ]てはまる{[用語/ようご]/term}は ",
         {
           "type": "hide",
           "id": "h_term",
@@ -62,8 +42,8 @@
             "mode": "choice_from_entities"
           }
         },
-        { "type": "text", "value": " である。" },
-        { "type": "br" },
+        " である。",
+        { "type": "hr" },
         { "type": "key", "field": "definition" }
       ]
     },
@@ -71,18 +51,17 @@
       "id": "p_term_to_formula",
       "label": "{[用語/ようご]/term} → {[公式/こうしき]/formula}",
       "tokens": [
-        { "type": "text", "value": "{[用語/ようご]/term} " },
         { "type": "key", "field": "termJa" },
-        { "type": "text", "value": " の{[公式/こうしき]/formula}は " },
+        " の{[公式/こうしき]/formula}は ",
         {
           "type": "hide",
           "id": "h_formula",
-          "value": [{ "type": "key", "field": "formulaTokens" }],
+          "value": [{ "type": "key", "field": "formula" }],
           "answer": {
             "mode": "choice_from_entities"
           }
         },
-        { "type": "text", "value": " である。" }
+        " である。"
       ]
     }
   ]

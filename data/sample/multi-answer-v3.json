@@ -6,31 +6,31 @@
     {
       "id": "quad_root_6",
       "conditionTokens": [
-        { "type": "content", "value": "$x^2 - 5x + 6 = 0$ の{[解/かい]/solution}" }
+        "$x^2 - 5x + 6 = 0$ の{[解/かい]/solution}"
       ],
       "answersTokens": [
-        [{ "type": "content", "value": "2" }],
-        [{ "type": "content", "value": "3" }]
+        ["2"],
+        ["3"]
       ]
     },
     {
       "id": "square_1",
       "conditionTokens": [
-        { "type": "content", "value": "$x^2 = 1$ の{[解/かい]/solution}" }
+        "$x^2 = 1$ の{[解/かい]/solution}"
       ],
       "answersTokens": [
-        [{ "type": "content", "value": "-1" }],
-        [{ "type": "content", "value": "1" }]
+        ["-1"],
+        ["1"]
       ]
     },
     {
       "id": "square_16",
       "conditionTokens": [
-        { "type": "content", "value": "$x^2 = 16$ の{[解/かい]/solution}" }
+        "$x^2 = 16$ の{[解/かい]/solution}"
       ],
       "answersTokens": [
-        [{ "type": "content", "value": "-4" }],
-        [{ "type": "content", "value": "4" }]
+        ["-4"],
+        ["4"]
       ]
     }
   ],
@@ -39,7 +39,7 @@
       "id": "p_pick_one_from_set",
       "label": "{[条件/じょうけん]/condition}に[当/あ]てはまるものの1つを[選/えら]ぶ",
       "tokens": [
-        { "type": "content", "value": "[次/つぎ]の{[条件/じょうけん]/condition}に[当/あ]てはまるものの1つを[選/えら]べ。" },
+        "[次/つぎ]の{[条件/じょうけん]/condition}に[当/あ]てはまるものの1つを[選/えら]べ。",
         { "type": "br" },
         { "type": "key", "field": "conditionTokens" },
         { "type": "br" },
@@ -55,11 +55,11 @@
           "id": "t_answer_set",
           "when": "after_answer",
           "tokens": [
-            { "type": "content", "value": "この{[条件/じょうけん]/condition}に[当/あ]てはまる{[集合/しゅうごう]/set}：" },
+            "この{[条件/じょうけん]/condition}に[当/あ]てはまる{[集合/しゅうごう]/set}：",
             {
               "type": "listkey",
               "field": "answersTokens",
-              "separatorTokens": [{ "type": "text", "value": "、" }]
+              "separatorTokens": ["、"]
             }
           ]
         }

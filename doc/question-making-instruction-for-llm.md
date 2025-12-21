@@ -18,6 +18,10 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
 `avoidSameId` と `avoidSameText` は **常に有効**として扱います  
 フィルタ機能やマッチング問題は廃止されました  
 
+文字列トークンは旧 `content` と同等です  
+改行は `\n` と `{ "type": "br" }` の両方を使えます  
+区切り線は `{ "type": "hr" }` を使います  
+
 ```json
 {
   "title": "[数学/すうがく]クイズ {Mathematics/数学}",
@@ -28,40 +32,22 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
       "id": "recordの名前",
       "choiceGroup": "groupの名前",
       "data1Tokens": [
-        {
-          "type": "content",
-          "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト1"
-        }
+        "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト1"
       ],
       "data2Tokens": [
-        {
-          "type": "content",
-          "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト2"
-        }
+        "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト2"
       ],
       "data3Tokens": [
-        {
-          "type": "content",
-          "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト3"
-        }
+        "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト3"
       ],
       "data4Tokens": [
-        {
-          "type": "content",
-          "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト4"
-        }
+        "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト4"
       ],
       "explainTokens": [
-        {
-          "type": "content",
-          "value": "この[問題/もんだい]に[直接/ちょくせつ][関係/かんけい]する[回答/かいとう]と[解説/かいせつ]や[導出/どうしゅつ]、[思考/しこう][過程/かてい]を[与/あた]える"
-        }
+        "この[問題/もんだい]に[直接/ちょくせつ][関係/かんけい]する[回答/かいとう]と[解説/かいせつ]や[導出/どうしゅつ]、[思考/しこう][過程/かてい]を[与/あた]える"
       ],
       "thinkingTokens": [
-        {
-          "type": "content",
-          "value": "この[問題/もんだい]とよく[似/に]た[問題/もんだい]に[一般/いっぱん]に[当/あ]てはまる[情報/じょうほう]や[区別/くべつ]の[方法/ほうほう]を[与/あた]える"
-        }
+        "この[問題/もんだい]とよく[似/に]た[問題/もんだい]に[一般/いっぱん]に[当/あ]てはまる[情報/じょうほう]や[区別/くべつ]の[方法/ほうほう]を[与/あた]える"
       ]
     }
   ],
@@ -74,26 +60,17 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
           "type": "key",
           "field": "data1Tokens"
         },
-        {
-          "type": "content",
-          "value": "や"
-        },
+        "や",
         {
           "type": "key",
           "field": "data2Tokens"
         },
-        {
-          "type": "content",
-          "value": "であり、"
-        },
+        "であり、",
         {
           "type": "key",
           "field": "data3Tokens"
         },
-        {
-          "type": "content",
-          "value": "であるようなものは"
-        },
+        "であるようなものは",
         {
           "type": "hide",
           "id": "answer_main",
@@ -107,30 +84,20 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
             "mode": "choice_from_entities"
           }
         },
-        {
-          "type": "content",
-          "value": "である。"
-        }
+        "である。"
       ],
       "tips": [
         {
           "id": "t_explain",
           "when": "after_answer",
           "tokens": [
-            {
-              "type": "content",
-              "value": "【[解説/かいせつ]】\n"
-            },
+            "【[解説/かいせつ]】\n",
             {
               "type": "key",
               "field": "explainTokens"
             },
-            { "type": "br" },
-            { "type": "br" },
-            {
-              "type": "content",
-              "value": "【このような[問題/もんだい]の[考/かんが]え[方/かた]】\n"
-            },
+            { "type": "hr" },
+            "【このような[問題/もんだい]の[考/かんが]え[方/かた]】\n",
             {
               "type": "key",
               "field": "thinkingTokens"
@@ -183,7 +150,7 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
 {
   "type": "listkey",
   "field": "answersTokens",
-  "separatorTokens": [{ "type": "text", "value": "、" }]
+  "separatorTokens": ["、"]
 }
 ```
 
@@ -218,9 +185,9 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
 
 # フリガナと併記
 
-ruby 記法と gloss 記法は、title / description / label / text / content など **表示される文字列すべて**に使用できます  
+ruby 記法と gloss 記法は、title / description / label / 文字列トークン など **表示される文字列すべて**に使用できます  
 識別子（id / type / field など）には使用しないでください  
-数式は content のみで $...$ または $$...$$ を使って書きます  
+数式は文字列トークンで $...$ または $$...$$ を使って書きます  
 - 全ての日本語の漢字にはふりがなを付けてください
 - 全ての中国語の漢字にはピンインを付けてください
 - 全ての専門用語には英語での用語を併記してください
