@@ -616,82 +616,83 @@ function splitMathAndPlain(src) {
     while (i < len) {
         const ch = src[i];
 
+        // Handle escape sequences first
         if (ch === '\\') {
             if (i + 1 < len) {
+                if (plainBuffer.length === 0) plainStart = i;
                 plainBuffer += src.slice(i, i + 2);
                 i += 2;
                 continue;
             }
-            plainBuffer += ch;
-            i++;
-            continue;
         }
 
+        // Track depth to avoid splitting math inside [ruby] or {gloss}
         if (ch === '[') {
             bracketDepth++;
-            plainBuffer += ch;
-            i++;
-            continue;
-        }
-        if (ch === ']') {
+        } else if (ch === ']') {
             bracketDepth = Math.max(0, bracketDepth - 1);
-            plainBuffer += ch;
-            i++;
-            continue;
-        }
-        if (ch === '{') {
+        } else if (ch === '{') {
             braceDepth++;
-            plainBuffer += ch;
-            i++;
-            continue;
-        }
-        if (ch === '}') {
+        } else if (ch === '}') {
             braceDepth = Math.max(0, braceDepth - 1);
-            plainBuffer += ch;
-            i++;
-            continue;
         }
 
         const inAnnotation = bracketDepth > 0 || braceDepth > 0;
         if (!inAnnotation) {
             // Check for display math $$...$$
             if (src.startsWith('$$', i)) {
-                const end = src.indexOf('$$', i + 2);
-                if (end !== -1) {
-                    flushPlain();
-                    parts.push({
-                        kind: "math",
-                        tex: src.slice(i + 2, end),
-                        display: true,
-                        start: i,
-                        end: end + 2
-                    });
-                    i = end + 2;
-                    continue;
+                let foundEnd = false;
+                for (let k = i + 2; k <= len - 2; k++) {
+                    if (src.startsWith('$$', k)) {
+                        const escapedCount = 0; // Simplified escape check for math boundaries
+                        let bsCount = 0;
+                        for (let b = k - 1; b >= i + 2 && src[b] === '\\'; b--) bsCount++;
+                        if (bsCount % 2 === 0) {
+                            flushPlain();
+                            parts.push({
+                                kind: "math",
+                                tex: src.slice(i + 2, k),
+                                display: true,
+                                start: i,
+                                end: k + 2
+                            });
+                            i = k + 2;
+                            foundEnd = true;
+                            break;
+                        }
+                    }
                 }
+                if (foundEnd) continue;
             }
 
             // Check for inline math $...$
             if (ch === '$') {
-                const end = src.indexOf('$', i + 1);
-                if (end !== -1) {
-                    flushPlain();
-                    parts.push({
-                        kind: "math",
-                        tex: src.slice(i + 1, end),
-                        display: false,
-                        start: i,
-                        end: end + 1
-                    });
-                    i = end + 1;
-                    continue;
+                let foundEnd = false;
+                for (let k = i + 1; k < len; k++) {
+                    if (src[k] === '$') {
+                        let bsCount = 0;
+                        for (let b = k - 1; b >= i + 1 && src[b] === '\\'; b--) bsCount++;
+                        if (bsCount % 2 === 0) {
+                            flushPlain();
+                            parts.push({
+                                kind: "math",
+                                tex: src.slice(i + 1, k),
+                                display: false,
+                                start: i,
+                                end: k + 1
+                            });
+                            i = k + 1;
+                            foundEnd = true;
+                            break;
+                        }
+                    }
+                    if (src[k] === '\n') break; // Inline math should not cross lines usually? Or maybe it can.
                 }
+                if (foundEnd) continue;
             }
         }
 
-        if (!plainBuffer.length) {
-            plainStart = i;
-        }
+        if (plainBuffer.length === 0) plainStart = i;
         plainBuffer += ch;
         i++;
     }

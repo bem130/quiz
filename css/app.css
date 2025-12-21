@@ -167,9 +167,13 @@ button:active {
 }
 
 .monaco-editor .ruby-content,
-.monaco-editor .gloss-content,
+.monaco-editor .gloss-content {
+    color: var(--color-monaco-content) !important;
+}
+
 .monaco-editor .katex-content {
     color: var(--color-monaco-content) !important;
+    background-color: var(--color-monaco-base-tint);
 }
 
 /* JSON Preview Tokens */

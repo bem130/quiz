@@ -251,10 +251,14 @@ function updateRubyGlossDecorations() {
     const addMathDecorations = (node, seg) => {
         if (!seg || !seg.range) return;
         const delimLen = seg.display ? 2 : 1;
+
+        // Highlighting for opening delimiter
         addDelimiterDecoration(node, seg.range.start, 'katex-delimiter');
         if (delimLen === 2) addDelimiterDecoration(node, seg.range.start + 1, 'katex-delimiter');
-        addDelimiterDecoration(node, seg.range.end - 1, 'katex-delimiter');
-        if (delimLen === 2) addDelimiterDecoration(node, seg.range.end - 2, 'katex-delimiter');
+
+        // Highlighting for closing delimiter
+        addDelimiterDecoration(node, seg.range.end - delimLen, 'katex-delimiter');
+        if (delimLen === 2) addDelimiterDecoration(node, seg.range.end - 1, 'katex-delimiter');
 
         const contentStart = seg.range.start + delimLen;
         const contentEnd = seg.range.end - delimLen;
@@ -262,13 +266,11 @@ function updateRubyGlossDecorations() {
             const tex = seg.tex || "";
             const internalSegments = tokenizeKatex(tex, contentStart);
             internalSegments.forEach(iseg => {
-                if (iseg.kind === 'Command') {
-                    addRangeDecoration(node, iseg.start, iseg.end, 'json-katex-command');
-                } else if (iseg.kind === 'Brace') {
-                    addRangeDecoration(node, iseg.start, iseg.end, 'json-katex-brace');
-                } else {
-                    addRangeDecoration(node, iseg.start, iseg.end, 'katex-content');
-                }
+                let className = 'katex-content';
+                if (iseg.kind === 'Command') className = 'json-katex-command';
+                else if (iseg.kind === 'Brace') className = 'json-katex-brace';
+
+                addRangeDecoration(node, iseg.start, iseg.end, className);
             });
         }
     };
@@ -507,12 +509,12 @@ function appendJsonStringSegment(parent, node, isKey, state) {
     const rawEnd = node.loc.end.offset;
     const rawValue = node.value != null ? String(node.value) : '';
     const segments = parseContentToSegments(rawValue);
-    const hasRubyGloss = segments.some(
-        (seg) => seg && (seg.kind === 'Annotated' || seg.kind === 'Gloss')
+    const hasRichContent = segments.some(
+        (seg) => seg && (seg.kind === 'Annotated' || seg.kind === 'Gloss' || seg.kind === 'Math')
     );
     const stringClass = isKey
         ? 'json-token-string json-token-key'
-        : `json-token-string${hasRubyGloss ? ' json-token-string-rich' : ''}`;
+        : `json-token-string${hasRichContent ? ' json-token-string-rich' : ''}`;
     appendJsonToken(parent, '"', rawStart, stringClass, state);
 
     const contentWrapper = document.createElement('span');
