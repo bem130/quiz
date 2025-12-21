@@ -1,5 +1,5 @@
 ## 適用範囲（v3）
-ruby 記法と gloss 記法は、title / description / label / text など **表示される文字列すべて**に使用できます  
+ruby 記法と gloss 記法は、title / description / label / 文字列トークン など **表示される文字列すべて**に使用できます  
 識別子（id / type / field など）には使用しないでください  
 
 ## 日本語ふりがな
@@ -33,7 +33,7 @@ ruby記法は中国語でのピンインの表示や、ギリシア文字やキ�
 (例) `I would like to visit {Nara/[奈良/なら]} and {Kyoto/[京都/きょうと]}.`  
 ### 中国語文で使用する例
 (例) `[我/wǒ][明/míng][年/nián][想/xiǎng][去/qù]{[佛/fó][罗/luó][伦/lún][萨/sà]/Firenze/Florence}[和/hé]{[雅/yǎ][典/diǎn]/Αθήνα/Athens}[旅/lǚ][行/xíng]。`  
-(例) `[我/wǒ][最/zuì][近/jìn][在/zài][读/dú]{[维/wéi][特/tè][根/gēn][斯/sī][坦/tǎn]/Wittgenstein}的[书/shū]。`  
+(例) `[我/wǒ][最/zuì][近/jìn][在/zài][读/dú]{[维/wéi][特/tè][根/gēn][斯/sī][坦/tǎn]/Wittgenstein}[的/de][书/shū]。`  
 (例) `[我/wǒ][在/zài][学/xué][校/xiào][学/xué][习/xí][汉/hàn][语/yǔ]。`  
 (例) `[明/míng][年/nián][我/wǒ][想/xiǎng][去/qù][台/tái][湾/wān][旅/lǚ][行/xíng]。`  
 ### ギリシア語文で使用する例
