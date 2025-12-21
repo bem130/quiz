@@ -4,6 +4,7 @@ export const dom = {
     // 共通ヘッダ
     appTitle: document.getElementById('app-title'),
     appDescription: document.getElementById('app-description'),
+    editorHeaderControls: document.getElementById('editor-header-controls'),
     quizHeaderScore: document.getElementById('quiz-header-score'),
     questionStageLabel: document.getElementById('question-stage-label'),
     queueStatusGroup: document.getElementById('queue-status-group'),
@@ -122,6 +123,7 @@ export const dom = {
 
     // サイドパネル: メニュー用
     sideMenu: document.getElementById('side-menu'),
+    sideEditor: document.getElementById('side-editor'),
     entryList: document.getElementById('entry-list'),
     entryUrlInput: document.getElementById('entry-url-input'),
     entryAddButton: document.getElementById('entry-add-button'),

@@ -4,8 +4,7 @@ import { buildDefinitionFromQuizFile, validateDefinition } from './quiz-model.js
 import { parseContentToSegments } from './ruby-parser.js';
 import { renderSmilesInline } from './chem-renderer.js';
 
-// The preview is a simple tree view of the JSON structure
-// Users can click on any element to jump to its location in the editor
+// Preview shows rendered output + JSON view with click-to-jump support.
 
 let editor = null;
 let currentDraftPath = 'drafts/local-draft.json';
@@ -15,6 +14,11 @@ let lastSourceMapCache = new Map();
 let activePreviewTab = 'rendered';
 let toolbarInitialized = false;
 let previewTabsInitialized = false;
+
+function getMonacoTheme() {
+    const theme = document.documentElement.dataset.theme;
+    return theme === 'dark' || theme === 'black' ? 'vs-dark' : 'vs';
+}
 
 // Monaco Loader
 function loadMonaco() {
@@ -49,7 +53,7 @@ export async function initDraftEditor(containerId) {
         editor = monaco.editor.create(container, {
             value: '',
             language: 'json',
-            theme: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
+            theme: getMonacoTheme(),
             automaticLayout: true,
             minimap: { enabled: false },
             fontSize: 13,
@@ -59,8 +63,7 @@ export async function initDraftEditor(containerId) {
 
     // Theme sync
     const obs = new MutationObserver(() => {
-        const isDark = document.documentElement.classList.contains('dark');
-        monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
+        monaco.editor.setTheme(getMonacoTheme());
     });
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
 
@@ -100,7 +103,7 @@ function updatePreview(jsonText) {
         lastSourceText = jsonText;
         lastSourceMapCache = new Map();
         lastParsedAst = parseJsonWithLoc(jsonText);
-        jsonContainer.textContent = jsonText;
+        renderJsonPreview(jsonText, jsonContainer);
 
         const definition = buildDefinitionFromQuizFile(lastParsedAst.value, 'draft', {
             title: lastParsedAst.value && lastParsedAst.value.title ? lastParsedAst.value.title : 'Preview'
@@ -112,16 +115,78 @@ function updatePreview(jsonText) {
 
         try {
             validateDefinition(definition);
-            setDraftStatus('Valid JSON', 'text-green-500');
+            setDraftStatus('Valid JSON', 'app-text-success');
         } catch (e) {
-            setDraftStatus(`Invalid Schema: ${e.message}`, 'text-orange-500');
+            setDraftStatus(`Invalid Schema: ${e.message}`, 'app-text-accent');
         }
     } catch (e) {
         // Parse error
         renderedContainer.innerHTML = '';
         jsonContainer.textContent = jsonText;
-        setDraftStatus(`Syntax Error: ${e.message}`, 'text-red-500');
+        lastParsedAst = null;
+        setDraftStatus(`Syntax Error: ${e.message}`, 'app-text-danger');
     }
+}
+
+function collectStringNodes(node, list = []) {
+    if (!node) return list;
+    if (node.type === 'String') {
+        list.push(node);
+        return list;
+    }
+    if (node.type === 'Property') {
+        collectStringNodes(node.key, list);
+        collectStringNodes(node.value, list);
+        return list;
+    }
+    if (node.type === 'Object' || node.type === 'Array') {
+        (node.children || []).forEach(child => {
+            collectStringNodes(child, list);
+        });
+    }
+    return list;
+}
+
+function appendPlainText(parent, text) {
+    if (!text) return;
+    parent.appendChild(document.createTextNode(text));
+}
+
+function renderJsonPreview(jsonText, container) {
+    container.innerHTML = '';
+    if (!lastParsedAst || !lastParsedAst.loc) {
+        container.textContent = jsonText;
+        return;
+    }
+
+    const stringNodes = collectStringNodes(lastParsedAst, []);
+    stringNodes.sort((a, b) => a.loc.start.offset - b.loc.start.offset);
+
+    const frag = document.createDocumentFragment();
+    let cursor = 0;
+
+    stringNodes.forEach((node) => {
+        if (!node || !node.loc) return;
+        const start = node.loc.start.offset;
+        const end = node.loc.end.offset;
+        if (start < cursor) return;
+
+        appendPlainText(frag, jsonText.slice(cursor, start));
+        appendPlainText(frag, jsonText.slice(start, start + 1));
+
+        const rawContent = jsonText.slice(start + 1, end - 1);
+        if (rawContent) {
+            const span = document.createElement('span');
+            renderStringValue(span, rawContent, node, [], 'raw');
+            frag.appendChild(span);
+        }
+
+        appendPlainText(frag, jsonText.slice(end - 1, end));
+        cursor = end;
+    });
+
+    appendPlainText(frag, jsonText.slice(cursor));
+    container.appendChild(frag);
 }
 
 // Map rendered elements back to JSON location
@@ -211,6 +276,14 @@ function getOffsetForStringIndex(node, index) {
     return node.loc.start.offset + 1 + index;
 }
 
+function getOffsetForIndex(node, index, mode) {
+    if (!node || !node.loc) return null;
+    if (mode === 'raw') {
+        return node.loc.start.offset + 1 + index;
+    }
+    return getOffsetForStringIndex(node, index);
+}
+
 function applyStyles(element, styles = []) {
     if (!styles || !styles.length) return;
     if (styles.includes('bold')) element.classList.add('font-semibold');
@@ -240,7 +313,7 @@ function createStyledSpan(text, styles = []) {
     return span;
 }
 
-function appendTextWithOffsets(parent, text, node, baseIndex = 0, styles = []) {
+function appendTextWithOffsets(parent, text, node, baseIndex = 0, styles = [], offsetMode = 'decoded') {
     if (!text) return;
     for (let i = 0; i < text.length; i += 1) {
         const ch = text[i];
@@ -249,29 +322,29 @@ function appendTextWithOffsets(parent, text, node, baseIndex = 0, styles = []) {
             continue;
         }
         const span = createStyledSpan(ch, styles);
-        const offset = node ? getOffsetForStringIndex(node, baseIndex + i) : null;
+        const offset = node ? getOffsetForIndex(node, baseIndex + i, offsetMode) : null;
         attachJump(span, offset);
         parent.appendChild(span);
     }
 }
 
-function renderInlineSegments(parent, segments, node) {
+function renderInlineSegments(parent, segments, node, offsetMode = 'decoded') {
     (segments || []).forEach((seg) => {
         if (!seg || !seg.kind) return;
         if (seg.kind === 'Plain') {
-            appendTextWithOffsets(parent, seg.text || '', node, seg.range ? seg.range.start : 0);
+            appendTextWithOffsets(parent, seg.text || '', node, seg.range ? seg.range.start : 0, [], offsetMode);
             return;
         }
         if (seg.kind === 'Math') {
             const span = createStyledSpan(seg.tex || '', ['katex']);
-            const offset = node && seg.range ? getOffsetForStringIndex(node, seg.range.start) : null;
+            const offset = node && seg.range ? getOffsetForIndex(node, seg.range.start, offsetMode) : null;
             attachJump(span, offset);
             parent.appendChild(span);
         }
     });
 }
 
-function renderGlossSegment(parent, seg, node) {
+function renderGlossSegment(parent, seg, node, offsetMode = 'decoded') {
     const glossSpan = document.createElement('span');
     glossSpan.className = 'gloss';
 
@@ -280,9 +353,9 @@ function renderGlossSegment(parent, seg, node) {
         if (!child || !child.kind) return;
         if (child.kind === 'Annotated') {
             const rb = document.createElement('rb');
-            renderInlineSegments(rb, child.base || [], node);
+            renderInlineSegments(rb, child.base || [], node, offsetMode);
             const rt = document.createElement('rt');
-            appendTextWithOffsets(rt, child.reading || '', node, child.rubyRange ? child.rubyRange.start : 0);
+            appendTextWithOffsets(rt, child.reading || '', node, child.rubyRange ? child.rubyRange.start : 0, [], offsetMode);
             rubyEl.appendChild(rb);
             rubyEl.appendChild(rt);
             return;
@@ -290,7 +363,7 @@ function renderGlossSegment(parent, seg, node) {
         if (child.kind === 'Math') {
             const rb = document.createElement('rb');
             const span = createStyledSpan(child.tex || '', ['katex']);
-            const offset = node && child.range ? getOffsetForStringIndex(node, child.range.start) : null;
+            const offset = node && child.range ? getOffsetForIndex(node, child.range.start, offsetMode) : null;
             attachJump(span, offset);
             rb.appendChild(span);
             const rt = document.createElement('rt');
@@ -300,7 +373,7 @@ function renderGlossSegment(parent, seg, node) {
         }
         if (child.kind === 'Plain') {
             const rb = document.createElement('rb');
-            appendTextWithOffsets(rb, child.text || '', node, child.range ? child.range.start : 0);
+            appendTextWithOffsets(rb, child.text || '', node, child.range ? child.range.start : 0, [], offsetMode);
             const rt = document.createElement('rt');
             rubyEl.appendChild(rb);
             rubyEl.appendChild(rt);
@@ -319,9 +392,9 @@ function renderGlossSegment(parent, seg, node) {
                 if (child.kind === 'Annotated') {
                     const ruby = document.createElement('ruby');
                     const rb = document.createElement('rb');
-                    renderInlineSegments(rb, child.base || [], node);
+                    renderInlineSegments(rb, child.base || [], node, offsetMode);
                     const rt = document.createElement('rt');
-                    appendTextWithOffsets(rt, child.reading || '', node, child.rubyRange ? child.rubyRange.start : 0);
+                    appendTextWithOffsets(rt, child.reading || '', node, child.rubyRange ? child.rubyRange.start : 0, [], offsetMode);
                     ruby.appendChild(rb);
                     ruby.appendChild(rt);
                     altSpan.appendChild(ruby);
@@ -329,13 +402,13 @@ function renderGlossSegment(parent, seg, node) {
                 }
                 if (child.kind === 'Math') {
                     const span = createStyledSpan(child.tex || '', ['katex']);
-                    const offset = node && child.range ? getOffsetForStringIndex(node, child.range.start) : null;
+                    const offset = node && child.range ? getOffsetForIndex(node, child.range.start, offsetMode) : null;
                     attachJump(span, offset);
                     altSpan.appendChild(span);
                     return;
                 }
                 if (child.kind === 'Plain') {
-                    appendTextWithOffsets(altSpan, child.text || '', node, child.range ? child.range.start : 0);
+                    appendTextWithOffsets(altSpan, child.text || '', node, child.range ? child.range.start : 0, [], offsetMode);
                 }
             });
             altsWrapper.appendChild(altSpan);
@@ -346,16 +419,16 @@ function renderGlossSegment(parent, seg, node) {
     parent.appendChild(glossSpan);
 }
 
-function renderSegments(parent, segments, node) {
+function renderSegments(parent, segments, node, offsetMode = 'decoded') {
     (segments || []).forEach((seg) => {
         if (!seg || !seg.kind) return;
         if (seg.kind === 'Plain') {
-            appendTextWithOffsets(parent, seg.text || '', node, seg.range ? seg.range.start : 0);
+            appendTextWithOffsets(parent, seg.text || '', node, seg.range ? seg.range.start : 0, [], offsetMode);
             return;
         }
         if (seg.kind === 'Math') {
             const span = createStyledSpan(seg.tex || '', ['katex']);
-            const offset = node && seg.range ? getOffsetForStringIndex(node, seg.range.start) : null;
+            const offset = node && seg.range ? getOffsetForIndex(node, seg.range.start, offsetMode) : null;
             attachJump(span, offset);
             parent.appendChild(span);
             return;
@@ -363,32 +436,32 @@ function renderSegments(parent, segments, node) {
         if (seg.kind === 'Annotated') {
             const rubyEl = document.createElement('ruby');
             const rb = document.createElement('rb');
-            renderInlineSegments(rb, seg.base || [], node);
+            renderInlineSegments(rb, seg.base || [], node, offsetMode);
             const rt = document.createElement('rt');
-            appendTextWithOffsets(rt, seg.reading || '', node, seg.rubyRange ? seg.rubyRange.start : 0);
+            appendTextWithOffsets(rt, seg.reading || '', node, seg.rubyRange ? seg.rubyRange.start : 0, [], offsetMode);
             rubyEl.appendChild(rb);
             rubyEl.appendChild(rt);
             parent.appendChild(rubyEl);
             return;
         }
         if (seg.kind === 'Gloss') {
-            renderGlossSegment(parent, seg, node);
+            renderGlossSegment(parent, seg, node, offsetMode);
         }
     });
 }
 
-function renderStringValue(parent, value, node, styles = []) {
+function renderStringValue(parent, value, node, styles = [], offsetMode = 'decoded') {
     const raw = value != null ? String(value) : '';
     if (!raw) return;
     const segments = parseContentToSegments(raw);
     if (styles && styles.length) {
         const wrapper = document.createElement('span');
         applyStyles(wrapper, styles);
-        renderSegments(wrapper, segments, node);
+        renderSegments(wrapper, segments, node, offsetMode);
         parent.appendChild(wrapper);
         return;
     }
-    renderSegments(parent, segments, node);
+    renderSegments(parent, segments, node, offsetMode);
 }
 
 function normalizeTokenArray(value) {
@@ -713,7 +786,7 @@ function setDraftStatus(text, cls) {
     const status = document.getElementById('draft-status');
     if (!status) return;
     status.textContent = text;
-    status.className = `text-xs ${cls}`;
+    status.className = `text-[11px] ${cls}`;
 }
 
 function attachPreviewTabHandlers() {
@@ -758,7 +831,7 @@ function setPreviewTab(tab) {
 function renderRenderedPreview(rawValue, container) {
     if (!rawValue || typeof rawValue !== 'object') {
         const empty = document.createElement('div');
-        empty.className = 'text-xs text-gray-500';
+        empty.className = 'text-xs app-text-muted';
         empty.textContent = 'No renderable content.';
         container.appendChild(empty);
         return;
@@ -768,10 +841,10 @@ function renderRenderedPreview(rawValue, container) {
     const description = rawValue.description || '';
 
     const header = document.createElement('div');
-    header.className = 'rounded-lg border app-border-subtle p-3 bg-white dark:bg-slate-900';
+    header.className = 'rounded-lg border app-border-subtle p-3 app-surface-card';
 
     const titleEl = document.createElement('div');
-    titleEl.className = 'text-sm font-semibold';
+    titleEl.className = 'text-sm font-semibold app-text-strong';
     const titleNode = findNodeByPath(lastParsedAst, ['title']);
     renderStringValue(titleEl, title, titleNode);
     header.appendChild(titleEl);
@@ -793,7 +866,7 @@ function renderRenderedPreview(rawValue, container) {
 
     if (!previewRow) {
         const note = document.createElement('div');
-        note.className = 'text-xs text-orange-500';
+        note.className = 'text-xs app-text-danger';
         note.textContent = 'Table rows are missing. Previews that depend on row data may be empty.';
         container.appendChild(note);
     } else {
@@ -805,7 +878,7 @@ function renderRenderedPreview(rawValue, container) {
 
     if (!patterns.length) {
         const empty = document.createElement('div');
-        empty.className = 'text-xs text-gray-500';
+        empty.className = 'text-xs app-text-muted';
         empty.textContent = 'No patterns found.';
         container.appendChild(empty);
         return;
@@ -813,10 +886,10 @@ function renderRenderedPreview(rawValue, container) {
 
     patterns.forEach((pattern, index) => {
         const section = document.createElement('div');
-        section.className = 'rounded-lg border app-border-subtle p-3 bg-white dark:bg-slate-900';
+        section.className = 'rounded-lg border app-border-subtle p-3 app-surface-card';
 
         const label = document.createElement('div');
-        label.className = 'text-xs font-semibold';
+        label.className = 'text-xs font-semibold app-text-strong';
         const labelNode = pattern.label ? findNodeByPath(lastParsedAst, ['patterns', index, 'label']) : null;
         if (pattern.label) {
             renderStringValue(label, pattern.label, labelNode);

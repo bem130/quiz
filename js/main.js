@@ -1657,7 +1657,7 @@ function resolveRowForQuestion(question) {
 
 /**
  * メイン／サイド／結果表示を含めた画面の表示状態を切り替える。
- * @param {'menu' | 'quiz' | 'result'} name - 表示する画面の名前。
+ * @param {'menu' | 'quiz' | 'result' | 'editor'} name - 表示する画面の名前。
  */
 function showScreen(name) {
     const previousScreen = currentScreen;
@@ -1679,21 +1679,30 @@ function showScreen(name) {
     dom.mainQuiz.classList.add('hidden');
     const editorSection = document.getElementById('main-editor');
     if (editorSection) editorSection.classList.add('hidden');
+    if (dom.editorHeaderControls) {
+        dom.editorHeaderControls.classList.add('hidden');
+    }
 
     if (name === 'editor') {
         if (editorSection) editorSection.classList.remove('hidden');
+        if (dom.editorHeaderControls) {
+            dom.editorHeaderControls.classList.remove('hidden');
+        }
     } else if (name === 'menu') {
         dom.mainMenu.classList.remove('hidden');
     } else if (name === 'quiz') {
         dom.mainQuiz.classList.remove('hidden');
     }
     if (dom.questionView) {
-        dom.questionView.classList.remove('hidden');
+        dom.questionView.classList.toggle('hidden', name !== 'quiz');
     }
 
     // Side
     dom.sideMenu.classList.add('hidden');
     dom.sideQuiz.classList.add('hidden');
+    if (dom.sideEditor) {
+        dom.sideEditor.classList.add('hidden');
+    }
 
     // Header/score area (bottom bar center)
     dom.quizHeaderScore.classList.add('hidden');
@@ -1738,9 +1747,6 @@ function showScreen(name) {
         dom.mainQuiz.classList.remove('hidden');
         dom.sideQuiz.classList.remove('hidden');
         dom.quizHeaderScore.classList.remove('hidden');
-        if (dom.questionView) {
-            dom.questionView.classList.remove('hidden');
-        }
         if (dom.mistakesPanel) {
             dom.mistakesPanel.classList.remove('hidden');
         }
@@ -1759,15 +1765,16 @@ function showScreen(name) {
         dom.sideQuiz.classList.remove('hidden');
         dom.quizHeaderScore.classList.remove('hidden');
         dom.resultScreen.classList.remove('hidden');
-        if (dom.questionView) {
-            dom.questionView.classList.add('hidden');
-        }
         if (dom.resultListPanel) {
             dom.resultListPanel.classList.remove('hidden');
         }
         // In result screen: Next and interrupt remain hidden
 
         renderRubyBufferInResult();
+    } else if (name === 'editor') {
+        if (dom.sideEditor) {
+            dom.sideEditor.classList.remove('hidden');
+        }
     }
 }
 
