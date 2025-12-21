@@ -156,6 +156,23 @@ button:active {
     color: var(--color-katex-delimiter) !important;
 }
 
+.monaco-editor .katex-command {
+    color: var(--color-katex-command) !important;
+}
+
+.monaco-editor .katex-brace {
+    color: var(--color-katex-brace) !important;
+}
+
+.monaco-editor .katex-symbol {
+    color: var(--color-katex-brace) !important;
+}
+
+.monaco-editor .katex-comment {
+    color: var(--color-text-muted) !important;
+    font-style: italic;
+}
+
 .monaco-editor .json-escape {
     color: var(--color-json-escape) !important;
     font-weight: bold;
@@ -171,10 +188,28 @@ button:active {
     color: var(--color-monaco-content) !important;
 }
 
-.monaco-editor .katex-content {
-    color: var(--color-monaco-content) !important;
-    background-color: var(--color-monaco-base-tint);
+/* Ensure KaTeX token colors win inside ruby/gloss ranges */
+.monaco-editor .ruby-content.katex-command,
+.monaco-editor .gloss-content.katex-command {
+    color: var(--color-katex-command) !important;
 }
+
+.monaco-editor .ruby-content.katex-brace,
+.monaco-editor .gloss-content.katex-brace {
+    color: var(--color-katex-brace) !important;
+}
+
+.monaco-editor .ruby-content.katex-symbol,
+.monaco-editor .gloss-content.katex-symbol {
+    color: var(--color-katex-brace) !important;
+}
+
+.monaco-editor .ruby-content.katex-comment,
+.monaco-editor .gloss-content.katex-comment {
+    color: var(--color-text-muted) !important;
+}
+
+/* katex-content deprecated: keep default string styling for plain TeX text */
 
 /* JSON Preview Tokens */
 .json-token-key {

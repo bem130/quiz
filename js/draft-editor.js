@@ -232,11 +232,10 @@ function updateRubyGlossDecorations() {
 
     const addRangeDecoration = (node, startIndex, endIndex, className) => {
         if (!node || startIndex == null || endIndex == null) return;
-        const rawStartOffset = getOffsetForStringIndex(node, startIndex);
-        const rawEndOffset = getOffsetForStringIndex(node, endIndex);
-        if (rawStartOffset == null || rawEndOffset == null) return;
-        const startPos = model.getPositionAt(rawStartOffset);
-        const endPos = model.getPositionAt(rawEndOffset);
+        const rawRange = getRawRangeForStringIndices(node, startIndex, endIndex);
+        if (!rawRange) return;
+        const startPos = model.getPositionAt(rawRange.start);
+        const endPos = model.getPositionAt(rawRange.end);
         decorations.push({
             range: new monaco.Range(
                 startPos.lineNumber,
@@ -265,12 +264,16 @@ function updateRubyGlossDecorations() {
         if (contentStart < contentEnd) {
             const tex = seg.tex || "";
             const internalSegments = tokenizeKatex(tex, contentStart);
-            internalSegments.forEach(iseg => {
-                let className = 'katex-content';
-                if (iseg.kind === 'Command') className = 'json-katex-command';
-                else if (iseg.kind === 'Brace') className = 'json-katex-brace';
+            internalSegments.forEach((iseg) => {
+                let className = null;
+                if (iseg.kind === 'Command') className = 'katex-command';
+                else if (iseg.kind === 'Brace') className = 'katex-brace';
+                else if (iseg.kind === 'Symbol') className = 'katex-symbol';
+                else if (iseg.kind === 'Comment') className = 'katex-comment';
 
-                addRangeDecoration(node, iseg.start, iseg.end, className);
+                if (className) {
+                    addRangeDecoration(node, iseg.start, iseg.end, className);
+                }
             });
         }
     };
@@ -746,6 +749,36 @@ function getStringOffsetMap(node) {
 
     lastSourceMapCache.set(key, map);
     return map;
+}
+
+function getRawRangeForStringIndices(node, startIndex, endIndex) {
+    if (!node || !node.loc) return null;
+    if (startIndex == null || endIndex == null) return null;
+    if (node.type !== 'String') {
+        return {
+            start: node.loc.start.offset,
+            end: node.loc.end.offset
+        };
+    }
+    const map = getStringOffsetMap(node);
+    const rawStart =
+        map && map[startIndex] != null
+            ? map[startIndex]
+            : node.loc.start.offset + 1 + startIndex;
+    let rawEnd;
+    if (map) {
+        if (map[endIndex] != null) {
+            rawEnd = map[endIndex];
+        } else if (endIndex >= map.length) {
+            rawEnd = node.loc.end.offset - 1;
+        } else {
+            rawEnd = node.loc.start.offset + 1 + endIndex;
+        }
+    } else {
+        rawEnd = node.loc.start.offset + 1 + endIndex;
+    }
+    if (rawEnd < rawStart) rawEnd = rawStart;
+    return { start: rawStart, end: rawEnd };
 }
 
 function getOffsetForStringIndex(node, index) {

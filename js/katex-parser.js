@@ -4,7 +4,7 @@
 
 /**
  * @typedef {Object} KatexSegment
- * @property {"Command" | "Brace" | "Symbol" | "Plain"} kind
+ * @property {"Command" | "Brace" | "Symbol" | "Comment" | "Plain"} kind
  * @property {string} text
  * @property {number} start
  * @property {number} end
@@ -21,6 +21,8 @@ export function tokenizeKatex(tex, baseOffset = 0) {
     const segments = [];
     let i = 0;
     const len = tex.length;
+    const BRACE_CHARS = new Set(['{', '}', '(', ')', '[', ']', '|']);
+    const SYMBOL_CHARS = new Set(['_', '^', '&', "'", '+', '-', '=', ',', '.']);
 
     while (i < len) {
         const char = tex[i];
@@ -31,6 +33,9 @@ export function tokenizeKatex(tex, baseOffset = 0) {
             if (j < len) {
                 if (/[a-zA-Z]/.test(tex[j])) {
                     while (j < len && /[a-zA-Z]/.test(tex[j])) {
+                        j++;
+                    }
+                    if (j < len && tex[j] === '*') {
                         j++;
                     }
                 } else {
@@ -48,7 +53,22 @@ export function tokenizeKatex(tex, baseOffset = 0) {
             continue;
         }
 
-        if (char === '{' || char === '}') {
+        if (char === '%') {
+            let j = i + 1;
+            while (j < len && tex[j] !== '\n') {
+                j++;
+            }
+            segments.push({
+                kind: "Comment",
+                text: tex.slice(i, j),
+                start: baseOffset + i,
+                end: baseOffset + j
+            });
+            i = j;
+            continue;
+        }
+
+        if (BRACE_CHARS.has(char)) {
             segments.push({
                 kind: "Brace",
                 text: char,
@@ -59,7 +79,7 @@ export function tokenizeKatex(tex, baseOffset = 0) {
             continue;
         }
 
-        if (/[_^&]/.test(char)) {
+        if (SYMBOL_CHARS.has(char)) {
             segments.push({
                 kind: "Symbol",
                 text: char,
