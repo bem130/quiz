@@ -112,6 +112,11 @@ export function parseJsonWithLoc(input) {
 
         while (peek() !== '}' && peek() !== null) {
             skipWhitespace();
+            if (peek() === ',') {
+                recordError('Unexpected comma in object');
+                advance();
+                continue;
+            }
             const propStart = { line, column, offset: pos };
 
             let keyNode = null;
@@ -167,16 +172,16 @@ export function parseJsonWithLoc(input) {
             if (peek() === '}') break;
             if (peek() === ',') {
                 advance();
+                skipWhitespace();
+                if (peek() === '}') {
+                    recordError('Trailing comma in object');
+                    break;
+                }
                 continue;
             }
             if (peek() === null) break;
             recordError('Expected "," or "}" in object');
-            recoverTo([',', '}']);
-            if (peek() === ',') {
-                advance();
-                continue;
-            }
-            if (peek() === '}') break;
+            continue;
         }
 
         if (peek() === '}') {
@@ -202,6 +207,19 @@ export function parseJsonWithLoc(input) {
         while (peek() !== ']' && peek() !== null) {
             skipWhitespace();
             if (peek() === ']') break;
+            if (peek() === ',') {
+                recordError('Missing value in array');
+                const nullNode = {
+                    type: 'Null',
+                    value: null,
+                    error: true,
+                    loc: makeLoc({ line, column, offset: pos })
+                };
+                children.push(nullNode);
+                value.push(nullNode.value);
+                advance();
+                continue;
+            }
             const node = parseValue();
             children.push(node);
             value.push(node.value);
@@ -210,16 +228,29 @@ export function parseJsonWithLoc(input) {
             if (peek() === ']') break;
             if (peek() === ',') {
                 advance();
+                skipWhitespace();
+                if (peek() === ']') {
+                    recordError('Trailing comma in array');
+                    break;
+                }
+                if (peek() === ',') {
+                    recordError('Missing value in array');
+                    const nullNode = {
+                        type: 'Null',
+                        value: null,
+                        error: true,
+                        loc: makeLoc({ line, column, offset: pos })
+                    };
+                    children.push(nullNode);
+                    value.push(nullNode.value);
+                    advance();
+                    continue;
+                }
                 continue;
             }
             if (peek() === null) break;
             recordError('Expected "," or "]" in array');
-            recoverTo([',', ']']);
-            if (peek() === ',') {
-                advance();
-                continue;
-            }
-            if (peek() === ']') break;
+            continue;
         }
 
         if (peek() === ']') {
