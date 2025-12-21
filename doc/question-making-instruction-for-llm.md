@@ -3,18 +3,21 @@ https://bem130.com/quiz/ で使用できる問題ファイルを作成します
 
 # 問題ファイルの作成
 
-1つの問題ファイルに複数のtable(dataset)を定義できます  
-各tableに対して、問題文と解説文のテンプレート(pattern)を提供できます  
-1つのtableに対して、複数のpatternを提供できます  
-tableにはそれぞれ別の文字列になるデータのみを用意し、定型文はpatternに直接記述してください
-また、recordのcontentは問題文、回答、解説のどこででも自由に使用できます
+1つの問題ファイルに複数の table（dataSets）を定義できます  
+各 table に対して、問題文と解説文のテンプレート（pattern）を提供できます  
+1つの table に対して、複数の pattern を提供できます  
+table にはそれぞれ別の文字列になるデータのみを用意し、定型文は pattern に直接記述してください  
+record に持たせた Token 配列（data1Tokens など）は問題文、回答、解説のどこででも key で参照できます  
 以下の例の"data1Tokens","data2Tokens","data3Tokens",...については、それぞれ適切な意味を持つ名前に変えてください
 "conditionTokens","formulaTokens","conceptTokens","factorsTokens","regionTokens","issueTokens","meaningTokens","usageTokens","conjugationTokens" など自由に命名できます
+questionRules には patterns と modes が必須です  
+modes は 1 つ以上用意し、patternWeights で pattern.id を参照して出題比重を指定してください（均等なら weight: 1）
 
 {
   "title": "問題ファイルのタイトル",
   "description": "問題ファイルの説明",
   "version": 2,
+  "imports": ["./common-data.json"], // 任意
   "dataSets": {
     "table-name": {
       "type": "table",
@@ -23,30 +26,42 @@ tableにはそれぞれ別の文字列になるデータのみを用意し、定
       "data": [
         {
           "id": "recordの名前",
-          "data1Tokens": {
-            "type": "content",
-            "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト1",
-          },
-          "data2Tokens": {
-            "type": "content",
-            "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト2",
-          },
-          "data3Tokens": {
-            "type": "content",
-            "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト3",
-          },
-          "data4Tokens": {
-            "type": "content",
-            "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト4",
-          },
-          "explainTokens": {
-            "type": "content",
-            "value": "この[問題/もんだい]に[直接/ちょくせつ][関係/かんけい]する[回答/かいとう]と[解説/かいせつ]や[導出/どうしゅつ]、[思考/しこう][過程/かてい]を[与/あた]える",
-          },
-          "thinkingTokens": {
-            "type": "content",
-            "value": "この[問題/もんだい]とよく[似/に]た[問題/もんだい]に[一般/いっぱん]に[当/あ]てはまる[情報/じょうほう]や[区別/くべつ]の[方法/ほうほう]を[与/あた]える",
-          },...
+          "data1Tokens": [
+            {
+              "type": "content",
+              "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト1"
+            }
+          ],
+          "data2Tokens": [
+            {
+              "type": "content",
+              "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト2"
+            }
+          ],
+          "data3Tokens": [
+            {
+              "type": "content",
+              "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト3"
+            }
+          ],
+          "data4Tokens": [
+            {
+              "type": "content",
+              "value": "[問題/もんだい]ファイルで[使用/しよう]するためのテキスト4"
+            }
+          ],
+          "explainTokens": [
+            {
+              "type": "content",
+              "value": "この[問題/もんだい]に[直接/ちょくせつ][関係/かんけい]する[回答/かいとう]と[解説/かいせつ]や[導出/どうしゅつ]、[思考/しこう][過程/かてい]を[与/あた]える"
+            }
+          ],
+          "thinkingTokens": [
+            {
+              "type": "content",
+              "value": "この[問題/もんだい]とよく[似/に]た[問題/もんだい]に[一般/いっぱん]に[当/あ]てはまる[情報/じょうほう]や[区別/くべつ]の[方法/ほうほう]を[与/あた]える"
+            }
+          ],...
         },...
       ]
     },...
@@ -86,18 +101,19 @@ tableにはそれぞれ別の文字列になるデータのみを用意し、定
           {
             "type": "hide",
             "id": "answer_main",
-            "value": {
-              "type": "key",
-              "field": "data4Tokens"
-            },
+            "value": [
+              {
+                "type": "key",
+                "field": "data4Tokens"
+              }
+            ],
             "answer": {
               "mode": "choice_from_entities",
-              "choice": {
-                "distractorSource": {
-                  "count": 3,
-                  "avoidSameId": true,
-                  "avoidSameText": true
-                }
+              "choiceCount": 4,
+              "distractorSource": {
+                "count": 3,
+                "avoidSameId": true,
+                "avoidSameText": true
               }
             }
           },
@@ -133,6 +149,15 @@ tableにはそれぞれ別の文字列になるデータのみを用意し、定
           }
         ]
       }
+    ],
+    "modes": [
+      {
+        "id": "default",
+        "label": "全体",
+        "patternWeights": [
+          { "patternId": "patternの名前", "weight": 1 }
+        ]
+      }
     ]
   }
 }
@@ -156,36 +181,6 @@ tableにはそれぞれ別の文字列になるデータのみを用意し、定
     - 内容が頭に残るように他の項目と結びつける
         - その内容に関連する内容、またはその内容の詳しい解説を提供する
 
-
-- 物理の表記
-    - 物理量に用いる記号
-        - 力学分野
-            - 位置ベクトルは $\vec{r} = \vec{r}(t) = \begin{pmatrix} r_x \\ r_y \\ r_z \end{pmatrix}\ [\mathrm{m}]$
-            - 速度ベクトルは $\vec{v} = \vec{v}(t) := \dfrac{d \vec{r}}{dt} = \begin{pmatrix} v_x \\ v_y \\ v_z \end{pmatrix}\ [\mathrm{m/s}]$
-            - 力は $\vec{F} = \vec{F}(t) = \begin{pmatrix} F_x \\ F_y \\ F_z \end{pmatrix}\ [\mathrm{N}]$
-            - 運動量は $\vec{p} = \vec{p}(t) := m \vec{v}\ [\mathrm{kg\cdot m/s}]$
-            - 運動方程式は $m \vec{a} = \vec{F}\ [\mathrm{N}]$, $m \dfrac{d \vec{v}}{dt} = \vec{F}\ [\mathrm{N}]$, $m \dfrac{d^2 \vec{r}}{dt^2} = \vec{F}\ [\mathrm{N}]$
-            - 仕事は $W = \int_{C} \vec{F} \cdot d\vec{r}\ [\mathrm{J}]$
-            - 運動エネルギーは $K = \dfrac{1}{2} m v^2\ [\mathrm{J}]$
-            - 位置エネルギーは $U_g = mgh\ [\mathrm{J}]$
-            - 万有引力定数は $G\ [\mathrm{N\cdot m^2/kg^{2}}]$
-            - バネ定数は $k\ [\mathrm{N/m}]$
-            
-        - 熱力学分野
-            - 温度は $T\ [\mathrm{K}]$
-            - 体積は $V\ [\mathrm{m^3}]$
-            - 物質量は $n\ [\mathrm{mol}]$
-            - 気体定数は $R\ [\mathrm{J/(mol\cdot K)}]$
-            - 内部エネルギーは $U\ [\mathrm{J}]$
-            - 熱容量は $C\ [\mathrm{J/K}]$
-        - 電磁気分野
-            - ガウスの法則は $\oint \vec{E} \cdot d\vec{A} = \dfrac{Q}{\varepsilon_0}$
-            - 電流は $I\ [\mathrm{A}]$
-            - 電位は $V\ [\mathrm{V}]$
-            - 磁束密度は $\vec{B}\ [\mathrm{T}]$
-            - 磁場は $\vec{H}\ [\mathrm{A/m}]$
-            - 誘電率は $\varepsilon\ [\mathrm{F/m}]$, 真空の誘電率は $\varepsilon_0\ [\mathrm{F/m}]$
-            - 透磁率は $\mu\ [\mathrm{H/m}]$, 真空の透磁率は $\mu_0\ [\mathrm{H/m}]$
 
 # フリガナと併記
 "type": "content" のtokenのvalueでは以下に示す注釈が使用できます
