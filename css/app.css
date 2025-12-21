@@ -206,6 +206,14 @@ button:active {
     font-weight: bold;
 }
 
+.json-katex-command {
+    color: var(--color-katex-command) !important;
+}
+
+.json-katex-brace {
+    color: var(--color-katex-brace) !important;
+}
+
 .json-bracket-0 {
     color: var(--color-bracket-0) !important;
 }

@@ -8,7 +8,8 @@ import {
     getQuizNameFromLocation,
     getModeIdFromLocation,
     loadEntrySourcesFromStorage,
-    saveEntrySourcesToStorage
+    saveEntrySourcesToStorage,
+    createDefaultEntrySources
 } from './config.js';
 import { renderEntryMenu, renderQuizMenu } from './menu-renderer.js';
 import { QuizEngine, NoQuestionsAvailableError, QUIZ_ENGINE_VERSION } from './quiz-engine.js';

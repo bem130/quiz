@@ -3,6 +3,7 @@ import { parseJsonWithLoc } from './json-loc-parser.js';
 import { buildDefinitionFromQuizFile, validateDefinition } from './quiz-model.js';
 import { parseContentToSegments } from './ruby-parser.js';
 import { renderSmilesInline } from './chem-renderer.js';
+import { tokenizeKatex } from './katex-parser.js';
 
 // Preview shows rendered output + JSON view with click-to-jump support.
 
@@ -254,10 +255,21 @@ function updateRubyGlossDecorations() {
         if (delimLen === 2) addDelimiterDecoration(node, seg.range.start + 1, 'katex-delimiter');
         addDelimiterDecoration(node, seg.range.end - 1, 'katex-delimiter');
         if (delimLen === 2) addDelimiterDecoration(node, seg.range.end - 2, 'katex-delimiter');
+
         const contentStart = seg.range.start + delimLen;
         const contentEnd = seg.range.end - delimLen;
         if (contentStart < contentEnd) {
-            addRangeDecoration(node, contentStart, contentEnd, 'katex-content');
+            const tex = seg.tex || "";
+            const internalSegments = tokenizeKatex(tex, contentStart);
+            internalSegments.forEach(iseg => {
+                if (iseg.kind === 'Command') {
+                    addRangeDecoration(node, iseg.start, iseg.end, 'json-katex-command');
+                } else if (iseg.kind === 'Brace') {
+                    addRangeDecoration(node, iseg.start, iseg.end, 'json-katex-brace');
+                } else {
+                    addRangeDecoration(node, iseg.start, iseg.end, 'katex-content');
+                }
+            });
         }
     };
 
@@ -906,16 +918,12 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorSta
             ) {
                 appendCursorMarker(rubyEl, cursorState);
             }
-            const rb = document.createElement('rb');
             const styles = ['katex'];
             if (child.display && !isJsonPreview) styles.push('katex-block');
             const span = createStyledSpan(child.tex || '', styles);
             const offset = node && child.range ? getOffsetForIndex(node, child.range.start, offsetMode) : null;
             attachJump(span, offset);
             rb.appendChild(span);
-            const rt = document.createElement('rt');
-            rubyEl.appendChild(rb);
-            rubyEl.appendChild(rt);
             return;
         }
         if (child.kind === 'Plain') {
