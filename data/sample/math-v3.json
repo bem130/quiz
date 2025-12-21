@@ -1,0 +1,103 @@
+{
+  "title": "高校数学ミニクイズ v3",
+  "description": "基本用語と公式の対応を確認するためのサンプル問題セット。",
+  "version": 3,
+  "table": [
+    {
+      "id": "pyt",
+      "termJa": "ピタゴラスの定理",
+      "definition": "直角三角形で、斜辺の長さの二乗は他の二辺の二乗和に等しい。",
+      "formula": "a^2 + b^2 = c^2"
+    },
+    {
+      "id": "diff",
+      "termJa": "微分係数",
+      "definition": "関数の変化率の極限で定義される値。",
+      "formula": "f'(a) = lim_{h->0} (f(a+h) - f(a)) / h"
+    },
+    {
+      "id": "sum",
+      "termJa": "等差数列の和",
+      "definition": "等差数列の初項から n 項までの和。",
+      "formula": "S_n = n(a_1 + a_n) / 2"
+    },
+    {
+      "id": "area",
+      "termJa": "円の面積",
+      "definition": "半径 r の円の面積。",
+      "formula": "S = pi r^2"
+    }
+  ],
+  "patterns": [
+    {
+      "id": "p_def_to_term",
+      "label": "定義 → 用語",
+      "questionFormat": "table_fill_choice",
+      "tokens": [
+        { "type": "text", "value": "次の定義に当てはまる用語は " },
+        {
+          "type": "hide",
+          "id": "h_term",
+          "value": [{ "type": "key", "field": "termJa" }],
+          "answer": {
+            "mode": "choice_from_entities",
+            "choiceCount": 4,
+            "distractorSource": {
+              "scope": "all",
+              "count": 3,
+              "avoidSameId": true,
+              "avoidSameText": true
+            }
+          }
+        },
+        { "type": "text", "value": " である。" },
+        { "type": "br" },
+        { "type": "key", "field": "definition" }
+      ]
+    },
+    {
+      "id": "p_term_to_formula",
+      "label": "用語 → 公式",
+      "questionFormat": "table_fill_choice",
+      "tokens": [
+        { "type": "text", "value": "用語 " },
+        { "type": "key", "field": "termJa" },
+        { "type": "text", "value": " の公式は " },
+        {
+          "type": "hide",
+          "id": "h_formula",
+          "value": [{ "type": "key", "field": "formula" }],
+          "answer": {
+            "mode": "choice_from_entities",
+            "choiceCount": 4,
+            "distractorSource": {
+              "scope": "all",
+              "count": 3,
+              "avoidSameId": true,
+              "avoidSameText": true
+            }
+          }
+        },
+        { "type": "text", "value": " である。" }
+      ]
+    },
+    {
+      "id": "p_match_term_def",
+      "label": "用語と定義のマッチング",
+      "questionFormat": "table_matching",
+      "tokens": [
+        { "type": "text", "value": "用語と定義を対応させよ。" }
+      ],
+      "matchingSpec": {
+        "mode": "matching_pairs_from_entities",
+        "leftField": "termJa",
+        "rightField": "definition",
+        "count": 4,
+        "shuffle": {
+          "left": false,
+          "right": true
+        }
+      }
+    }
+  ]
+}
