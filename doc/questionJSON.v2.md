@@ -694,19 +694,19 @@ Mode と ModeGroup を混在させた例：
 
 #### 記法ルール
 
-1. **Term（用語）**: `{Term/English}` の形式で記述します。
+1. **Gloss（用語/併記）**: `{Base/Alt1/Alt2}` の形式で記述します。
 
-   * 日本語部分（Term）には Ruby 記法を含めることができます。
+   * ベース部分（Base）には Ruby 記法を含めることができます。
 
-   * 英語部分（English）は省略可能です。
+   * 併記部分（Alt1/Alt2...）は省略可能で、複数言語の併記もできます。
 
    * 例: `{[漸化式/ぜんかしき]/recurrence relation}` 
 
-     → `<span class="term"><ruby><rb>漸化式</rb><rt>ぜんかしき</rt></ruby><span class="term-alt">recurrence relation</span></span>`
+     → `<span class="gloss"><ruby><rb>漸化式</rb><rt>ぜんかしき</rt></ruby><span class="gloss-alt">recurrence relation</span></span>`
 
-   * 例: `{専門用語}` → `<span class="term"><ruby><rb>専門用語</rb><rt></rt></ruby></span>`
+   * 例: `{専門用語}` → `<span class="gloss"><ruby><rb>専門用語</rb><rt></rt></ruby></span>`
 
-   * Term 内の日本語部分では、`[Base/Reading]` 形式の Ruby 記法が使用できます。
+   * 併記部分でも Ruby 記法を使用できます（例: `{[台湾/たいわん]/[台灣/Táiwān]}`）。
 
    * `{` `}` `/` を文字として使いたい場合は `\` でエスケープします（例: `\{`, `\}`, `\/`）。
 

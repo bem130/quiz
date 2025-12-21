@@ -35,3 +35,25 @@ test('resolveQuestionContext finds table row by entityId', () => {
     assert.ok(row);
     assert.equal(row.text, 'Alpha');
 });
+
+test('tokensToPlainText expands gloss content with alternates', () => {
+    const tokens = [
+        {
+            type: 'content',
+            value: 'A{[Base/Read]/[Alt/AltRead]/Alt2}C'
+        }
+    ];
+    const text = tokensToPlainText(tokens, null);
+    assert.equal(text, 'ABase (Alt / Alt2)C');
+});
+
+test('tokensToPlainText omits parentheses when gloss has no alternates', () => {
+    const tokens = [
+        {
+            type: 'content',
+            value: '{Solo}'
+        }
+    ];
+    const text = tokensToPlainText(tokens, null);
+    assert.equal(text, 'Solo');
+});

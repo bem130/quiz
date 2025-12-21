@@ -3,7 +3,7 @@
  *
  * Implements a parser for the format:
  *   [Base/Reading] -> <ruby><rb>Base</rb><rt>Reading</rt></ruby>
- *   {Term/English} -> <span class="term"><ruby>...</ruby><span class="term-alt">English</span></span>
+ *   {Gloss/English} -> <span class="gloss"><ruby>...</ruby><span class="gloss-alt">English</span></span>
  *
  * Also handles plain text and escapes.
  */
@@ -22,10 +22,10 @@
  */
 
 /**
- * @typedef {Object} SegmentTerm
- * @property {"Term"} kind
- * @property {TermChildSegment[]} children
- * @property {string} english
+ * @typedef {Object} SegmentGloss
+ * @property {"Gloss"} kind
+ * @property {GlossChildSegment[]} base
+ * @property {GlossChildSegment[][]} glosses
  */
 
 /**
@@ -36,7 +36,7 @@
  */
 
 /**
- * @typedef {SegmentPlain | SegmentAnnotated | SegmentTerm | SegmentMath} Segment
+ * @typedef {SegmentPlain | SegmentAnnotated | SegmentGloss | SegmentMath} Segment
  */
 
 /**
@@ -44,7 +44,7 @@
  */
 
 /**
- * @typedef {SegmentPlain | SegmentAnnotated | SegmentMath} TermChildSegment
+ * @typedef {SegmentPlain | SegmentAnnotated | SegmentMath} GlossChildSegment
  */
 
 /**
@@ -200,7 +200,7 @@ function splitInlineMathSegments(text) {
 /**
  * Append inline segments, merging adjacent plain nodes.
  *
- * @param {TermChildSegment[]} target
+ * @param {GlossChildSegment[]} target
  * @param {InlineSegment[]} incoming
  */
 function appendInlineSegments(target, incoming) {
@@ -276,67 +276,68 @@ function parseRubyBlock(tokens, start) {
 }
 
 /**
- * Parse a term block: {Term/English} or {Term}
+ * Parse a gloss block: {Gloss/English} or {Gloss/French/English}
  * Expects the cursor to be at '{'.
  *
  * @param {Token[]} tokens
  * @param {number} start
- * @returns {{ segment: SegmentTerm, nextIndex: number } | null}
+ * @returns {{ segment: SegmentGloss, nextIndex: number } | null}
  */
-function parseTermBlock(tokens, start) {
+function parseGlossBlock(tokens, start) {
     if (tokens[start].kind !== 'Symbol' || tokens[start].value !== '{') return null;
 
     let i = start + 1;
-    let jpSegments = [];
-    let english = "";
-    let foundSlash = false;
-    let jpBuffer = "";
+    const parts = [];
+    let currentSegments = [];
+    let buffer = "";
 
-    const flushJapaneseBuffer = () => {
-        if (!jpBuffer) return;
-        const inlineSegments = splitInlineMathSegments(jpBuffer);
-        appendInlineSegments(jpSegments, inlineSegments);
-        jpBuffer = "";
+    const flushBuffer = () => {
+        if (!buffer) return;
+        const inlineSegments = splitInlineMathSegments(buffer);
+        appendInlineSegments(currentSegments, inlineSegments);
+        buffer = "";
+    };
+
+    const flushPart = () => {
+        flushBuffer();
+        parts.push(currentSegments);
+        currentSegments = [];
     };
 
     while (i < tokens.length) {
         const t = tokens[i];
 
         if (t.kind === 'Symbol' && t.value === '}') {
-            flushJapaneseBuffer();
+            flushPart();
             return {
-                segment: { kind: "Term", children: jpSegments, english },
+                segment: {
+                    kind: "Gloss",
+                    base: parts[0] || [],
+                    glosses: parts.slice(1)
+                },
                 nextIndex: i + 1
             };
         }
 
-        if (foundSlash) {
-            // English part
-            english += t.value;
-            i++;
-            continue;
-        }
-
         if (t.kind === 'Symbol' && t.value === '/') {
-            flushJapaneseBuffer();
-            foundSlash = true;
+            flushPart();
             i++;
             continue;
         }
 
-        // Japanese part
+        // Gloss part
         if (t.kind === 'Symbol' && t.value === '[') {
-            flushJapaneseBuffer();
+            flushBuffer();
             const rubyResult = parseRubyBlock(tokens, i);
             if (rubyResult) {
-                jpSegments.push(rubyResult.segment);
+                currentSegments.push(rubyResult.segment);
                 i = rubyResult.nextIndex;
                 continue;
             }
         }
 
-        // Plain text or unparsed symbols in Japanese part
-        jpBuffer += t.value;
+        // Plain text or unparsed symbols in gloss part
+        buffer += t.value;
         i++;
     }
 
@@ -359,7 +360,7 @@ function parseLineToSegments(line) {
         const t = tokens[i];
 
         if (t.kind === 'Symbol' && t.value === '{') {
-            const result = parseTermBlock(tokens, i);
+            const result = parseGlossBlock(tokens, i);
             if (result) {
                 segments.push(result.segment);
                 i = result.nextIndex;
@@ -424,21 +425,35 @@ export function rubyLineToHtml(line) {
             return escapeHtml(seg.text).replace(/\n/g, "<br/>");
         } else if (seg.kind === "Annotated") {
             return `<ruby><rb>${escapeHtml(inlineSegmentsToPlainText(seg.base))}</rb><rt>${escapeHtml(seg.reading)}</rt></ruby>`;
-        } else if (seg.kind === "Term") {
-            const jpHtml = seg.children.map(child => {
+        } else if (seg.kind === "Gloss") {
+            const baseSegments = seg.base || [];
+            const baseHtml = baseSegments.map(child => {
                 if (child.kind === "Annotated") {
                     return `<rb>${escapeHtml(inlineSegmentsToPlainText(child.base))}</rb><rt>${escapeHtml(child.reading)}</rt>`;
                 }
                 if (child.kind === "Math") {
                     return `<rb>${escapeHtml(inlineSegmentsToPlainText([child]))}</rb><rt></rt>`;
                 }
-                // Plain text inside term ruby
+                // Plain text inside gloss ruby
                 return `<rb>${escapeHtml(child.text).replace(/\n/g, "<br/>")}</rb><rt></rt>`;
             }).join("");
 
-            let html = `<span class="term"><ruby>${jpHtml}</ruby>`;
-            if (seg.english) {
-                html += `<span class="term-alt">${escapeHtml(seg.english)}</span>`;
+            const glossHtml = (seg.glosses || []).map((gloss) => {
+                const parts = (gloss || []).map((child) => {
+                    if (child.kind === "Annotated") {
+                        return `<ruby><rb>${escapeHtml(inlineSegmentsToPlainText(child.base))}</rb><rt>${escapeHtml(child.reading)}</rt></ruby>`;
+                    }
+                    if (child.kind === "Math") {
+                        return escapeHtml(inlineSegmentsToPlainText([child]));
+                    }
+                    return escapeHtml(child.text).replace(/\n/g, "<br/>");
+                }).join("");
+                return `<span class="gloss-alt">${parts}</span>`;
+            }).join("");
+
+            let html = `<span class="gloss"><ruby>${baseHtml}</ruby>`;
+            if (glossHtml) {
+                html += glossHtml;
             }
             html += `</span>`;
             return html;
@@ -540,7 +555,7 @@ function splitMathAndPlain(src) {
 }
 
 /**
- * Parse content with Ruby, Term, and Math support.
+ * Parse content with Ruby, Gloss, and Math support.
  *
  * @param {string} line
  * @returns {Segment[]}
@@ -553,7 +568,7 @@ export function parseContentToSegments(line) {
         if (part.kind === 'math') {
             segments.push({ kind: "Math", tex: part.tex, display: part.display });
         } else {
-            // Plain text part -> parse for Ruby/Term
+            // Plain text part -> parse for Ruby/Gloss
             const subSegments = parseLineToSegments(part.text);
             segments.push(...subSegments);
         }

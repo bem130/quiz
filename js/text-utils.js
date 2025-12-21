@@ -29,10 +29,13 @@ function contentSegmentsToPlainText(segments) {
             text += inlineSegmentsToPlainText(segment.base);
             return;
         }
-        if (segment.kind === 'Term') {
-            text += contentSegmentsToPlainText(segment.children || []);
-            if (segment.english) {
-                text += ` (${segment.english})`;
+        if (segment.kind === 'Gloss') {
+            text += contentSegmentsToPlainText(segment.base || []);
+            const glosses = (segment.glosses || [])
+                .map((gloss) => contentSegmentsToPlainText(gloss || []))
+                .filter((gloss) => gloss);
+            if (glosses.length) {
+                text += ` (${glosses.join(' / ')})`;
             }
             return;
         }

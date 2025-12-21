@@ -131,6 +131,43 @@ function appendInlineSegmentsInto(parent, segments) {
     });
 }
 
+function appendGlossSegmentsInto(parent, segments) {
+    (segments || []).forEach((seg) => {
+        if (!seg || !seg.kind) return;
+        if (seg.kind === 'Annotated') {
+            const rubyEl = document.createElement('ruby');
+            const rb = document.createElement('rb');
+            appendInlineSegmentsInto(rb, seg.base);
+            const rt = document.createElement('rt');
+            rt.textContent = seg.reading;
+            rubyEl.appendChild(rb);
+            rubyEl.appendChild(rt);
+            parent.appendChild(rubyEl);
+            return;
+        }
+        if (seg.kind === 'Plain') {
+            const txt = seg.text || '';
+            if (txt.indexOf('\n') === -1) {
+                parent.appendChild(document.createTextNode(txt));
+            } else {
+                const parts = txt.split('\n');
+                parts.forEach((p, idx) => {
+                    parent.appendChild(document.createTextNode(p));
+                    if (idx !== parts.length - 1) {
+                        parent.appendChild(document.createElement('br'));
+                    }
+                });
+            }
+            return;
+        }
+        if (seg.kind === 'Math') {
+            const styles = ['katex'];
+            if (seg.display) styles.push('katex-block');
+            parent.appendChild(createStyledSpan(seg.tex || '', styles));
+        }
+    });
+}
+
 function renderRubyToken(token, row) {
     const rubyEl = document.createElement('ruby');
     if (token._loc) {
@@ -211,12 +248,12 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                     if (seg.display) styles.push('katex-block');
                     const mathSpan = createStyledSpan(seg.tex, styles);
                     wrapper.appendChild(mathSpan);
-                } else if (seg.kind === 'Term') {
-                    const termSpan = document.createElement('span');
-                    termSpan.className = 'term';
+                } else if (seg.kind === 'Gloss') {
+                    const glossSpan = document.createElement('span');
+                    glossSpan.className = 'gloss';
 
                     const rubyEl = document.createElement('ruby');
-                    seg.children.forEach(child => {
+                    (seg.base || []).forEach(child => {
                         if (child.kind === 'Annotated') {
                             const rb = document.createElement('rb');
                             appendInlineSegmentsInto(rb, child.base);
@@ -239,15 +276,15 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                             rubyEl.appendChild(rt);
                         }
                     });
-                    termSpan.appendChild(rubyEl);
+                    glossSpan.appendChild(rubyEl);
 
-                    if (seg.english) {
+                    (seg.glosses || []).forEach((gloss) => {
                         const altSpan = document.createElement('span');
-                        altSpan.className = 'term-alt';
-                        altSpan.textContent = seg.english;
-                        termSpan.appendChild(altSpan);
-                    }
-                    wrapper.appendChild(termSpan);
+                        altSpan.className = 'gloss-alt';
+                        appendGlossSegmentsInto(altSpan, gloss);
+                        glossSpan.appendChild(altSpan);
+                    });
+                    wrapper.appendChild(glossSpan);
                 }
             });
 
