@@ -15,7 +15,7 @@
 
 ### 1.1 対象範囲
 
-本仕様は、table から生成する **n 択穴埋め問題**（典型的には 4 択）のみをサポートします。
+本仕様は、table から生成する **4 択穴埋め問題**（不足時は 3 択 / 2 択）のみをサポートします。
 
 共通ポリシー：
 
@@ -190,6 +190,58 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 
 ---
 
+### 3.3 複数正答（集合）の表現
+
+#### 記述
+
+「～に当てはまるものの 1 つを選べ」のように **正答が複数ある**場合は、
+同じ条件を共有する複数行を用意し、`choiceGroup` で同一集合として扱います。
+
+```jsonc
+{
+  "id": "set1",
+  "conditionTokens": [ /* 条件文 */ ],
+  "answersTokens": [
+    [ /* 正答その1 */ ],
+    [ /* 正答その2 */ ]
+  ]
+}
+```
+
+* `answersTokens`: **正答集合**（Token[][]）
+* 正答が 1 つだけの行は `answerTokens: Token[]` を使い、`key` で参照します。
+* 複数正答は `answersTokens` を使い、`listkey` で参照します。
+
+#### listkey の表示（区切りは pattern 側で指定）
+
+```jsonc
+{ "type": "listkey", "field": "answersTokens", "separatorTokens": [{ "type": "text", "value": "、" }] }
+```
+
+* `separatorTokens` に「、」「・」などを指定して連結します。
+* 区切りは table ではなく **pattern 側で指定**します。
+
+#### 使い方（hide 側）
+
+```jsonc
+{
+  "type": "hide",
+  "id": "answer_main",
+  "value": [{ "type": "listkey", "field": "answersTokens" }],
+  "answer": {
+    "mode": "choice_from_entities",
+    "distractorSource": {
+      "groupField": "choiceGroup"
+    }
+  }
+}
+```
+
+* 必要であれば `choiceGroup` を付与し、同じ `choiceGroup` を持つ行が
+  **誤答候補から除外**されるようにできます。
+
+---
+
 ## 4. Patterns 構造
 
 ### 4.1 patterns トップレベル
@@ -228,7 +280,7 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 **ルール：**
 
 * `tokens` は **必須**です。
-* `tokens` の中に `hide` を含め、**n 択穴埋め問題**を定義します。
+* `tokens` の中に `hide` を含め、**4 択穴埋め問題**を定義します。
 
 #### tips フィールド（TipBlock）の仕様
 
@@ -287,7 +339,7 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 
 ```jsonc
 {
-  "type": "text" | "content" | "key" | "ruby" | "katex" | "smiles" | "hide" | "br",
+  "type": "text" | "content" | "key" | "listkey" | "ruby" | "katex" | "smiles" | "hide" | "br",
   "styles": ["bold", "italic", "sans", "serif"] // 任意
 }
 ```
@@ -381,6 +433,7 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 ```
 
 * `field`: 現在の行（table の 1 行）から参照するフィールド名
+* `Token[][]` を参照する場合は `listkey` を使用します。
 
 #### 処理
 
@@ -392,7 +445,29 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 
 ---
 
-### 5.5 `ruby`
+### 5.5 `listkey`
+
+#### 記述
+
+```jsonc
+{
+  "type": "listkey",
+  "field": "answersTokens",
+  "separatorTokens": [{ "type": "text", "value": "、" }]
+}
+```
+
+* `field`: `Token[][]` を格納した table フィールド名
+* `separatorTokens`: 要素どうしを連結する区切り Token 配列（省略可）
+
+#### 処理
+
+* 通常の表示では、`Token[][]` の各要素を順に描画し、`separatorTokens` で連結します。
+* `hide.value` の中で使われた場合は、配列から **1 要素を選んで**正答として扱います。
+
+---
+
+### 5.6 `ruby`
 
 #### 記述
 
@@ -422,7 +497,7 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 
 ---
 
-### 5.6 `katex`
+### 5.7 `katex`
 
 #### 記述
 
@@ -438,7 +513,7 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 
 ---
 
-### 5.7 `smiles`
+### 5.8 `smiles`
 
 #### 記述
 
@@ -454,7 +529,7 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 
 ---
 
-### 5.8 `hide`
+### 5.9 `hide`
 
 #### 記述
 
@@ -477,6 +552,7 @@ table 行に **選択肢グループ用のフィールド**を追加します。
 
 * 画面上では `value` の代わりに空欄（あるいは下線）を表示します。
 * 正解は `value` から生成されます。
+* `value` に `listkey` が含まれる場合、`Token[][]` から **1 要素を選んで**正解とします。
 
 #### 制約
 
@@ -514,7 +590,7 @@ v3 で使用する `answer.mode` は次の 1 種類です：
 
 | mode                     | 用途                         |
 | ------------------------ | -------------------------- |
-| `"choice_from_entities"` | 表の行から正解＋誤答を選ぶ n 択          |
+| `"choice_from_entities"` | 表の行から正解＋誤答を選ぶ 4 択          |
 
 **共通ポリシー：**
 
@@ -529,22 +605,16 @@ v3 で使用する `answer.mode` は次の 1 種類です：
 ```jsonc
 "answer": {
   "mode": "choice_from_entities",
-  "choiceCount": 4,
   "distractorSource": {
-    "count": 3,
-    "avoidSameId": true,
-    "avoidSameText": true,
     "groupField": "choiceGroup"
   }
 }
 ```
 
-* `choiceCount`: 実際に表示する選択肢の個数（正解 + 誤答）
+* 選択肢数は **原則 4 択**で固定です（指定しない）。
+  * 誤答候補が足りない場合は **3 択 / 2 択にフォールバック**します。
 * `distractorSource`: 誤答候補の取り方を指定するオブジェクト
 
-  * `count`: 誤答候補として必要な行数
-  * `avoidSameId`: 正解行と同じ `id` を持つ行を誤答候補から除外するか
-  * `avoidSameText`: 正解表示と同じテキストを持つ候補を除外するか（同じ表示内容の選択肢を避ける）
   * `groupField?: string`:
 
     * 値が指定された場合、`row[groupField]` を **選択肢グループ**として扱います。
@@ -554,37 +624,30 @@ v3 で使用する `answer.mode` は次の 1 種類です：
 #### 処理
 
 1. table 全体の行集合から、現在の問題で使用している **正解行** `correctRow` を 1 行特定する。
-2. table 全体の行集合 `rowsAll` を誤答候補の母集合とする。
-3. `rowsAll` から、以下の条件を適用して **誤答候補集合** `rowsCandidates` を得る：
+2. `hide.value` から正解を決める：
 
-   * `avoidSameId === true` の場合：
+   * `key` → `row[field]` の Token[] をそのまま正解とする。
+   * `listkey` → `row[field]` の Token[][] から **1 要素を選んで**正解とする。
+3. **正解集合** `correctSet` を作る：
 
-     * `row.id === correctRow.id` の行を除外。
-   * `avoidSameText === true` の場合：
+   * `listkey` の場合は `Token[][]` の各要素をレンダリングした表示テキスト集合。
+   * `key` の場合は正解 1 つのみを集合に含める。
+4. 誤答候補行集合 `rowsCandidates` を作る：
 
-     * `hide.value` をレンダリングしたテキストと同じ表示になる候補を除外。
+   * `row.id === correctRow.id` の行は除外。
+   * `groupField` が指定され、`correctRow[groupField]` が定義されている場合は、
+     `row[groupField] === correctRow[groupField]` の行を除外。
+5. `rowsCandidates` から誤答候補を選ぶ：
 
-       * ここでの「表示テキスト」は、`hide.value` の Token 配列を実際に描画したときの文字列を想定。
-    * `groupField` が指定され、かつ `correctRow[groupField]` が定義されている場合：
-
-      * `row[groupField] === correctRow[groupField]` の行を除外。
-4. `rowsCandidates` から、`distractorSource.count` 行をランダムに選び、誤答候補とする。
-5. 正解 1 行 + 誤答候補行を 1 つの配列にし、ランダムシャッフルして `choiceCount` 個の選択肢として使用する。
-
-#### `choiceCount` と `distractorSource.count` の関係
-
-* 基本ルール：
-
-  * `choiceCount` 個の選択肢のうち、1 つが正解で残りは誤答とする。
-  * `distractorSource.count` を省略した場合は、`choiceCount - 1` とみなしてよい。
-* `distractorSource.count + 1 !== choiceCount` の場合：
-
-  * 実装側で `choiceCount` を優先し、`min(choiceCount - 1, distractorSource.count)` 個の誤答を採用することを推奨。
-  * 不整合があった場合は `console.warn` などで警告を出すとよい。
+   * `key` の場合は、その行の表示テキストが `correctSet` と一致する候補を除外。
+   * `listkey` の場合は、**`correctSet` に含まれない要素**から 1 つ選び、候補とする。
+     * 候補を選べない行は除外。
+6. 正解 1 つ + 誤答候補を最大 3 つ選び、ランダムシャッフルして選択肢を作る。
+   * 誤答が足りない場合は **3 択 / 2 択にフォールバック**する。
 
 #### スキップ条件
 
-* 利用可能な誤答候補が必要数（`distractorSource.count`）未満の場合 → 問題生成をスキップします。
+* 利用可能な誤答候補が 0 件の場合 → 問題生成をスキップします。
 
 ---
 

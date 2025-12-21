@@ -59,13 +59,7 @@
           "id": "h_term",
           "value": [{ "type": "key", "field": "termJa" }],
           "answer": {
-            "mode": "choice_from_entities",
-            "choiceCount": 4,
-            "distractorSource": {
-              "count": 3,
-              "avoidSameId": true,
-              "avoidSameText": true
-            }
+            "mode": "choice_from_entities"
           }
         },
         { "type": "text", "value": " である。" },
@@ -85,13 +79,7 @@
           "id": "h_formula",
           "value": [{ "type": "key", "field": "formulaTokens" }],
           "answer": {
-            "mode": "choice_from_entities",
-            "choiceCount": 4,
-            "distractorSource": {
-              "count": 3,
-              "avoidSameId": true,
-              "avoidSameText": true
-            }
+            "mode": "choice_from_entities"
           }
         },
         { "type": "text", "value": " である。" }

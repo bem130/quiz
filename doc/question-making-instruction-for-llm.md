@@ -13,9 +13,10 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
 作成できる問題形式は **`table_fill_choice` 相当のみ**です  
 `questionFormat` は **書きません**  
 `hide.answer.mode` は **`choice_from_entities` のみ**です  
-選択肢数は **4 択固定**で、`choiceCount: 4` と `distractorSource.count: 3` を使います  
-`avoidSameId` と `avoidSameText` は **必ず true** にします  
-フィルタ機能やマッチング問題は使いません
+選択肢数は **4 択固定**です（指定しません）  
+誤答が足りない場合は **3 択 / 2 択にフォールバック**します  
+`avoidSameId` と `avoidSameText` は **常に有効**として扱います  
+フィルタ機能やマッチング問題は廃止されました  
 
 ```json
 {
@@ -103,14 +104,7 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
             }
           ],
           "answer": {
-            "mode": "choice_from_entities",
-            "choiceCount": 4,
-            "distractorSource": {
-              "count": 3,
-              "avoidSameId": true,
-              "avoidSameText": true,
-              "groupField": "choiceGroup"
-            }
+            "mode": "choice_from_entities"
           }
         },
         {
@@ -161,6 +155,46 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
   **正解行と同じグループ値の行が誤答候補から除外**されます
 
 `groupField` を使わない場合は、`choiceGroup` を省略して構いません
+
+# 複数正答の設計（「～に当てはまるものの1つを選べ」）
+
+同じ条件に対して **複数の正答がある**場合は、1 行に **正答集合**を持たせます  
+この行の正答は指定せず、集合から 1 つが選ばれる想定です
+
+正答が 1 つだけの行は `answerTokens: Token[]` を使い、`key` で参照します
+
+- `answersTokens`: 正答集合（Token[][]）
+- hide は `listkey` で `answersTokens` を参照します
+- 問題文や解説で一覧表示する場合も `listkey` を使い、
+  `separatorTokens` に区切り（「、」「・」など）を指定します
+
+```jsonc
+{
+  "id": "set1",
+  "conditionTokens": [ /* 条件 */ ],
+  "answersTokens": [
+    [ /* 正答その1 */ ],
+    [ /* 正答その2 */ ]
+  ]
+}
+```
+
+```jsonc
+{
+  "type": "listkey",
+  "field": "answersTokens",
+  "separatorTokens": [{ "type": "text", "value": "、" }]
+}
+```
+
+```jsonc
+{
+  "type": "hide",
+  "id": "answer_main",
+  "value": [{ "type": "listkey", "field": "answersTokens" }],
+  "answer": { "mode": "choice_from_entities" }
+}
+```
 
 # 説明の書き方
 

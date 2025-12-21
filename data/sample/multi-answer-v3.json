@@ -1,0 +1,69 @@
+{
+  "title": "複数正答の4択サンプル v3",
+  "description": "複数の正答候補から1つを選ぶ問題の例。",
+  "version": 3,
+  "table": [
+    {
+      "id": "quad_root_6",
+      "conditionTokens": [
+        { "type": "content", "value": "$x^2 - 5x + 6 = 0$ の解" }
+      ],
+      "answersTokens": [
+        [{ "type": "content", "value": "2" }],
+        [{ "type": "content", "value": "3" }]
+      ]
+    },
+    {
+      "id": "square_1",
+      "conditionTokens": [
+        { "type": "content", "value": "$x^2 = 1$ の解" }
+      ],
+      "answersTokens": [
+        [{ "type": "content", "value": "-1" }],
+        [{ "type": "content", "value": "1" }]
+      ]
+    },
+    {
+      "id": "square_16",
+      "conditionTokens": [
+        { "type": "content", "value": "$x^2 = 16$ の解" }
+      ],
+      "answersTokens": [
+        [{ "type": "content", "value": "-4" }],
+        [{ "type": "content", "value": "4" }]
+      ]
+    }
+  ],
+  "patterns": [
+    {
+      "id": "p_pick_one_from_set",
+      "label": "条件に当てはまるものの1つを選ぶ",
+      "tokens": [
+        { "type": "content", "value": "次の条件に当てはまるものの1つを選べ。" },
+        { "type": "br" },
+        { "type": "key", "field": "conditionTokens" },
+        { "type": "br" },
+        {
+          "type": "hide",
+          "id": "answer_main",
+          "value": [{ "type": "listkey", "field": "answersTokens" }],
+          "answer": { "mode": "choice_from_entities" }
+        }
+      ],
+      "tips": [
+        {
+          "id": "t_answer_set",
+          "when": "after_answer",
+          "tokens": [
+            { "type": "content", "value": "この条件に当てはまる集合：" },
+            {
+              "type": "listkey",
+              "field": "answersTokens",
+              "separatorTokens": [{ "type": "text", "value": "、" }]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
