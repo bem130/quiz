@@ -1894,7 +1894,7 @@ function renderModeNodes(nodes, parentElement, modeById) {
             const header = document.createElement('div');
             header.className =
                 'px-2 py-1 text-[0.75rem] font-semibold app-text-muted';
-            header.textContent = node.label || 'Group';
+            replaceContentString(header, node.label || 'Group');
             groupContainer.appendChild(header);
 
             const childrenBox = document.createElement('div');
@@ -2963,6 +2963,7 @@ function renderDraftSummary(definition, entry, engineInstance) {
     }
 
     dom.draftSummaryPanel.classList.remove('hidden');
+    dom.draftSummaryContent.innerHTML = '';
 
     // Updated At
     if (dom.draftSummaryUpdated && entry.updatedAt) {
@@ -2970,39 +2971,69 @@ function renderDraftSummary(definition, entry, engineInstance) {
     }
 
     const d = definition;
-    const lines = [];
 
     // Meta
-    lines.push(`<strong>Meta:</strong> ID=${d.meta.id}, Title=${d.meta.title}`);
+    const metaLine = document.createElement('div');
+    metaLine.className = 'mb-1';
+    const metaLabel = document.createElement('strong');
+    metaLabel.textContent = 'Meta: ';
+    metaLine.appendChild(metaLabel);
+    metaLine.appendChild(document.createTextNode(`ID=${d.meta.id}, Title=`));
+    appendContentString(metaLine, d.meta.title || '');
+    dom.draftSummaryContent.appendChild(metaLine);
 
     // DataSets
     if (d.dataSets) {
+        const dsLine = document.createElement('div');
+        dsLine.className = 'mb-1';
+        const dsLabel = document.createElement('strong');
+        dsLabel.textContent = 'DataSets: ';
+        dsLine.appendChild(dsLabel);
         const dsList = Object.values(d.dataSets).map(ds => {
             let info = `${ds.id} (${ds.type})`;
             if (ds.data) info += ` [${ds.data.length} rows]`;
             return info;
         }).join(', ');
-        lines.push(`<strong>DataSets:</strong> ${dsList}`);
+        dsLine.appendChild(document.createTextNode(dsList));
+        dom.draftSummaryContent.appendChild(dsLine);
     }
 
     // Patterns
     if (d.patterns) {
-        const pList = d.patterns.map(p => {
+        const pLine = document.createElement('div');
+        pLine.className = 'mb-1';
+        const pLabel = document.createElement('strong');
+        pLabel.textContent = 'Patterns:';
+        pLine.appendChild(pLabel);
+        
+        const pListDiv = document.createElement('div');
+        pListDiv.className = 'pl-2 text-xs text-gray-500';
+        d.patterns.forEach(p => {
+            const row = document.createElement('div');
             const cap = engineInstance ? engineInstance.getPatternCapacity(p.id) : '?';
-            return `${p.id} (cap=${cap})`;
-        }).join('<br>');
-        lines.push(`<strong>Patterns:</strong><div class="pl-2 text-xs text-gray-500">${pList}</div>`);
+            const labelText = `${p.id}${p.label ? ` (${p.label})` : ''} (cap=${cap})`;
+            appendContentString(row, labelText);
+            pListDiv.appendChild(row);
+        });
+        pLine.appendChild(pListDiv);
+        dom.draftSummaryContent.appendChild(pLine);
     }
 
     // Modes
     if (d.modes) {
-        const mList = d.modes.map(m => {
-            return `${m.id} (${m.label || ''})`;
-        }).join(', ');
-        lines.push(`<strong>Modes:</strong> ${mList}`);
+        const mLine = document.createElement('div');
+        mLine.className = 'mb-1';
+        const mLabel = document.createElement('strong');
+        mLabel.textContent = 'Modes: ';
+        mLine.appendChild(mLabel);
+        
+        d.modes.forEach((m, idx) => {
+            if (idx > 0) mLine.appendChild(document.createTextNode(', '));
+            const labelText = `${m.id}${m.label ? ` (${m.label})` : ''}`;
+            appendContentString(mLine, labelText);
+        });
+        dom.draftSummaryContent.appendChild(mLine);
     }
-
-    dom.draftSummaryContent.innerHTML = lines.join('<br>');
 }
 
 /**
@@ -3043,7 +3074,7 @@ function renderDraftPatternButtons(definition, engineInstance) {
 
         const title = document.createElement('div');
         title.className = 'font-semibold';
-        title.textContent = pattern.label || pattern.id;
+        replaceContentString(title, pattern.label || pattern.id);
         btn.appendChild(title);
 
         const info = document.createElement('div');

@@ -212,7 +212,7 @@ function renderQuizTreeNodes(nodes, parentElement, currentSelectionKey) {
         if (node.type === 'dir') {
             const header = document.createElement('div');
             header.className = 'mt-2 text-[11px] font-semibold app-text-muted';
-            header.textContent = node.label || node.name || 'Group';
+            replaceContentString(header, node.label || node.name || 'Group');
             parentElement.appendChild(header);
 
             const container = document.createElement('div');
