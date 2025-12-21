@@ -808,6 +808,7 @@ function buildJsonPreview(jsonText, container) {
         tokenRanges: [],
         offsetMap: new Map(),
         cursorOverlay: null,
+        lineOverlay: null,
         bracketDepth: 0
     };
     if (!lastParsedAst || !lastParsedAst.loc || lastParsedText !== lastSourceText) {
@@ -885,6 +886,17 @@ function ensureJsonCursorOverlay(state) {
     return state.cursorOverlay;
 }
 
+function ensureJsonLineOverlay(state) {
+    if (!state.lineOverlay) {
+        const overlay = document.createElement('span');
+        overlay.className = 'json-line-highlight';
+        overlay.style.display = 'none';
+        state.container.appendChild(overlay);
+        state.lineOverlay = overlay;
+    }
+    return state.lineOverlay;
+}
+
 function positionCursorOverlay(overlay, container, rect) {
     const containerRect = container.getBoundingClientRect();
     const left = rect.left - containerRect.left + container.scrollLeft;
@@ -895,31 +907,30 @@ function positionCursorOverlay(overlay, container, rect) {
     overlay.style.height = `${rect.height || 16}px`;
 }
 
-function updateJsonCursor(offset) {
-    if (!jsonPreviewState || activePreviewTab !== 'json') return;
-    const state = jsonPreviewState;
-    const container = state.container;
-    if (!container) return;
-    const overlay = ensureJsonCursorOverlay(state);
-    if (offset == null) {
-        overlay.style.display = 'none';
-        return;
-    }
+function positionLineHighlight(overlay, container, rect) {
+    const containerRect = container.getBoundingClientRect();
+    const top = rect.top - containerRect.top + container.scrollTop;
+    overlay.style.display = 'block';
+    overlay.style.left = `${container.scrollLeft}px`;
+    overlay.style.top = `${top}px`;
+    overlay.style.height = `${rect.height || 16}px`;
+    overlay.style.width = `${container.clientWidth}px`;
+}
 
+function getJsonCursorRect(state, offset) {
+    if (!state || offset == null) return null;
     let target = state.offsetMap.get(offset);
     if (!target && offset > 0) {
         target = state.offsetMap.get(offset - 1);
     }
 
     if (target) {
-        positionCursorOverlay(overlay, container, target.getBoundingClientRect());
-        return;
+        return target.getBoundingClientRect();
     }
 
     const tokenEntry = findTokenRangeByOffset(offset, state.tokenRanges);
     if (!tokenEntry || !tokenEntry.element) {
-        overlay.style.display = 'none';
-        return;
+        return null;
     }
 
     const textNode = tokenEntry.element.firstChild;
@@ -929,10 +940,57 @@ function updateJsonCursor(offset) {
         range.setStart(textNode, localOffset);
         range.setEnd(textNode, localOffset);
         const rects = range.getClientRects();
-        const rect = rects[0] || tokenEntry.element.getBoundingClientRect();
-        positionCursorOverlay(overlay, container, rect);
-    } else {
-        positionCursorOverlay(overlay, container, tokenEntry.element.getBoundingClientRect());
+        return rects[0] || tokenEntry.element.getBoundingClientRect();
+    }
+    return tokenEntry.element.getBoundingClientRect();
+}
+
+function updateJsonCursor(offset) {
+    if (!jsonPreviewState || activePreviewTab !== 'json') return;
+    const state = jsonPreviewState;
+    const container = state.container;
+    if (!container) return;
+    const overlay = ensureJsonCursorOverlay(state);
+    const lineOverlay = ensureJsonLineOverlay(state);
+    if (offset == null) {
+        overlay.style.display = 'none';
+        lineOverlay.style.display = 'none';
+        return;
+    }
+
+    const rect = getJsonCursorRect(state, offset);
+    if (!rect) {
+        overlay.style.display = 'none';
+        lineOverlay.style.display = 'none';
+        return;
+    }
+    positionCursorOverlay(overlay, container, rect);
+    positionLineHighlight(lineOverlay, container, rect);
+}
+
+function scrollJsonPreviewToCursor() {
+    const container = document.getElementById('draft-preview-json');
+    const panel = document.getElementById('draft-preview-panel');
+    if (!container) return;
+    const state = ensureJsonPreview(lastSourceText || '', container);
+    updateJsonCursor(activeCursorOffset);
+    const rect = getJsonCursorRect(state, activeCursorOffset);
+    if (!rect) return;
+    const scrollContainer =
+        container.scrollHeight > container.clientHeight + 1
+            ? container
+            : panel || container;
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const lineHeight = rect.height || 16;
+    const topValue = rect.top - containerRect.top + scrollContainer.scrollTop;
+    const targetScroll = Math.max(
+        0,
+        topValue - scrollContainer.clientHeight / 2 + lineHeight / 2
+    );
+    scrollContainer.scrollTop = targetScroll;
+    updateJsonCursor(activeCursorOffset);
+    if (editor) {
+        editor.focus();
     }
 }
 
@@ -1794,6 +1852,7 @@ function attachPreviewTabHandlers() {
     previewTabsInitialized = true;
     const renderedButton = document.getElementById('draft-preview-tab-rendered');
     const jsonButton = document.getElementById('draft-preview-tab-json');
+    const scrollButton = document.getElementById('draft-preview-scroll-json');
 
     if (renderedButton) {
         renderedButton.addEventListener('click', () => {
@@ -1805,12 +1864,18 @@ function attachPreviewTabHandlers() {
             setPreviewTab('json');
         });
     }
+    if (scrollButton) {
+        scrollButton.addEventListener('click', () => {
+            scrollJsonPreviewToCursor();
+        });
+    }
 }
 
 function setPreviewTab(tab) {
     activePreviewTab = tab;
     const renderedButton = document.getElementById('draft-preview-tab-rendered');
     const jsonButton = document.getElementById('draft-preview-tab-json');
+    const scrollButton = document.getElementById('draft-preview-scroll-json');
     const renderedContainer = document.getElementById('draft-preview-rendered');
     const jsonContainer = document.getElementById('draft-preview-json');
 
@@ -1819,6 +1884,9 @@ function setPreviewTab(tab) {
     }
     if (jsonButton) {
         jsonButton.classList.toggle('app-surface-overlay', tab === 'json');
+    }
+    if (scrollButton) {
+        scrollButton.classList.toggle('hidden', tab !== 'json');
     }
     if (renderedContainer) {
         renderedContainer.classList.toggle('hidden', tab !== 'rendered');

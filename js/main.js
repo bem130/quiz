@@ -1,7 +1,7 @@
 // js/main.js
 import { initThemeFromStorage, toggleTheme, toggleFont, setSize, initAppHeightObserver } from './theme.js';
 import { dom } from './dom-refs.js';
-import { loadQuizDefinitionFromQuizEntry } from './quiz-model.js';
+import { buildDefinitionFromQuizFile, loadQuizDefinitionFromQuizEntry, validateDefinition } from './quiz-model.js';
 import { loadEntrySourceFromUrl, makeNodeKey, normalizeFilePath, stripJsonExtension } from './entry-model.js';
 import {
     getEntryUrlFromLocation,
@@ -15,10 +15,10 @@ import { renderEntryMenu, renderQuizMenu } from './menu-renderer.js';
 import { QuizEngine, NoQuestionsAvailableError, QUIZ_ENGINE_VERSION } from './quiz-engine.js';
 import {
     clearLocalDraft,
-    loadLocalDraftEntry,
     LOCAL_DRAFT_ENTRY_URL,
     updateLocalDraftFromText
 } from './local-draft.js';
+import { getAllDrafts } from './db.js';
 import {
     renderQuestion,
     renderProgress,
@@ -118,6 +118,308 @@ const WEAK_CORRECT_THRESHOLD_MS = 8000;
 const CONFUSION_WEAK_THRESHOLD = 0.6;
 const MAX_RECENT_RESPONSE_TIMES = 40;
 let recentAnswerDurations = [];
+
+function extractFileLabelFromPath(path) {
+    const normalized = stripJsonExtension(normalizeFilePath(path));
+    const parts = normalized.split('/').filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : normalized || 'quiz';
+}
+
+function buildMetaFromOverrides({ id, title, description, version }) {
+    return {
+        id: id || title || 'quiz',
+        title: title || id || 'quiz',
+        description: description || '',
+        version: version || 3
+    };
+}
+
+function buildModesFromPatterns(patterns) {
+    const weights = (patterns || []).map((pattern) => ({
+        patternId: pattern.id,
+        weight: 1
+    }));
+    const allMode = {
+        id: 'all',
+        label: 'All patterns',
+        description: 'All available patterns.',
+        patternWeights: weights
+    };
+
+    const patternModes = (patterns || []).map((pattern) => ({
+        id: `pattern::${pattern.id}`,
+        label: pattern.label || pattern.localId || pattern.id,
+        description: pattern.description || '',
+        patternWeights: [{ patternId: pattern.id, weight: 1 }]
+    }));
+
+    const modeTree = [
+        { type: 'mode', modeId: allMode.id },
+        {
+            type: 'modes',
+            label: 'Patterns',
+            description: 'Choose a single pattern',
+            children: patternModes.map((mode) => ({ type: 'mode', modeId: mode.id }))
+        }
+    ];
+
+    return { modes: [allMode, ...patternModes], modeTree };
+}
+
+function filterDefinitionByPatternIds(definition, patternIds) {
+    if (!definition || !Array.isArray(patternIds) || patternIds.length === 0) {
+        return definition;
+    }
+    const allowed = new Set(patternIds.map((id) => String(id)));
+    const filteredPatterns = (definition.patterns || []).filter((pattern) =>
+        allowed.has(pattern.id)
+    );
+    const { modes, modeTree } = buildModesFromPatterns(filteredPatterns);
+    return validateDefinition({
+        ...definition,
+        patterns: filteredPatterns,
+        modes,
+        modeTree
+    });
+}
+
+function mergeDefinitions(definitions, metaOverrides = {}) {
+    const dataSets = {};
+    const patterns = [];
+    const fileMetas = [];
+
+    (definitions || []).forEach((definition) => {
+        if (!definition) return;
+        Object.assign(dataSets, definition.dataSets || {});
+        if (Array.isArray(definition.patterns)) {
+            patterns.push(...definition.patterns);
+        }
+        if (definition.meta) {
+            fileMetas.push(definition.meta);
+        }
+    });
+
+    if (patterns.length === 0) {
+        throw new Error('At least one pattern is required.');
+    }
+
+    const meta = buildMetaFromOverrides({
+        id: metaOverrides.id || metaOverrides.title,
+        title: metaOverrides.title,
+        description: metaOverrides.description,
+        version: 3
+    });
+
+    if (!meta.title || meta.title === 'quiz') {
+        meta.title = metaOverrides.title || patterns[0].label || 'Quiz';
+    }
+    if (!meta.description || !meta.description.trim()) {
+        if (fileMetas.length === 1 && fileMetas[0] && fileMetas[0].description) {
+            meta.description = fileMetas[0].description;
+        } else {
+            meta.description = `Combined quiz files (${fileMetas.length})`;
+        }
+    }
+
+    const { modes, modeTree } = buildModesFromPatterns(patterns);
+
+    return validateDefinition({
+        meta,
+        dataSets,
+        patterns,
+        modes,
+        modeTree
+    });
+}
+
+function buildDraftFileEntry(draft) {
+    if (!draft || !draft.path) return null;
+    if (draft.isFolder || draft.path.endsWith('/')) return null;
+    const rawData = draft.data || draft.content;
+    if (!rawData) return null;
+
+    let parsed;
+    try {
+        parsed = JSON.parse(rawData);
+    } catch (error) {
+        console.warn('[draft] Failed to parse draft JSON:', draft.path, error);
+        return null;
+    }
+
+    const normalizedPath = normalizeFilePath(draft.path);
+    const title =
+        typeof parsed.title === 'string' && parsed.title.trim()
+            ? parsed.title.trim()
+            : extractFileLabelFromPath(normalizedPath);
+    const description = typeof parsed.description === 'string' ? parsed.description : '';
+    const patterns = Array.isArray(parsed.patterns) ? parsed.patterns : [];
+    const patternMeta = patterns.map((pattern, idx) => {
+        const id = pattern && pattern.id ? pattern.id : `p_${idx}`;
+        return {
+            id,
+            label: pattern && pattern.label ? pattern.label : pattern && pattern.id ? pattern.id : `Pattern ${idx + 1}`,
+            description: pattern && pattern.description ? pattern.description : ''
+        };
+    });
+
+    let definition;
+    try {
+        definition = buildDefinitionFromQuizFile(parsed, normalizedPath, {
+            id: stripJsonExtension(normalizeFilePath(normalizedPath)),
+            title,
+            description
+        });
+    } catch (error) {
+        console.warn('[draft] Invalid draft quiz file:', draft.path, error);
+        return null;
+    }
+
+    return {
+        path: draft.path,
+        normalizedPath,
+        title,
+        description,
+        patterns: patternMeta,
+        definition
+    };
+}
+
+function buildDraftSelectionTree(fileEntries) {
+    const root = {
+        type: 'dir',
+        name: '',
+        label: '',
+        path: '',
+        children: []
+    };
+    const nodeMap = new Map();
+
+    function ensureDirNode(parent, segment, path) {
+        if (!segment) {
+            return parent;
+        }
+        let child = (parent.children || []).find(
+            (node) => node.type === 'dir' && node.name === segment
+        );
+
+        if (!child) {
+            child = {
+                type: 'dir',
+                name: segment,
+                label: segment,
+                path,
+                children: []
+            };
+            child.key = makeNodeKey('dir', path);
+            child.id = child.key;
+            parent.children.push(child);
+            nodeMap.set(child.key, child);
+        }
+
+        return child;
+    }
+
+    (fileEntries || []).forEach((file) => {
+        if (!file || !file.normalizedPath) return;
+
+        const segments = file.normalizedPath.split('/').filter(Boolean);
+        const fileName = segments.pop() || file.normalizedPath;
+        let parent = root;
+        let currentPath = '';
+
+        segments.forEach((segment) => {
+            currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+            parent = ensureDirNode(parent, segment, currentPath);
+        });
+
+        const fileNode = {
+            type: 'file',
+            name: fileName,
+            label: file.title || extractFileLabelFromPath(file.normalizedPath),
+            path: file.normalizedPath,
+            rawPath: file.path,
+            description: file.description || '',
+            patterns: file.patterns || [],
+            children: [],
+            inlineDefinition: file.definition
+        };
+        fileNode.key = makeNodeKey('file', fileNode.path);
+        fileNode.id = fileNode.key;
+        nodeMap.set(fileNode.key, fileNode);
+        parent.children.push(fileNode);
+
+        (file.patterns || []).forEach((pattern) => {
+            if (!pattern || !pattern.id) return;
+            const patternNode = {
+                type: 'pattern',
+                name: pattern.id,
+                label: pattern.label || pattern.id,
+                description: pattern.description || '',
+                path: fileNode.path,
+                patternId: pattern.id,
+                parentFile: fileNode
+            };
+            patternNode.key = makeNodeKey('pattern', fileNode.path, pattern.id);
+            patternNode.id = patternNode.key;
+            nodeMap.set(patternNode.key, patternNode);
+            fileNode.children.push(patternNode);
+        });
+    });
+
+    return { tree: root.children, nodeMap };
+}
+
+function buildEmptyDraftEntry() {
+    return {
+        url: LOCAL_DRAFT_ENTRY_URL,
+        label: 'Local draft',
+        builtIn: true,
+        available: false,
+        tree: [],
+        nodeMap: new Map(),
+        isLocal: true,
+        hasDraftData: false
+    };
+}
+
+async function loadLocalDraftEntryFromExplorer() {
+    try {
+        const drafts = await getAllDrafts();
+        const fileEntries = [];
+        let latestUpdatedAt = null;
+
+        (drafts || []).forEach((draft) => {
+            if (!draft || !draft.path || draft.isFolder || draft.path.endsWith('/')) return;
+            if (draft.updatedAt && (!latestUpdatedAt || draft.updatedAt > latestUpdatedAt)) {
+                latestUpdatedAt = draft.updatedAt;
+            }
+            const entry = buildDraftFileEntry(draft);
+            if (entry) {
+                fileEntries.push(entry);
+            }
+        });
+
+        if (fileEntries.length === 0) {
+            return buildEmptyDraftEntry();
+        }
+
+        const { tree, nodeMap } = buildDraftSelectionTree(fileEntries);
+        return {
+            url: LOCAL_DRAFT_ENTRY_URL,
+            label: 'Local draft',
+            builtIn: true,
+            available: tree.length > 0,
+            tree,
+            nodeMap,
+            isLocal: true,
+            hasDraftData: tree.length > 0,
+            updatedAt: latestUpdatedAt
+        };
+    } catch (error) {
+        console.warn('[draft] Failed to load drafts:', error);
+        return buildEmptyDraftEntry();
+    }
+}
 const GAME_MODE_LABELS = { study: '学習', test: 'テスト' };
 const COMPLETION_LABELS = {
     questions: '問題数指定',
@@ -2818,7 +3120,7 @@ async function loadEntrySources() {
     }
 
     const filtered = sources.filter((entry) => entry.url !== LOCAL_DRAFT_ENTRY_URL);
-    const localDraft = await loadLocalDraftEntry();
+    const localDraft = await loadLocalDraftEntryFromExplorer();
     return [localDraft, ...filtered];
 }
 
@@ -2849,7 +3151,7 @@ async function refreshEntryAvailability(baseSources) {
 
 async function reloadLocalDraftEntry() {
     const withoutLocal = entrySources.filter((entry) => !entry.isLocal);
-    const localDraft = await loadLocalDraftEntry();
+    const localDraft = await loadLocalDraftEntryFromExplorer();
     entrySources = [localDraft, ...withoutLocal];
     syncQuizDataUrlsToServiceWorker();
     if (currentEntry && currentEntry.isLocal) {
@@ -2918,8 +3220,63 @@ function collectFileNodesFromTree(nodes) {
     return result;
 }
 
+function buildLocalDraftQuizEntry(entry, selection) {
+    if (!entry || !entry.isLocal || !selection) return null;
+
+    const base = {
+        id: selection.id || selection.key,
+        title: selection.label || selection.name,
+        description: selection.description || ''
+    };
+
+    if (selection.type === 'file' && selection.inlineDefinition) {
+        return {
+            ...base,
+            inlineDefinition: selection.inlineDefinition
+        };
+    }
+
+    if (selection.type === 'pattern' && selection.parentFile && selection.parentFile.inlineDefinition) {
+        const normalizedPath = normalizeFilePath(selection.path || selection.parentFile.path || '');
+        const fileKey = stripJsonExtension(normalizedPath);
+        const patternKey = `${fileKey}::${selection.patternId}`;
+        const filtered = filterDefinitionByPatternIds(
+            selection.parentFile.inlineDefinition,
+            [patternKey]
+        );
+        return {
+            ...base,
+            inlineDefinition: filtered
+        };
+    }
+
+    if (selection.type === 'dir') {
+        const fileNodes = collectFileNodesFromTree(selection.children || []);
+        const definitions = fileNodes
+            .map((node) => node.inlineDefinition)
+            .filter(Boolean);
+        if (definitions.length === 0) return null;
+        const merged = mergeDefinitions(definitions, {
+            id: base.id,
+            title: base.title,
+            description: base.description
+        });
+        return {
+            ...base,
+            inlineDefinition: merged
+        };
+    }
+
+    return null;
+}
+
 function buildQuizEntryForSelection(entry, selection) {
     if (!selection) return null;
+    const localDraftEntry = buildLocalDraftQuizEntry(entry, selection);
+    if (localDraftEntry) {
+        return localDraftEntry;
+    }
+
     if (selection.inlineDefinition) {
         return selection;
     }

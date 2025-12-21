@@ -103,6 +103,7 @@
     --color-json-null: #0000ff;
     --color-json-punct: #000000;
     --color-json-cursor: #005fb8;
+    --color-json-line-highlight: rgba(0, 95, 184, 0.12);
     --color-json-escape: #af8500;
     --color-ruby-delimiter: #2563eb;
     --color-gloss-delimiter: #16a34a;
@@ -232,6 +233,7 @@ html[data-theme="dark"] {
     --color-json-null: #569cd6;
     --color-json-punct: #d4d4d4;
     --color-json-cursor: #aeafad;
+    --color-json-line-highlight: rgba(174, 175, 173, 0.18);
     --color-json-escape: #d7ba7d;
     --color-ruby-delimiter: #93c5fd;
     --color-gloss-delimiter: #86efac;
@@ -361,6 +363,7 @@ html[data-theme="black"] {
     --color-json-null: #569cd6;
     --color-json-punct: #d4d4d4;
     --color-json-cursor: #aeafad;
+    --color-json-line-highlight: rgba(174, 175, 173, 0.18);
     --color-json-escape: #d7ba7d;
     --color-ruby-delimiter: #93c5fd;
     --color-gloss-delimiter: #86efac;

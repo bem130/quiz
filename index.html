@@ -827,14 +827,23 @@
                     <p class="text-[11px] app-text-muted">Rendered output &amp; JSON view.</p>
                 </div>
                 <div class="flex items-center gap-2 px-4 py-2 border-b app-border-subtle">
-                    <button id="draft-preview-tab-rendered" data-preview-tab="rendered"
-                        class="px-2 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main app-surface-overlay">
-                        Rendered
-                    </button>
-                    <button id="draft-preview-tab-json" data-preview-tab="json"
-                        class="px-2 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main">
-                        JSON
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button id="draft-preview-tab-rendered" data-preview-tab="rendered"
+                            class="px-2 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main app-surface-overlay">
+                            Rendered
+                        </button>
+                        <button id="draft-preview-tab-json" data-preview-tab="json"
+                            class="px-2 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main">
+                            JSON
+                        </button>
+                    </div>
+                    <div class="ml-auto">
+                        <button id="draft-preview-scroll-json"
+                            class="hidden px-2 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main hover:app-surface-overlay"
+                            title="Scroll to cursor">
+                            Scroll to cursor
+                        </button>
+                    </div>
                 </div>
                 <div id="draft-preview-panel" class="flex-1 min-h-0 overflow-y-auto overflow-x-auto px-4 py-3">
                     <div id="draft-preview-rendered" class="space-y-4"></div>

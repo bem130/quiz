@@ -305,6 +305,15 @@ button:active {
     width: 2px;
     background-color: var(--color-json-cursor);
     pointer-events: none;
+    z-index: 2;
+}
+
+.json-line-highlight {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background-color: var(--color-json-line-highlight);
+    pointer-events: none;
     z-index: 1;
 }
 
