@@ -56,8 +56,8 @@ function getNodeCapacityStatus(node) {
     });
 
     if (hasPending) return 'pending';
-    if (hasError) return 'error';
     if (hasDone) return 'done';
+    if (hasError) return 'error';
     return null;
 }
 

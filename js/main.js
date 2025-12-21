@@ -3295,6 +3295,10 @@ async function reloadLocalDraftEntry() {
     const localDraft = await loadLocalDraftEntryFromExplorer();
     entrySources = [localDraft, ...withoutLocal];
     syncQuizDataUrlsToServiceWorker();
+    enqueueCapacitiesForEntry(localDraft);
+    withoutLocal.forEach((entry) => {
+        enqueueCapacitiesForEntry(entry);
+    });
     if (currentEntry && currentEntry.isLocal) {
         currentEntry = localDraft;
         currentQuiz = selectSelectionFromEntry(localDraft, getQuizNameFromLocation());
@@ -3359,6 +3363,20 @@ function collectFileNodesFromTree(nodes) {
         }
     }
     return result;
+}
+
+function enqueueCapacitiesForEntry(entry) {
+    if (!entry || !entry.available) {
+        return;
+    }
+    const fileNodes = collectFileNodesFromTree(entry.tree || []);
+    fileNodes.forEach((node) => {
+        if (entry._entryBaseUrl && !node._entryBaseUrl) {
+            node._entryBaseUrl = entry._entryBaseUrl;
+        }
+        enqueueQuizCapacityTask(entry, node);
+    });
+    enqueueEntryCapacityTask(entry);
 }
 
 function buildLocalDraftQuizEntry(entry, selection) {
@@ -3788,11 +3806,7 @@ async function applyEntrySelection(entry, desiredQuizId, options = {}) {
     currentQuiz = selection;
     updateSelectionSummary();
 
-    const fileNodes = collectFileNodesFromTree(entry.tree || []);
-    fileNodes.forEach((node) => {
-        enqueueQuizCapacityTask(entry, node);
-    });
-    enqueueEntryCapacityTask(entry);
+    enqueueCapacitiesForEntry(entry);
 
     renderMenus();
 
@@ -4501,6 +4515,9 @@ async function bootstrap() {
         entrySources = await refreshEntryAvailability(entrySources);
         persistEntrySources();
         syncQuizDataUrlsToServiceWorker();
+        entrySources.forEach((entry) => {
+            enqueueCapacitiesForEntry(entry);
+        });
 
         const initialEntry = selectEntryFromParams(entrySources);
         renderMenus();
