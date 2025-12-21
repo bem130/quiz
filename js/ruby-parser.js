@@ -438,7 +438,7 @@ export function rubyLineToHtml(line) {
                 return `<rb>${escapeHtml(child.text).replace(/\n/g, "<br/>")}</rb><rt></rt>`;
             }).join("");
 
-            const glossHtml = (seg.glosses || []).map((gloss) => {
+            const glossParts = (seg.glosses || []).map((gloss) => {
                 const parts = (gloss || []).map((child) => {
                     if (child.kind === "Annotated") {
                         return `<ruby><rb>${escapeHtml(inlineSegmentsToPlainText(child.base))}</rb><rt>${escapeHtml(child.reading)}</rt></ruby>`;
@@ -449,11 +449,11 @@ export function rubyLineToHtml(line) {
                     return escapeHtml(child.text).replace(/\n/g, "<br/>");
                 }).join("");
                 return `<span class="gloss-alt">${parts}</span>`;
-            }).join("");
+            });
 
             let html = `<span class="gloss"><ruby>${baseHtml}</ruby>`;
-            if (glossHtml) {
-                html += glossHtml;
+            if (glossParts.length) {
+                html += `<span class="gloss-alts">${glossParts.join("")}</span>`;
             }
             html += `</span>`;
             return html;

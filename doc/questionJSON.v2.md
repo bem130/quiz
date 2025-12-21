@@ -699,10 +699,11 @@ Mode と ModeGroup を混在させた例：
    * ベース部分（Base）には Ruby 記法を含めることができます。
 
    * 併記部分（Alt1/Alt2...）は省略可能で、複数言語の併記もできます。
+   * 併記部分はベースの下に1行で並べ、長い場合は折り返します。
 
    * 例: `{[漸化式/ぜんかしき]/recurrence relation}` 
 
-     → `<span class="gloss"><ruby><rb>漸化式</rb><rt>ぜんかしき</rt></ruby><span class="gloss-alt">recurrence relation</span></span>`
+     → `<span class="gloss"><ruby><rb>漸化式</rb><rt>ぜんかしき</rt></ruby><span class="gloss-alts"><span class="gloss-alt">recurrence relation</span></span></span>`
 
    * 例: `{専門用語}` → `<span class="gloss"><ruby><rb>専門用語</rb><rt></rt></ruby></span>`
 

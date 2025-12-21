@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseContentToSegments } from '../js/ruby-parser.js';
+import { parseContentToSegments, rubyLineToHtml } from '../js/ruby-parser.js';
 
 function countSegments(segments, kind) {
     return (segments || []).filter((segment) => segment.kind === kind).length;
@@ -127,4 +127,10 @@ test('ruby.md: math example keeps math segments intact', () => {
     assert.equal(countSegments(segments, 'Gloss'), 0);
     assert.equal(countSegments(segments, 'Math'), 4);
     assert.ok(countSegments(segments, 'Annotated') > 0);
+});
+
+test('ruby.md: gloss alternates render in one wrapper line', () => {
+    const html = rubyLineToHtml('{インド/भारत/Bhārat/India}');
+    assert.ok(html.includes('class="gloss-alts"'));
+    assert.equal((html.match(/class="gloss-alt"/g) || []).length, 3);
 });

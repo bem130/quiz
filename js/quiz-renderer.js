@@ -278,12 +278,17 @@ function appendTokens(parent, tokens, row, placeholders = null, promises = []) {
                     });
                     glossSpan.appendChild(rubyEl);
 
-                    (seg.glosses || []).forEach((gloss) => {
-                        const altSpan = document.createElement('span');
-                        altSpan.className = 'gloss-alt';
-                        appendGlossSegmentsInto(altSpan, gloss);
-                        glossSpan.appendChild(altSpan);
-                    });
+                    if (seg.glosses && seg.glosses.length) {
+                        const altsWrapper = document.createElement('span');
+                        altsWrapper.className = 'gloss-alts';
+                        seg.glosses.forEach((gloss) => {
+                            const altSpan = document.createElement('span');
+                            altSpan.className = 'gloss-alt';
+                            appendGlossSegmentsInto(altSpan, gloss);
+                            altsWrapper.appendChild(altSpan);
+                        });
+                        glossSpan.appendChild(altsWrapper);
+                    }
                     wrapper.appendChild(glossSpan);
                 }
             });

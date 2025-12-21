@@ -374,18 +374,32 @@ button:active {
     align-items: center;
 }
 
-.gloss-alt,
+.gloss-alts {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    column-gap: 0.35em;
+    row-gap: 0.1em;
+    font-size: 0.45em;
+    margin-top: -1.1em;
+    opacity: 0.5;
+    line-height: 1.2;
+}
+
+.gloss-alt {
+    white-space: nowrap;
+}
+
+.gloss-alt + .gloss-alt::before {
+    content: " / ";
+    opacity: 0.45;
+}
+
 .term-alt {
     font-size: 0.45em;
     margin-top: -1.1em;
     opacity: 0.5;
-}
-
-.gloss-alt + .gloss-alt,
-.term-alt + .term-alt,
-.gloss-alt + .term-alt,
-.term-alt + .gloss-alt {
-    margin-top: 0.1em;
 }
 
 ruby rt {
