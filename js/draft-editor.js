@@ -21,6 +21,23 @@ let jsonCursorRaf = null;
 let toolbarInitialized = false;
 let previewTabsInitialized = false;
 let explorerInitialized = false;
+let parseTimer = null;
+let renderTimer = null;
+let validateTimer = null;
+let jsonPreviewTimer = null;
+let decorationsSchedule = null;
+let pendingSourceText = '';
+let lastParsedText = '';
+let lastParseErrors = [];
+let lastRenderedSnapshot = { text: null, rowIndex: null };
+let lastDecorationSnapshot = { text: null, ast: null };
+let lastValidatedText = null;
+let jsonPreviewDirty = false;
+
+const PARSE_DEBOUNCE_MS = 140;
+const RENDER_DEBOUNCE_MS = 140;
+const VALIDATE_DEBOUNCE_MS = 240;
+const JSON_PREVIEW_DEBOUNCE_MS = 120;
 
 function getMonacoTheme() {
     const theme = document.documentElement.dataset.theme;
@@ -93,6 +110,7 @@ export async function initDraftEditor(containerId) {
     attachPreviewTabHandlers();
     await refreshPathList();
     await loadDraftByPath(currentDraftPath);
+    setPreviewTab(activePreviewTab);
 }
 
 // Debounce save
@@ -107,66 +125,170 @@ function handleContentChange(jsonText) {
         });
     }, 1000);
 
-    updatePreview(jsonText);
+    pendingSourceText = jsonText;
+    lastSourceText = jsonText;
+    jsonPreviewDirty = true;
+    scheduleParseUpdate();
 }
 
-function updatePreview(jsonText) {
-    const renderedContainer = document.getElementById('draft-preview-rendered');
-    const jsonContainer = document.getElementById('draft-preview-json');
-    if (!renderedContainer || !jsonContainer) return;
+function scheduleParseUpdate() {
+    if (parseTimer) clearTimeout(parseTimer);
+    parseTimer = setTimeout(() => {
+        parseTimer = null;
+        runParseUpdate(pendingSourceText);
+    }, PARSE_DEBOUNCE_MS);
+}
 
+function runParseUpdate(jsonText) {
+    lastSourceText = jsonText;
+    lastSourceMapCache = new Map();
+
+    let parsed = null;
+    let parseErrors = [];
     try {
-        lastSourceText = jsonText;
-        lastSourceMapCache = new Map();
-        lastParsedAst = parseJsonWithLoc(jsonText);
-        const parseErrors = lastParsedAst && Array.isArray(lastParsedAst.errors) ? lastParsedAst.errors : [];
-        activeCursorOffset = getCurrentCursorOffset();
-        activeRowIndex = findTableRowIndexForOffset(lastParsedAst, activeCursorOffset);
-        if (activePreviewTab === 'json') {
-            renderJsonPreview(jsonText, jsonContainer, activeCursorOffset);
+        parsed = parseJsonWithLoc(jsonText);
+        parseErrors = parsed && Array.isArray(parsed.errors) ? parsed.errors : [];
+    } catch (e) {
+        parseErrors = [{ message: e.message || 'Unknown syntax error.' }];
+    }
+
+    lastParsedAst = parsed;
+    lastParsedText = jsonText;
+    lastParseErrors = parseErrors;
+    activeCursorOffset = getCurrentCursorOffset();
+    activeRowIndex = findTableRowIndexForOffset(lastParsedAst, activeCursorOffset);
+
+    if (parseErrors.length) {
+        setDraftStatus(`Syntax Error: ${parseErrors[0].message}`, 'app-text-danger');
+    } else {
+        setDraftStatus('Checking schema...', 'app-text-muted');
+    }
+
+    scheduleDecorations();
+    if (activePreviewTab === 'rendered') {
+        scheduleRenderedPreview();
+    }
+    scheduleValidation();
+    if (activePreviewTab === 'json') {
+        scheduleJsonPreview();
+    }
+}
+
+function scheduleDecorations() {
+    if (decorationsSchedule) {
+        if (decorationsSchedule.type === 'idle') {
+            window.cancelIdleCallback(decorationsSchedule.id);
         } else {
-            jsonPreviewState = null;
+            clearTimeout(decorationsSchedule.id);
         }
+        decorationsSchedule = null;
+    }
+    const run = () => {
+        decorationsSchedule = null;
+        updateRubyGlossDecorations();
+    };
+    if (window.requestIdleCallback) {
+        decorationsSchedule = {
+            type: 'idle',
+            id: window.requestIdleCallback(run, { timeout: 200 })
+        };
+    } else {
+        decorationsSchedule = { type: 'timeout', id: setTimeout(run, 120) };
+    }
+}
 
-        if (parseErrors.length) {
-            renderedContainer.innerHTML = '';
-            const note = document.createElement('div');
-            note.className = 'text-xs app-text-danger';
-            note.textContent = 'Fix JSON syntax to preview questions.';
-            renderedContainer.appendChild(note);
-            setDraftStatus(`Syntax Error: ${parseErrors[0].message}`, 'app-text-danger');
-            setPreviewTab(activePreviewTab);
-            updateRubyGlossDecorations();
-            return;
-        }
+function scheduleRenderedPreview() {
+    if (renderTimer) clearTimeout(renderTimer);
+    renderTimer = setTimeout(() => {
+        renderTimer = null;
+        updateRenderedPreview();
+    }, RENDER_DEBOUNCE_MS);
+}
 
+function updateRenderedPreview() {
+    if (activePreviewTab !== 'rendered') return;
+    const renderedContainer = document.getElementById('draft-preview-rendered');
+    if (!renderedContainer) return;
+
+    if (lastParsedText !== lastSourceText) {
+        return;
+    }
+
+    if (lastParseErrors && lastParseErrors.length) {
+        renderedContainer.innerHTML = '';
+        const note = document.createElement('div');
+        note.className = 'text-xs app-text-danger';
+        note.textContent = 'Fix JSON syntax to preview questions.';
+        renderedContainer.appendChild(note);
+        return;
+    }
+
+    if (!lastParsedAst || !lastParsedAst.value) {
+        renderedContainer.innerHTML = '';
+        return;
+    }
+
+    if (
+        lastRenderedSnapshot.text === lastSourceText &&
+        lastRenderedSnapshot.rowIndex === activeRowIndex
+    ) {
+        return;
+    }
+
+    renderedContainer.innerHTML = '';
+    renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
+    lastRenderedSnapshot = { text: lastSourceText, rowIndex: activeRowIndex };
+}
+
+function scheduleValidation() {
+    if (validateTimer) clearTimeout(validateTimer);
+    if (lastParseErrors && lastParseErrors.length) {
+        lastValidatedText = null;
+        return;
+    }
+    validateTimer = setTimeout(() => {
+        validateTimer = null;
+        runValidation();
+    }, VALIDATE_DEBOUNCE_MS);
+}
+
+function runValidation() {
+    if (!lastParsedAst || !lastParsedAst.value) return;
+    if (lastValidatedText === lastSourceText) return;
+    lastValidatedText = lastSourceText;
+    try {
         const definition = buildDefinitionFromQuizFile(lastParsedAst.value, 'draft', {
             title: lastParsedAst.value && lastParsedAst.value.title ? lastParsedAst.value.title : 'Preview'
         });
-
-        renderedContainer.innerHTML = '';
-        renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
-        setPreviewTab(activePreviewTab);
-
-        try {
-            validateDefinition(definition);
-            setDraftStatus('Valid JSON', 'app-text-success');
-        } catch (e) {
-            setDraftStatus(`Invalid Schema: ${e.message}`, 'app-text-accent');
-        }
-        updateRubyGlossDecorations();
+        validateDefinition(definition);
+        setDraftStatus('Valid JSON', 'app-text-success');
     } catch (e) {
-        // Parse error (unexpected)
-        renderedContainer.innerHTML = '';
-        lastParsedAst = null;
-        if (activePreviewTab === 'json') {
-            renderJsonPreview(jsonText, jsonContainer, getCurrentCursorOffset());
-        } else {
-            jsonPreviewState = null;
-        }
-        setDraftStatus(`Syntax Error: ${e.message}`, 'app-text-danger');
-        updateRubyGlossDecorations();
+        setDraftStatus(`Invalid Schema: ${e.message}`, 'app-text-accent');
     }
+}
+
+function scheduleJsonPreview(immediate = false) {
+    const jsonContainer = document.getElementById('draft-preview-json');
+    if (!jsonContainer || activePreviewTab !== 'json') return;
+
+    if (
+        !jsonPreviewDirty &&
+        jsonPreviewState &&
+        jsonPreviewState.text === lastSourceText &&
+        jsonPreviewState.container === jsonContainer
+    ) {
+        updateJsonCursor(activeCursorOffset);
+        return;
+    }
+
+    if (jsonPreviewTimer) clearTimeout(jsonPreviewTimer);
+    const delay = immediate ? 0 : JSON_PREVIEW_DEBOUNCE_MS;
+    jsonPreviewTimer = setTimeout(() => {
+        jsonPreviewTimer = null;
+        if (activePreviewTab !== 'json') return;
+        renderJsonPreview(lastSourceText || '', jsonContainer, activeCursorOffset);
+        jsonPreviewDirty = false;
+    }, delay);
 }
 
 function getCurrentCursorOffset() {
@@ -185,11 +307,16 @@ function handleCursorChange(offset) {
         scheduleJsonCursorUpdate();
     }
     if (!lastParsedAst || !renderedContainer) return;
+    if (lastParsedText !== lastSourceText) return;
     const nextRowIndex = findTableRowIndexForOffset(lastParsedAst, activeCursorOffset);
     if (nextRowIndex !== activeRowIndex) {
         activeRowIndex = nextRowIndex;
-        renderedContainer.innerHTML = '';
-        renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
+        if (activePreviewTab !== 'rendered') return;
+        if (!lastParseErrors || lastParseErrors.length === 0) {
+            renderedContainer.innerHTML = '';
+            renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
+            lastRenderedSnapshot = { text: lastSourceText, rowIndex: activeRowIndex };
+        }
     }
 }
 
@@ -217,10 +344,13 @@ function findTableRowIndexForOffset(ast, offset) {
 
 function updateRubyGlossDecorations() {
     if (!editor || !rubyGlossDecorations) return;
+    if (lastDecorationSnapshot.text === lastSourceText && lastDecorationSnapshot.ast === lastParsedAst) {
+        return;
+    }
     const model = editor.getModel();
     if (!model) return;
     const decorations = [];
-    const stringNodes = lastParsedAst
+    const stringNodes = lastParsedAst && lastParsedText === lastSourceText
         ? collectStringNodes(lastParsedAst, [])
         : scanStringNodesFromRaw(lastSourceText || '');
 
@@ -356,6 +486,7 @@ function updateRubyGlossDecorations() {
         addSegmentsToDecorations(node, segments, null);
     });
     rubyGlossDecorations.set(decorations);
+    lastDecorationSnapshot = { text: lastSourceText, ast: lastParsedAst };
 }
 
 function collectStringNodes(node, list = []) {
@@ -676,7 +807,7 @@ function buildJsonPreview(jsonText, container) {
         cursorOverlay: null,
         bracketDepth: 0
     };
-    if (!lastParsedAst || !lastParsedAst.loc) {
+    if (!lastParsedAst || !lastParsedAst.loc || lastParsedText !== lastSourceText) {
         renderPlainJsonPreview(container, jsonText, state);
         return state;
     }
@@ -1693,7 +1824,10 @@ function setPreviewTab(tab) {
         jsonContainer.classList.toggle('hidden', tab !== 'json');
     }
     if (tab === 'json' && jsonContainer) {
-        renderJsonPreview(lastSourceText || '', jsonContainer, activeCursorOffset);
+        scheduleJsonPreview(true);
+    }
+    if (tab === 'rendered') {
+        scheduleRenderedPreview();
     }
 }
 
