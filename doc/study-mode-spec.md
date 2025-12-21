@@ -6,6 +6,8 @@
 - `js/quiz-engine.js:946` の `generateQuestion()` は、モードごとのパターン重みを考慮しつつも、基本的にはランダム抽選だけで出題する実装になっている。
 - 回答履歴や学習状況はブラウザリロードで失われ、IndexedDB 等の永続ストレージは未使用。
 - したがってユーザーごとに復習間隔を制御したり、テストモードの履歴を長期保存する道筋がない。
+- 本アプリは local draft を含む **問題ファイルの頻繁な更新**を前提としており、長期的に蓄積する復習システムとの相性が悪い。
+- そのため、**問題ファイルの変更に追従できる短期運用設計**が必要になる。
 
 この仕様書では、上記の現状を踏まえて **学習モード向けのスケジューリング** と **テストモードの履歴保存** を実現するための新しいアーキテクチャを定義する。
 
@@ -15,6 +17,7 @@
 2. IndexedDB にユーザーデータを保存し、複数ユーザー（`guest` を初期ユーザーとし、必要に応じてユーザを追加）を同一端末で切り替えられるようにする。
 3. 同期機能を持たない代わりに、Import / Export で完全バックアップが可能な構造にする。
 4. **学習モード**は Spaced Repetition + 混同補修を行い、**テストモード**は完全ランダム出題だが履歴を残す。
+5. **問題ファイルの更新に強い**設計とし、更新検知時は該当範囲の履歴を短期的にリセットできるようにする。
 
 ## 3. 全体構成
 
@@ -67,6 +70,11 @@ db.version(1).stores({
 - key: `packageId`
 - fields: `title`, `subject`, `revision`, `schemaVersion`, `importedAt`, `contentHash`
 
+**運用ルール（更新追従）:**
+- `contentHash` または `revision` が変わった場合は **その package に紐づく学習データを無効化**する。
+- 具体的には、`schedule` / `attempts` / `confusion` / `concept_stats` のうち、該当 `packageId` を含む行を削除または `stale` 化する。
+- local draft は編集頻度が高いため、**セッション開始時に hash を比較し、差分があれば即時にリセット**してよい。
+
 ### 4.3 questions
 - key: `qid = packageId + ":" + questionId`
 - fields: `packageId`, `stem`, `options[]`, `correctOptionId`, `distractorPool[]`, `tags[]`, `conceptId`, `mediaRefs[]`, `updatedAt`
@@ -114,18 +122,24 @@ db.version(1).stores({
 
 ## 5. 学習モード仕様
 
+### 5.0 変更追従の方針
+
+- 学習キューは「**短期の記憶補助**」に限定し、問題ファイル更新時はその範囲の履歴を破棄してよい。
+- 問題ファイルの変更により `pattern` や `table` が変化した場合、**旧履歴は誤参照の原因になるため積極的にクリア**する。
+- 対象範囲は `packageId`（ファイル単位）または `patternId` 単位で切り替え可能とする。
+
 ### 5.1 スケジューリング状態
 
 | state      | 用途                     | 初期 interval | 備考 |
 |------------|--------------------------|---------------|------|
 | NEW        | 未出題                   | -             | `dueAt = now` でキュー入り |
-| LEARNING   | 短期学習ステップ         | `2m → 15m → 1d` | `stepIndex` で進行 |
-| REVIEW     | 長期復習                 | 直前の `intervalSec` | SRS サイクル |
-| RELEARNING | ミス後の短期ステップ     | `10m → 1d`    | `lapses`++ |
+| LEARNING   | 短期学習ステップ         | `30s → 5m → 1h` | `stepIndex` で進行 |
+| REVIEW     | 短期復習                 | 直前の `intervalSec` | 数十秒〜数時間の範囲で循環 |
+| RELEARNING | ミス後の短期ステップ     | `2m → 30m`    | `lapses`++ |
 
 共通フィールド:
 - `ease`: 初期 2.5、下限 1.3、上限 2.8
-- `intervalSec`: 次回間隔、最小 30 秒
+- `intervalSec`: 次回間隔、最小 20 秒、上限 6 時間
 - `streak`: 連続正解数
 - `lapses`: 間違い回数
 - `lastAnswerMs`: 最近回答時間
@@ -151,8 +165,8 @@ db.version(1).stores({
 
 ### 5.3.1 Fuzz（ゆらぎ）の適用
 
-- `intervalSec < 86400`（24h未満）の場合は Fuzz を適用しない。
-- `intervalSec >= 86400` の場合は `factor = 1 + random(-0.05, +0.05)` を掛けて `dueAt` を決定する。
+- `intervalSec < 600`（10分未満）の場合は Fuzz を適用しない。
+- `intervalSec >= 600` の場合は `factor = 1 + random(-0.05, +0.05)` を掛けて `dueAt` を決定する。
 - さらに確率 `ε = 0.05` で `factor = 1` を強制し、完全に揃う日も混ぜる。
 - 適用した `factor` を `dueAtFuzzed` に保持し、次の interval 計算時に逆算できるようにする。
 - ※ 今後、週未満のレビューにも弱い Fuzz（±2% など）を段階的に導入して負荷平準化を図る余地がある。
