@@ -351,12 +351,37 @@ if ($modeParam !== null) {
         <main class="main-panel app-surface-main flex flex-col transition-colors duration-300">
             <!-- 共通ヘッダ -->
             <header
-                class="px-[0.5rem] py-[0.8rem] border-b app-border-subtle app-surface-header flex items-center justify-between transition-colors duration-300">
+                class="px-[0.5rem] py-[0.8rem] border-b app-border-subtle app-surface-header flex items-center justify-between gap-4 transition-colors duration-300">
                 <div>
                     <h1 id="app-title" class="text-lg font-semibold app-text-strong">4-choice Quiz</h1>
                     <p id="app-description" class="text-xs app-text-muted mt-1">
                         Loading quiz definition...
                     </p>
+                </div>
+                <div id="editor-header-controls" class="hidden flex flex-col items-end gap-1 text-[11px]">
+                    <div class="flex flex-wrap items-center justify-end gap-2">
+                        <label for="draft-path-input" class="text-[11px] app-text-muted">Path</label>
+                        <input id="draft-path-input" list="draft-path-list" type="text"
+                            class="app-input text-[11px] px-2 py-1 rounded border app-border-subtle w-56"
+                            placeholder="drafts/local-draft.json" />
+                        <datalist id="draft-path-list"></datalist>
+                        <button id="draft-path-load-button"
+                            class="px-2.5 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main app-surface-overlay hover:app-text-strong transition">
+                            Open
+                        </button>
+                        <button id="draft-path-new-button"
+                            class="px-2.5 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main app-surface-overlay hover:app-text-strong transition">
+                            New
+                        </button>
+                        <button id="editor-close-button"
+                            class="px-2.5 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main app-surface-overlay hover:app-text-strong transition">
+                            Close
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="uppercase tracking-wide app-text-muted">Status</span>
+                        <span id="draft-status" class="text-[11px] app-text-muted">Loading...</span>
+                    </div>
                 </div>
             </header>
 
@@ -377,7 +402,8 @@ if ($modeParam !== null) {
                                     App Update Available
                                 </p>
                                 <p class="text-xs app-text-muted mt-1">
-                                    A new version of this app is available. Reload to get the latest features and improvements.
+                                    A new version of this app is available. Reload to get the latest features and
+                                    improvements.
                                 </p>
                             </div>
                         </div>
@@ -406,8 +432,8 @@ if ($modeParam !== null) {
                             class="menu-tab-button menu-tab-button-active text-xs sm:text-sm">
                             Quizzes
                         </button>
-                        <button id="menu-tab-button-mode" type="button" role="tab"
-                            aria-controls="menu-tab-panel-mode" aria-selected="false" data-menu-tab-target="mode"
+                        <button id="menu-tab-button-mode" type="button" role="tab" aria-controls="menu-tab-panel-mode"
+                            aria-selected="false" data-menu-tab-target="mode"
                             class="menu-tab-button text-xs sm:text-sm">
                             Mode
                         </button>
@@ -462,8 +488,7 @@ if ($modeParam !== null) {
                             <div class="rounded-xl border app-border-subtle app-surface-muted px-4 py-3 space-y-3">
                                 <div>
                                     <div class="text-[11px] uppercase tracking-wide app-text-muted">Selected Quiz</div>
-                                    <div id="selected-quiz-title"
-                                        class="text-sm font-semibold app-text-strong mt-0.5">
+                                    <div id="selected-quiz-title" class="text-sm font-semibold app-text-strong mt-0.5">
                                         No quiz selected
                                     </div>
                                     <div id="selected-quiz-desc" class="text-[11px] app-text-muted">
@@ -472,8 +497,7 @@ if ($modeParam !== null) {
                                 </div>
                                 <div class="pt-2 border-t app-border-subtle">
                                     <div class="text-[11px] uppercase tracking-wide app-text-muted">Selected Mode</div>
-                                    <div id="selected-mode-title"
-                                        class="text-sm font-semibold app-text-strong mt-0.5">
+                                    <div id="selected-mode-title" class="text-sm font-semibold app-text-strong mt-0.5">
                                         No mode selected
                                     </div>
                                     <div id="selected-mode-desc" class="text-[11px] app-text-muted">
@@ -610,6 +634,22 @@ if ($modeParam !== null) {
                                 Start Quiz
                             </button>
                         </div>
+
+                        <!-- Storage tools: Export / Delete DB -->
+                        <div class="pt-4 border-t app-border-subtle">
+                            <h3 class="text-sm font-semibold app-text-strong">Storage</h3>
+                            <p class="text-xs app-text-muted">Backup or remove local application data.</p>
+                            <div class="flex gap-2 mt-2">
+                                <button id="db-download-button" type="button"
+                                    class="px-3 py-2 rounded-xl border text-xs font-semibold app-list-button">
+                                    Download DB (Backup)
+                                </button>
+                                <button id="db-delete-button" type="button"
+                                    class="px-3 py-2 rounded-xl border text-xs font-semibold text-red-600 hover:underline">
+                                    Delete DB (Clear all data)
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -626,7 +666,8 @@ if ($modeParam !== null) {
 
                         <!-- 選択肢領域：フル高さの 2x2 グリッド -->
                         <div id="options-container" class="flex-1"></div>
-                        <div id="idk-followup-panel" class="hidden border rounded-xl px-3 py-2 text-xs space-y-2 app-surface-muted">
+                        <div id="idk-followup-panel"
+                            class="hidden border rounded-xl px-3 py-2 text-xs space-y-2 app-surface-muted">
                             <div class="flex items-center justify-between gap-2">
                                 <p class="font-semibold app-text-strong">Not sure? Pick the closest option.</p>
                                 <button id="idk-followup-skip" type="button"
@@ -659,6 +700,16 @@ if ($modeParam !== null) {
                             <div class="p-4 rounded-xl app-card border app-border-subtle">
                                 <div class="text-xs app-text-muted">Accuracy</div>
                                 <div class="text-2xl font-bold app-text-strong" id="result-accuracy">0%</div>
+                            </div>
+                        </div>
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div class="p-4 rounded-xl app-card border app-border-subtle">
+                                <div class="text-xs app-text-muted">Known Accuracy</div>
+                                <div class="text-2xl font-bold app-text-strong" id="result-known-accuracy">--%</div>
+                            </div>
+                            <div class="p-4 rounded-xl app-card border app-border-subtle">
+                                <div class="text-xs app-text-muted">IDK Rate</div>
+                                <div class="text-2xl font-bold app-text-main" id="result-idk-rate">0%</div>
                             </div>
                         </div>
                         <div class="grid gap-4 sm:grid-cols-2">
@@ -722,7 +773,7 @@ if ($modeParam !== null) {
 
                     <!-- Center status: Progress + Score + Timer -->
                     <div id="quiz-header-score"
-                        class="flex-1 flex items-center justify-center gap-6 text-[0.7rem] sm:text-xs hidden flex-wrap">
+                        class="flex-1 flex items-center justify-center gap-x-6 gap-y-1 text-[0.7rem] sm:text-xs hidden flex-wrap">
                         <!-- Progress -->
                         <div class="flex items-baseline gap-1">
                             <span class="uppercase tracking-wide app-text-muted">
@@ -757,7 +808,8 @@ if ($modeParam !== null) {
                             <span class="uppercase tracking-wide app-text-muted">
                                 Queue
                             </span>
-                            <div class="flex items-center gap-2 text-[0.65rem] sm:text-xs font-mono app-text-muted" id="queue-status-values">
+                            <div class="flex items-center gap-2 text-[0.65rem] sm:text-xs font-mono app-text-muted"
+                                id="queue-status-values">
                                 <span class="uppercase">L:<span id="queue-learning-count">--</span></span>
                                 <span class="uppercase">RL:<span id="queue-relearning-count">--</span></span>
                                 <span class="uppercase">RV:<span id="queue-review-count">--</span></span>
@@ -808,6 +860,11 @@ if ($modeParam !== null) {
                         Next
                     </button>
                 </footer>
+            </section>
+
+            <!-- Main: Editor Screen (Hidden by default) -->
+            <section id="main-editor" class="hidden flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div id="monaco-container" class="flex-1 min-h-0"></div>
             </section>
         </main>
 
@@ -877,6 +934,17 @@ if ($modeParam !== null) {
                         <button id="theme-toggle-menu" type="button"
                             class="interactive-button button-ghost px-3 py-1 rounded-full border app-border-subtle text-[0.8rem] app-text-main transition-colors">
                             Dark / Light
+                        </button>
+                    </div>
+
+                    <!-- Font -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-[0.7rem] app-text-muted uppercase tracking-wide">
+                            Font
+                        </span>
+                        <button id="font-toggle-menu" type="button"
+                            class="interactive-button button-ghost px-3 py-1 rounded-full border app-border-subtle text-[0.8rem] app-text-main transition-colors">
+                            Sans / Serif
                         </button>
                     </div>
 
@@ -982,6 +1050,70 @@ if ($modeParam !== null) {
                 <!-- Tips コンテンツ（固定高さ、スクロール可能） -->
                 <div id="tips-panel" class="px-4 py-3 min-h-0 flex-shrink-0 max-h-40 overflow-y-auto">
                     <div id="tip-container" class="space-y-2 text-xs"></div>
+                </div>
+            </section>
+
+            <!-- ④ Editor Explorer + Preview -->
+            <section id="side-editor" class="hidden flex-1 min-h-0 flex flex-col">
+                <div class="px-4 py-2 border-b app-border-subtle app-panel-heading flex items-center justify-between">
+                    <h2 class="font-semibold app-text-strong text-[11px] uppercase tracking-wider">Explorer</h2>
+                    <div class="flex items-center gap-1">
+                        <button id="draft-explorer-new-file" title="New File"
+                            class="p-1 rounded hover:app-surface-overlay app-text-muted hover:app-text-strong transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                <polyline points="13 2 13 9 20 9"></polyline>
+                                <line x1="12" y1="11" x2="12" y2="17"></line>
+                                <line x1="9" y1="14" x2="15" y2="14"></line>
+                            </svg>
+                        </button>
+                        <button id="draft-explorer-new-folder" title="New Folder"
+                            class="p-1 rounded hover:app-surface-overlay app-text-muted hover:app-text-strong transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z">
+                                </path>
+                                <line x1="12" y1="11" x2="12" y2="17"></line>
+                                <line x1="9" y1="14" x2="15" y2="14"></line>
+                            </svg>
+                        </button>
+                        <button id="draft-explorer-refresh" title="Refresh"
+                            class="p-1 rounded hover:app-surface-overlay app-text-muted hover:app-text-strong transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M23 4v6h-6"></path>
+                                <path d="M1 20v-6h6"></path>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="draft-explorer" class="max-h-56 shrink-0 overflow-y-auto px-3 py-2 text-[11px]">
+                    <div id="draft-explorer-list" class="space-y-1"></div>
+                </div>
+
+                <div class="border-t app-border-subtle"></div>
+                <div class="px-4 py-3 app-panel-heading">
+                    <h2 class="font-semibold app-text-strong text-sm">Draft Preview</h2>
+                    <p class="text-[11px] app-text-muted">Rendered output &amp; JSON view.</p>
+                </div>
+                <div class="flex items-center gap-2 px-4 py-2 border-b app-border-subtle">
+                    <button id="draft-preview-tab-rendered" data-preview-tab="rendered"
+                        class="px-2 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main app-surface-overlay">
+                        Rendered
+                    </button>
+                    <button id="draft-preview-tab-json" data-preview-tab="json"
+                        class="px-2 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main">
+                        JSON
+                    </button>
+                </div>
+                <div id="draft-preview-panel" class="flex-1 min-h-0 overflow-y-auto overflow-x-auto px-4 py-3">
+                    <div id="draft-preview-rendered" class="space-y-4"></div>
+                    <pre id="draft-preview-json" class="hidden text-xs font-mono whitespace-pre overflow-auto"></pre>
                 </div>
             </section>
         </aside>
