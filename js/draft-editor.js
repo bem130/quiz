@@ -1,4 +1,4 @@
-import { saveDraft, getAllDrafts, getDraft } from './db.js';
+import { saveDraft, getAllDrafts, getDraft, deleteDraft } from './db.js';
 import { parseJsonWithLoc } from './json-loc-parser.js';
 import { buildDefinitionFromQuizFile, validateDefinition } from './quiz-model.js';
 import { parseContentToSegments } from './ruby-parser.js';
@@ -33,6 +33,7 @@ let lastRenderedSnapshot = { text: null, rowIndex: null };
 let lastDecorationSnapshot = { text: null, ast: null };
 let lastValidatedText = null;
 let jsonPreviewDirty = false;
+let explorerSelection = { path: null, type: null };
 
 const PARSE_DEBOUNCE_MS = 140;
 const RENDER_DEBOUNCE_MS = 140;
@@ -2010,30 +2011,279 @@ function attachExplorerHandlers() {
     if (explorerInitialized) return;
     explorerInitialized = true;
     const refreshButton = document.getElementById('draft-explorer-refresh');
+    const newFileButton = document.getElementById('draft-explorer-new-file');
+    const newFolderButton = document.getElementById('draft-explorer-new-folder');
     if (refreshButton) {
         refreshButton.addEventListener('click', async () => {
             await refreshPathList();
         });
     }
+    if (newFileButton) {
+        newFileButton.addEventListener('click', async () => {
+            await promptCreateEntry('file');
+        });
+    }
+    if (newFolderButton) {
+        newFolderButton.addEventListener('click', async () => {
+            await promptCreateEntry('folder');
+        });
+    }
 }
 
-function buildPathTree(paths) {
-    const root = { name: '', type: 'folder', children: new Map() };
-    paths.forEach((path) => {
-        if (!path) return;
-        const parts = path.split('/').filter(Boolean);
+function normalizeDraftPath(path) {
+    if (!path) return '';
+    let normalized = String(path).replace(/\\/g, '/').trim();
+    normalized = normalized.replace(/^\/+/, '');
+    normalized = normalized.replace(/^\.\//, '');
+    return normalized;
+}
+
+function normalizeFolderPath(path) {
+    const normalized = normalizeDraftPath(path);
+    if (!normalized) return '';
+    return normalized.endsWith('/') ? normalized : `${normalized}/`;
+}
+
+function normalizeFilePath(path) {
+    const normalized = normalizeDraftPath(path);
+    if (!normalized) return '';
+    return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
+}
+
+function getParentFolder(path) {
+    const normalized = normalizeDraftPath(path);
+    if (!normalized) return '';
+    const trimmed = normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
+    const idx = trimmed.lastIndexOf('/');
+    if (idx === -1) return '';
+    return `${trimmed.slice(0, idx + 1)}`;
+}
+
+function resolveBaseFolder() {
+    if (!explorerSelection || !explorerSelection.path) return '';
+    if (explorerSelection.type === 'folder') {
+        return normalizeFolderPath(explorerSelection.path);
+    }
+    return getParentFolder(explorerSelection.path);
+}
+
+function setExplorerSelection(path, type) {
+    explorerSelection = { path, type };
+}
+
+async function promptCreateEntry(type) {
+    const baseFolder = resolveBaseFolder();
+    const placeholder = type === 'folder' ? 'new-folder' : 'new-file.json';
+    const name = window.prompt(
+        type === 'folder' ? 'New folder name' : 'New file name',
+        placeholder
+    );
+    if (!name) return;
+    const raw = name.includes('/') ? name : `${baseFolder}${name}`;
+    const targetPath = type === 'folder' ? normalizeFolderPath(raw) : normalizeFilePath(raw);
+
+    const existing = await getDraft(targetPath);
+    if (existing) {
+        window.alert(`Already exists: ${targetPath}`);
+        return;
+    }
+
+    if (type === 'folder') {
+        await saveDraft({ path: targetPath, isFolder: true, data: '' });
+        await refreshPathList();
+        setExplorerSelection(targetPath, 'folder');
+        renderDraftExplorer(await getAllDrafts());
+        return;
+    }
+
+    const initialValue = buildDefaultDraft(targetPath);
+    await saveDraft({
+        path: targetPath,
+        data: initialValue,
+        updatedAt: new Date().toISOString()
+    });
+    await refreshPathList();
+    await loadDraftByPath(targetPath);
+}
+
+function createExplorerAction(label, title, handler) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'draft-explorer-action-button';
+    button.textContent = label;
+    button.title = title;
+    button.addEventListener('click', handler);
+    return button;
+}
+
+async function promptRenameEntry(path, type) {
+    const baseFolder = getParentFolder(path);
+    const trimmed = normalizeDraftPath(path);
+    const name = trimmed.endsWith('/') ? trimmed.slice(0, -1).split('/').pop() : trimmed.split('/').pop();
+    const nextName = window.prompt(type === 'folder' ? 'Rename folder' : 'Rename file', name);
+    if (!nextName) return;
+    const targetRaw = `${baseFolder}${nextName}`;
+    const targetPath = type === 'folder' ? normalizeFolderPath(targetRaw) : normalizeFilePath(targetRaw);
+    await moveExplorerEntry(path, targetPath, type);
+}
+
+async function promptMoveEntry(path, type) {
+    const nextPath = window.prompt(type === 'folder' ? 'Move folder to' : 'Move file to', path);
+    if (!nextPath) return;
+    const targetPath = type === 'folder' ? normalizeFolderPath(nextPath) : normalizeFilePath(nextPath);
+    await moveExplorerEntry(path, targetPath, type);
+}
+
+async function moveExplorerEntry(sourcePath, targetPath, type) {
+    const sourceNormalized = type === 'folder' ? normalizeFolderPath(sourcePath) : normalizeFilePath(sourcePath);
+    const targetNormalized = type === 'folder' ? normalizeFolderPath(targetPath) : normalizeFilePath(targetPath);
+    if (!sourceNormalized || !targetNormalized || sourceNormalized === targetNormalized) return;
+    if (type === 'folder' && targetNormalized.startsWith(sourceNormalized)) {
+        window.alert('Cannot move a folder into itself.');
+        return;
+    }
+
+    const drafts = await getAllDrafts();
+    if (type === 'file') {
+        const existing = await getDraft(targetNormalized);
+        if (existing) {
+            window.alert(`Already exists: ${targetNormalized}`);
+            return;
+        }
+        const record = await getDraft(sourceNormalized);
+        if (!record) return;
+        await saveDraft({
+            ...record,
+            id: targetNormalized,
+            path: targetNormalized
+        });
+        await deleteDraft(sourceNormalized);
+
+        if (currentDraftPath === sourceNormalized) {
+            await loadDraftByPath(targetNormalized);
+        }
+        await refreshPathList();
+        setExplorerSelection(targetNormalized, 'file');
+        return;
+    }
+
+    const affected = drafts.filter((draft) => {
+        const draftPath = draft && draft.path ? normalizeDraftPath(draft.path) : '';
+        return draftPath.startsWith(sourceNormalized);
+    });
+
+    if (affected.length === 0) return;
+    const existingPaths = new Set(
+        drafts
+            .filter((draft) => {
+                const draftPath = draft && draft.path ? normalizeDraftPath(draft.path) : '';
+                return !draftPath.startsWith(sourceNormalized);
+            })
+            .map((draft) => normalizeDraftPath(draft.path))
+    );
+    const targetMap = affected.map((draft) => {
+        const draftPath = normalizeDraftPath(draft.path);
+        return {
+            draft,
+            nextPath: `${targetNormalized}${draftPath.slice(sourceNormalized.length)}`
+        };
+    });
+
+    const conflict = targetMap.some((entry) => existingPaths.has(entry.nextPath));
+    if (conflict) {
+        window.alert('Target path conflicts with existing draft.');
+        return;
+    }
+
+    for (const entry of targetMap) {
+        await saveDraft({
+            ...entry.draft,
+            id: entry.nextPath,
+            path: entry.nextPath,
+            isFolder: Boolean(entry.draft.isFolder) || entry.nextPath.endsWith('/')
+        });
+    }
+    for (const entry of targetMap) {
+        await deleteDraft(entry.draft.path);
+    }
+
+    if (currentDraftPath.startsWith(sourceNormalized)) {
+        const suffix = currentDraftPath.slice(sourceNormalized.length);
+        const nextPath = `${targetNormalized}${suffix}`;
+        await loadDraftByPath(nextPath);
+    }
+    await refreshPathList();
+    setExplorerSelection(targetNormalized, 'folder');
+}
+
+async function deleteExplorerEntry(path, type) {
+    const normalized = type === 'folder' ? normalizeFolderPath(path) : normalizeFilePath(path);
+    if (!normalized) return;
+    const ok = window.confirm(
+        type === 'folder'
+            ? `Delete folder and all drafts inside?\n${normalized}`
+            : `Delete draft?\n${normalized}`
+    );
+    if (!ok) return;
+
+    if (type === 'file') {
+        await deleteDraft(normalized);
+        if (currentDraftPath === normalized) {
+            const drafts = await getAllDrafts();
+            const next = drafts.find((draft) => draft && draft.path && !draft.isFolder);
+            if (next) {
+                await loadDraftByPath(next.path);
+            }
+        }
+        await refreshPathList();
+        return;
+    }
+
+    const drafts = await getAllDrafts();
+    const targets = drafts.filter((draft) => {
+        const draftPath = draft && draft.path ? normalizeDraftPath(draft.path) : '';
+        return draftPath.startsWith(normalized);
+    });
+    for (const draft of targets) {
+        await deleteDraft(draft.path);
+    }
+    if (currentDraftPath.startsWith(normalized)) {
+        const remaining = await getAllDrafts();
+        const next = remaining.find((draft) => draft && draft.path && !draft.isFolder);
+        if (next) {
+            await loadDraftByPath(next.path);
+        }
+    }
+    await refreshPathList();
+    setExplorerSelection(null, null);
+}
+
+function buildPathTree(drafts) {
+    const root = { name: '', type: 'folder', children: new Map(), path: '' };
+    (drafts || []).forEach((draft) => {
+        if (!draft || !draft.path) return;
+        const isFolder = Boolean(draft.isFolder) || draft.path.endsWith('/');
+        const normalizedPath = isFolder
+            ? normalizeFolderPath(draft.path)
+            : normalizeFilePath(draft.path);
+        if (!normalizedPath) return;
+        const parts = normalizedPath.split('/').filter(Boolean);
         let current = root;
         parts.forEach((part, index) => {
-            const isFile = index === parts.length - 1;
-            if (isFile) {
-                current.children.set(part, { name: part, type: 'file', path });
+            const isLeaf = index === parts.length - 1;
+            if (isLeaf && !isFolder) {
+                current.children.set(part, { name: part, type: 'file', path: normalizedPath });
                 return;
             }
             if (!current.children.has(part)) {
-                current.children.set(part, { name: part, type: 'folder', children: new Map() });
+                const folderPath = `${current.path || ''}${part}/`;
+                current.children.set(part, { name: part, type: 'folder', children: new Map(), path: folderPath });
             }
             current = current.children.get(part);
         });
+        if (isFolder) {
+            current.path = normalizedPath;
+        }
     });
     return root;
 }
@@ -2049,11 +2299,53 @@ function renderExplorerNodes(container, node) {
         if (entry.type === 'folder') {
             const details = document.createElement('details');
             details.open = true;
-            details.className = 'group';
+            details.className = 'group draft-explorer-folder';
 
             const summary = document.createElement('summary');
-            summary.className = 'cursor-pointer select-none py-1 text-[11px] app-text-strong';
-            summary.textContent = entry.name;
+            summary.className = 'draft-explorer-row';
+            if (entry.path === explorerSelection.path) {
+                summary.classList.add('app-surface-overlay');
+            }
+            summary.addEventListener('click', () => {
+                setExplorerSelection(entry.path, 'folder');
+                renderDraftExplorer(currentExplorerDrafts);
+            });
+
+            const label = document.createElement('span');
+            label.className = 'draft-explorer-entry app-text-strong';
+            label.textContent = entry.name;
+            summary.appendChild(label);
+
+            const actions = document.createElement('div');
+            actions.className = 'draft-explorer-actions';
+            actions.appendChild(createExplorerAction('New', 'New file', async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setExplorerSelection(entry.path, 'folder');
+                await promptCreateEntry('file');
+            }));
+            actions.appendChild(createExplorerAction('Dir', 'New folder', async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setExplorerSelection(entry.path, 'folder');
+                await promptCreateEntry('folder');
+            }));
+            actions.appendChild(createExplorerAction('Ren', 'Rename folder', async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                await promptRenameEntry(entry.path, 'folder');
+            }));
+            actions.appendChild(createExplorerAction('Move', 'Move folder', async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                await promptMoveEntry(entry.path, 'folder');
+            }));
+            actions.appendChild(createExplorerAction('Del', 'Delete folder', async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                await deleteExplorerEntry(entry.path, 'folder');
+            }));
+            summary.appendChild(actions);
             details.appendChild(summary);
 
             const childContainer = document.createElement('div');
@@ -2065,25 +2357,52 @@ function renderExplorerNodes(container, node) {
             return;
         }
 
+        const row = document.createElement('div');
+        row.className = 'draft-explorer-row';
+
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'w-full text-left px-2 py-1 rounded app-text-main hover:app-text-strong hover:app-surface-overlay transition';
+        button.className = 'draft-explorer-entry app-text-main';
         button.textContent = entry.name;
         button.dataset.path = entry.path;
         button.title = entry.path;
-        if (entry.path === currentDraftPath) {
-            button.classList.add('font-semibold', 'app-surface-overlay');
+        if (entry.path === explorerSelection.path || entry.path === currentDraftPath) {
+            button.classList.add('app-surface-overlay', 'font-semibold');
         }
         button.addEventListener('click', async () => {
+            setExplorerSelection(entry.path, 'file');
             await loadDraftByPath(entry.path);
         });
-        container.appendChild(button);
+        row.appendChild(button);
+
+        const actions = document.createElement('div');
+        actions.className = 'draft-explorer-actions';
+        actions.appendChild(createExplorerAction('Ren', 'Rename file', async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            await promptRenameEntry(entry.path, 'file');
+        }));
+        actions.appendChild(createExplorerAction('Move', 'Move file', async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            await promptMoveEntry(entry.path, 'file');
+        }));
+        actions.appendChild(createExplorerAction('Del', 'Delete file', async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            await deleteExplorerEntry(entry.path, 'file');
+        }));
+        row.appendChild(actions);
+
+        container.appendChild(row);
     });
 }
 
+let currentExplorerDrafts = [];
 function renderDraftExplorer(drafts) {
     const container = document.getElementById('draft-explorer-list');
     if (!container) return;
+    currentExplorerDrafts = drafts || [];
     container.innerHTML = '';
     if (!drafts || drafts.length === 0) {
         const empty = document.createElement('div');
@@ -2092,9 +2411,7 @@ function renderDraftExplorer(drafts) {
         container.appendChild(empty);
         return;
     }
-    const tree = buildPathTree(
-        drafts.map((draft) => draft && draft.path).filter(Boolean)
-    );
+    const tree = buildPathTree(drafts);
     renderExplorerNodes(container, tree);
 }
 
@@ -2104,7 +2421,7 @@ async function refreshPathList() {
     list.innerHTML = '';
     const drafts = await getAllDrafts();
     drafts.forEach((draft) => {
-        if (!draft || !draft.path) return;
+        if (!draft || !draft.path || draft.isFolder || draft.path.endsWith('/')) return;
         const option = document.createElement('option');
         option.value = draft.path;
         list.appendChild(option);
@@ -2151,6 +2468,7 @@ function buildDefaultDraft(path) {
 
 async function loadDraftByPath(path) {
     currentDraftPath = path;
+    setExplorerSelection(path, 'file');
     if (window.localStorage) {
         window.localStorage.setItem('draftEditorPath', currentDraftPath);
     }

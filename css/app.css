@@ -321,40 +321,101 @@ button:active {
     line-break: strict;
 }
 
-ruby rt {
-    font-size: 0.5em;
+/* Draft Explorer */
+.draft-explorer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.125rem 0;
 }
 
-/* Gloss Layout (Stacked Base and Alts) */
-.gloss {
-    display: inline-grid;
-    grid-template-areas: 
-        "base"
-        "alts";
-    vertical-align: top;
-    text-align: center;
-    line-height: 1.1;
-    margin: 0 0.1em;
+.draft-explorer-entry {
+    flex: 1 1 auto;
+    text-align: left;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.375rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
 }
 
-.gloss ruby {
-    grid-area: base;
-    display: inline-block;
+.draft-explorer-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.draft-explorer-row:hover .draft-explorer-actions,
+.draft-explorer-row:focus-within .draft-explorer-actions {
+    opacity: 1;
+}
+
+.draft-explorer-action-button {
+    font-size: 10px;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    color: var(--color-text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.draft-explorer-action-button:hover {
+    color: var(--color-text-strong);
+    background-color: var(--color-surface-overlay);
+}
+
+.draft-explorer-folder summary {
+    list-style: none;
+}
+
+.draft-explorer-folder summary::-webkit-details-marker {
+    display: none;
+}
+
+/* gloss and ruby */
+
+.gloss,
+.term {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .gloss-alts {
-    grid-area: alts;
-    display: flex;
-    flex-direction: row;
+    display: inline-flex;
+    flex-wrap: wrap;
     justify-content: center;
-    gap: 0.25em;
-    font-size: 0.5em;
-    opacity: 0.8;
+    align-items: center;
+    column-gap: 0.35em;
+    row-gap: 0.1em;
+    font-size: 0.45em;
+    margin-top: -0.6em;
+    opacity: 0.5;
+    line-height: 1.2;
 }
 
 .gloss-alt {
-    display: inline-block;
     white-space: nowrap;
+}
+
+.gloss-alt + .gloss-alt::before {
+    content: " / ";
+    opacity: 0.45;
+}
+
+.term-alt {
+    font-size: 0.45em;
+    margin-top: -0.5em;
+    opacity: 0.5;
+}
+
+ruby rt {
+    font-size: 0.45em;
+    opacity: 0.7;
 }
 
 .chem-inline-viewer {

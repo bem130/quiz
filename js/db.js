@@ -42,6 +42,7 @@ export async function saveDraft(draft) {
     const record = {
         id: path,
         path,
+        isFolder: Boolean(draft.isFolder),
         data: draft.data || draft.content || '',
         updatedAt: draft.updatedAt || new Date().toISOString()
     };
