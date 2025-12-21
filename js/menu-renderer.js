@@ -37,6 +37,39 @@ function createCapacityElement(status, capacityValue, context) {
     return null;
 }
 
+function getNodeCapacityStatus(node) {
+    if (!node) return null;
+    if (node._capacityStatus) return node._capacityStatus;
+    if (!Array.isArray(node.children) || node.children.length === 0) {
+        return null;
+    }
+
+    let hasPending = false;
+    let hasError = false;
+    let hasDone = false;
+
+    node.children.forEach((child) => {
+        const status = getNodeCapacityStatus(child);
+        if (status === 'pending') hasPending = true;
+        if (status === 'error') hasError = true;
+        if (status === 'done') hasDone = true;
+    });
+
+    if (hasPending) return 'pending';
+    if (hasError) return 'error';
+    if (hasDone) return 'done';
+    return null;
+}
+
+function getNodeCapacityValue(node) {
+    if (!node) return 0;
+    if (typeof node._capacity === 'number') return node._capacity;
+    if (!Array.isArray(node.children) || node.children.length === 0) {
+        return 0;
+    }
+    return node.children.reduce((sum, child) => sum + getNodeCapacityValue(child), 0);
+}
+
 /**
  * エントリ一覧を描画する。
  * @param {Array<object>} entrySources - EntrySource 配列。
@@ -226,10 +259,47 @@ function renderQuizTreeNodes(nodes, parentElement, currentSelectionKey) {
 
     sortedNodes.forEach((node) => {
         if (node.type === 'dir') {
-            const header = document.createElement('div');
-            header.className = 'mt-2 text-[11px] font-semibold app-text-muted';
-            replaceContentString(header, node.label || node.name || 'Group');
-            parentElement.appendChild(header);
+            const isActive = currentSelectionKey && node.key === currentSelectionKey;
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative';
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.selectionId = node.key;
+            button.className = [
+                'w-full text-left rounded-xl border px-3 py-2 text-xs transition-colors app-list-button',
+                isActive ? 'app-list-button-active' : ''
+            ].join(' ');
+
+            const title = document.createElement('div');
+            title.className = 'font-semibold mb-0.5 pr-[3em]';
+            replaceContentString(title, node.label || node.name || 'Group');
+            button.appendChild(title);
+
+            wrapper.appendChild(button);
+
+            const shareButton = document.createElement('button');
+            shareButton.type = 'button';
+            shareButton.dataset.shareSelectionId = node.key;
+            shareButton.className = 'p-[0.3em] rounded-lg text-gray-400 hover:text-blue-500 transition-colors z-10';
+            shareButton.style.position = 'absolute';
+            shareButton.style.top = '8px';
+            shareButton.style.right = '8px';
+            shareButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>';
+            shareButton.title = 'Share this selection';
+            wrapper.appendChild(shareButton);
+
+            const capacity = createCapacityElement(
+                getNodeCapacityStatus(node),
+                getNodeCapacityValue(node),
+                'quiz'
+            );
+            if (capacity) {
+                wrapper.appendChild(capacity);
+            }
+
+            parentElement.appendChild(wrapper);
 
             const container = document.createElement('div');
             container.className = 'ml-3 space-y-1';
@@ -239,7 +309,7 @@ function renderQuizTreeNodes(nodes, parentElement, currentSelectionKey) {
             return;
         }
 
-        if (node.type === 'file' || node.type === 'pattern') {
+        if (node.type === 'file') {
             const isActive = currentSelectionKey && node.key === currentSelectionKey;
 
             const button = document.createElement('button');
@@ -283,12 +353,7 @@ function renderQuizTreeNodes(nodes, parentElement, currentSelectionKey) {
 
             parentElement.appendChild(wrapper);
 
-            if (node.type === 'file' && Array.isArray(node.children) && node.children.length) {
-                const container = document.createElement('div');
-                container.className = 'ml-3 space-y-1';
-                parentElement.appendChild(container);
-                renderQuizTreeNodes(node.children, container, currentSelectionKey);
-            }
+            // Patterns are intentionally hidden in the quizzes menu.
         }
     });
 }
