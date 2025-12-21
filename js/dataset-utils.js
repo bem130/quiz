@@ -20,7 +20,7 @@ export function getFilteredRows(table) {
     if (!table || !Array.isArray(table.data)) {
         return [];
     }
-    return table.data.slice();
+    return table.data;
 }
 
 export function getRowById(table, rowId) {

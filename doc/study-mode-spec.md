@@ -74,6 +74,7 @@ db.version(1).stores({
 - `contentHash` または `revision` が変わった場合は **その package に紐づく学習データを無効化**する。
 - 具体的には、`schedule` / `attempts` / `confusion` / `concept_stats` のうち、該当 `packageId` を含む行を削除または `stale` 化する。
 - local draft は編集頻度が高いため、**セッション開始時に hash を比較し、差分があれば即時にリセット**してよい。
+- 大規模ファイルでは hash 計算自体が重いので、**UI の空き時間に遅延実行**する設計が望ましい。
 
 ### 4.3 questions
 - key: `qid = packageId + ":" + questionId`

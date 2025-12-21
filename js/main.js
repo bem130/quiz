@@ -126,6 +126,21 @@ function extractFileLabelFromPath(path) {
     return parts.length ? parts[parts.length - 1] : normalized || 'quiz';
 }
 
+function schedulePackageRevisionUpdate({ filePath, json, source, logPrefix }) {
+    if (!filePath || !json) return;
+    const scheduler =
+        typeof requestIdleCallback === 'function'
+            ? requestIdleCallback
+            : (cb) => setTimeout(cb, 0);
+
+    scheduler(() => {
+        updatePackageRevision({ filePath, json, source }).catch((error) => {
+            const prefix = logPrefix || '[package]';
+            console.warn(`${prefix} failed to update package revision`, filePath, error);
+        });
+    });
+}
+
 function buildMetaFromOverrides({ id, title, description, version }) {
     return {
         id: id || title || 'quiz',
@@ -399,15 +414,12 @@ async function loadLocalDraftEntryFromExplorer() {
             }
             const entry = buildDraftFileEntry(draft);
             if (entry) {
-                try {
-                    await updatePackageRevision({
-                        filePath: entry.path,
-                        json: entry.rawJson,
-                        source: 'draft'
-                    });
-                } catch (error) {
-                    console.warn('[draft] failed to update package revision', entry.path, error);
-                }
+                schedulePackageRevisionUpdate({
+                    filePath: entry.path,
+                    json: entry.rawJson,
+                    source: 'draft',
+                    logPrefix: '[draft]'
+                });
                 fileEntries.push(entry);
             }
         }

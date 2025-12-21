@@ -139,6 +139,7 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
         return null;
     }
 
+    const baseTokens = normalizeTokenArray(token.value);
     const correctLabelTokens = listResult.answerTokens;
     const correctKey = tokensToPlainText(correctLabelTokens, correctRow);
 
@@ -147,15 +148,18 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
         : null;
     const groupValue = groupField && correctRow ? correctRow[groupField] : null;
 
+    const hasGroupFilter = groupField && groupValue != null;
     const pool = Array.isArray(poolRows)
-        ? poolRows.filter((row) => {
-            if (!row) return false;
-            if (row.id === correctRow.id) return false;
-            if (groupField && groupValue != null && row[groupField] === groupValue) {
-                return false;
-            }
-            return true;
-        })
+        ? hasGroupFilter
+            ? poolRows.filter((row) => {
+                if (!row) return false;
+                if (row.id === correctRow.id) return false;
+                if (row[groupField] === groupValue) {
+                    return false;
+                }
+                return true;
+            })
+            : poolRows
         : [];
 
     const usedIds = new Set([correctRow.id]);
@@ -165,41 +169,73 @@ function buildChoiceFromEntities(token, correctRow, poolRows, dataSetId) {
     const maxAttempts = Math.max(40, pool.length * 4);
     let attempts = 0;
 
-    while (distractors.length < CHOICE_COUNT - 1 && pool.length > 0 && attempts < maxAttempts) {
-        attempts += 1;
-        const index = Math.floor(Math.random() * pool.length);
-        const candidate = pool[index];
-        if (!candidate) {
+    if (hasGroupFilter) {
+        while (distractors.length < CHOICE_COUNT - 1 && pool.length > 0 && attempts < maxAttempts) {
+            attempts += 1;
+            const index = Math.floor(Math.random() * pool.length);
+            const candidate = pool[index];
+            if (!candidate) {
+                pool.splice(index, 1);
+                continue;
+            }
+
+            if (usedIds.has(candidate.id)) {
+                pool.splice(index, 1);
+                continue;
+            }
+
+            const candidateTokens = buildOptionTokensForRow(
+                baseTokens,
+                listResult.listKeyIndex,
+                candidate,
+                listResult.correctSet
+            );
+
+            if (!candidateTokens) {
+                pool.splice(index, 1);
+                continue;
+            }
+
+            if (usedText.has(candidateTokens.text)) {
+                pool.splice(index, 1);
+                continue;
+            }
+
+            distractors.push({ row: candidate, labelTokens: candidateTokens.tokens, text: candidateTokens.text });
+            usedIds.add(candidate.id);
+            usedText.add(candidateTokens.text);
             pool.splice(index, 1);
-            continue;
         }
+    } else {
+        while (distractors.length < CHOICE_COUNT - 1 && pool.length > 0 && attempts < maxAttempts) {
+            attempts += 1;
+            const candidate = pool[Math.floor(Math.random() * pool.length)];
+            if (!candidate) {
+                continue;
+            }
+            if (usedIds.has(candidate.id)) {
+                continue;
+            }
 
-        if (usedIds.has(candidate.id)) {
-            pool.splice(index, 1);
-            continue;
+            const candidateTokens = buildOptionTokensForRow(
+                baseTokens,
+                listResult.listKeyIndex,
+                candidate,
+                listResult.correctSet
+            );
+
+            if (!candidateTokens) {
+                continue;
+            }
+
+            if (usedText.has(candidateTokens.text)) {
+                continue;
+            }
+
+            distractors.push({ row: candidate, labelTokens: candidateTokens.tokens, text: candidateTokens.text });
+            usedIds.add(candidate.id);
+            usedText.add(candidateTokens.text);
         }
-
-        const candidateTokens = buildOptionTokensForRow(
-            normalizeTokenArray(token.value),
-            listResult.listKeyIndex,
-            candidate,
-            listResult.correctSet
-        );
-
-        if (!candidateTokens) {
-            pool.splice(index, 1);
-            continue;
-        }
-
-        if (usedText.has(candidateTokens.text)) {
-            pool.splice(index, 1);
-            continue;
-        }
-
-        distractors.push({ row: candidate, labelTokens: candidateTokens.tokens, text: candidateTokens.text });
-        usedIds.add(candidate.id);
-        usedText.add(candidateTokens.text);
-        pool.splice(index, 1);
     }
 
     if (distractors.length === 0) {
