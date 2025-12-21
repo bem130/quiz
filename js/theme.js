@@ -7,11 +7,11 @@ const SCALE_KEY = 'quiz_scale';
 
 const SCALE_MAP = {
     xxs: 0.5,  // extra-extra small
-    xs:  0.65,  // extra small
-    s:   0.8, // small (existing)
-    m:   1.0,  // medium (existing)
-    l:   1.2,  // large (existing)
-    xl:  1.4,  // extra large
+    xs: 0.65,  // extra small
+    s: 0.8, // small (existing)
+    m: 1.0,  // medium (existing)
+    l: 1.2,  // large (existing)
+    xl: 1.4,  // extra large
     xxl: 1.7   // extra-extra large
 };
 

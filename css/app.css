@@ -139,6 +139,12 @@ button:active {
     transform: scale(0.98);
 }
 
+/* Monaco inline highlight for ruby/gloss markers */
+.monaco-editor .ruby-gloss-highlight {
+    background-color: rgba(59, 130, 246, 0.15);
+    border-bottom: 1px dashed rgba(59, 130, 246, 0.7);
+}
+
 /* Long text block used in Mistakes / Result question text */
 .quiz-text-block {
     /* explicitly allow wrapping & keep manual line breaks */
@@ -381,8 +387,8 @@ button:active {
     align-items: center;
     column-gap: 0.35em;
     row-gap: 0.1em;
-    font-size: 0.45em;
-    margin-top: -1.1em;
+    font-size: 0.5em;
+    margin-top: -0.7em;
     opacity: 0.5;
     line-height: 1.2;
 }
@@ -397,13 +403,13 @@ button:active {
 }
 
 .term-alt {
-    font-size: 0.45em;
+    font-size: 0.6em;
     margin-top: -1.1em;
     opacity: 0.5;
 }
 
 ruby rt {
-    font-size: 0.45em;
+    font-size: 0.6em;
     opacity: 0.7;
 }
 

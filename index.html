@@ -767,9 +767,23 @@
                 </div>
             </section>
 
-            <!-- ④ Editor Preview -->
+            <!-- ④ Editor Explorer + Preview -->
             <section id="side-editor" class="hidden flex-1 min-h-0 flex flex-col">
-                <div class="px-4 py-3 border-b app-border-subtle app-panel-heading">
+                <div class="px-4 py-2 border-b app-border-subtle app-panel-heading">
+                    <div class="flex items-center justify-between">
+                        <h2 class="font-semibold app-text-strong text-sm">Explorer</h2>
+                        <button id="draft-explorer-refresh"
+                            class="px-2 py-1 text-[11px] font-semibold rounded border app-border-subtle app-text-main app-surface-overlay hover:app-text-strong transition">
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                <div id="draft-explorer" class="max-h-56 shrink-0 overflow-y-auto px-3 py-2 text-[11px]">
+                    <div id="draft-explorer-list" class="space-y-1"></div>
+                </div>
+
+                <div class="border-t app-border-subtle"></div>
+                <div class="px-4 py-3 app-panel-heading">
                     <h2 class="font-semibold app-text-strong text-sm">Draft Preview</h2>
                     <p class="text-[11px] app-text-muted">Rendered output &amp; JSON view.</p>
                 </div>
@@ -785,7 +799,7 @@
                 </div>
                 <div id="draft-preview-panel" class="flex-1 min-h-0 overflow-y-auto px-4 py-3">
                     <div id="draft-preview-rendered" class="space-y-4"></div>
-                    <pre id="draft-preview-json" class="hidden text-xs font-mono whitespace-pre overflow-x-auto"></pre>
+                    <pre id="draft-preview-json" class="hidden text-xs font-mono whitespace-pre overflow-auto"></pre>
                 </div>
             </section>
         </aside>

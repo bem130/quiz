@@ -374,6 +374,40 @@ body.app-ready .layout-container {
     background-color: var(--color-surface-overlay);
 }
 
+/* JSON preview highlight */
+.json-token-string {
+    color: var(--color-text-success);
+}
+
+.json-token-key {
+    color: var(--color-text-accent);
+}
+
+.json-token-number {
+    color: var(--color-text-strong);
+}
+
+.json-token-boolean {
+    color: var(--color-text-danger);
+}
+
+.json-token-null {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.json-token-punct {
+    color: var(--color-text-muted);
+}
+
+.json-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background-color: var(--color-text-accent);
+    vertical-align: text-bottom;
+}
+
 /* Borders */
 .app-border-subtle {
     border-color: var(--color-border-subtle);

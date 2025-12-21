@@ -12,8 +12,12 @@ let lastParsedAst = null;
 let lastSourceText = '';
 let lastSourceMapCache = new Map();
 let activePreviewTab = 'rendered';
+let activeRowIndex = null;
+let activeCursorOffset = null;
+let rubyGlossDecorations = null;
 let toolbarInitialized = false;
 let previewTabsInitialized = false;
+let explorerInitialized = false;
 
 function getMonacoTheme() {
     const theme = document.documentElement.dataset.theme;
@@ -61,6 +65,10 @@ export async function initDraftEditor(containerId) {
         });
     }
 
+    if (!rubyGlossDecorations) {
+        rubyGlossDecorations = editor.createDecorationsCollection([]);
+    }
+
     // Theme sync
     const obs = new MutationObserver(() => {
         monaco.editor.setTheme(getMonacoTheme());
@@ -72,8 +80,13 @@ export async function initDraftEditor(containerId) {
         const val = editor.getValue();
         handleContentChange(val);
     });
+    editor.onDidChangeCursorPosition(() => {
+        const offset = getCurrentCursorOffset();
+        handleCursorChange(offset);
+    });
 
     attachEditorToolbarHandlers();
+    attachExplorerHandlers();
     attachPreviewTabHandlers();
     await refreshPathList();
     await loadDraftByPath(currentDraftPath);
@@ -103,14 +116,16 @@ function updatePreview(jsonText) {
         lastSourceText = jsonText;
         lastSourceMapCache = new Map();
         lastParsedAst = parseJsonWithLoc(jsonText);
-        renderJsonPreview(jsonText, jsonContainer);
+        activeCursorOffset = getCurrentCursorOffset();
+        activeRowIndex = findTableRowIndexForOffset(lastParsedAst, activeCursorOffset);
+        renderJsonPreview(jsonText, jsonContainer, activeCursorOffset);
 
         const definition = buildDefinitionFromQuizFile(lastParsedAst.value, 'draft', {
             title: lastParsedAst.value && lastParsedAst.value.title ? lastParsedAst.value.title : 'Preview'
         });
 
         renderedContainer.innerHTML = '';
-        renderRenderedPreview(lastParsedAst.value, renderedContainer);
+        renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
         setPreviewTab(activePreviewTab);
 
         try {
@@ -119,13 +134,100 @@ function updatePreview(jsonText) {
         } catch (e) {
             setDraftStatus(`Invalid Schema: ${e.message}`, 'app-text-accent');
         }
+        updateRubyGlossDecorations();
     } catch (e) {
         // Parse error
         renderedContainer.innerHTML = '';
-        jsonContainer.textContent = jsonText;
         lastParsedAst = null;
+        renderJsonPreview(jsonText, jsonContainer, getCurrentCursorOffset());
         setDraftStatus(`Syntax Error: ${e.message}`, 'app-text-danger');
+        updateRubyGlossDecorations();
     }
+}
+
+function getCurrentCursorOffset() {
+    if (!editor) return null;
+    const model = editor.getModel();
+    if (!model) return null;
+    const position = editor.getPosition();
+    if (!position) return null;
+    return model.getOffsetAt(position);
+}
+
+function handleCursorChange(offset) {
+    activeCursorOffset = offset;
+    const renderedContainer = document.getElementById('draft-preview-rendered');
+    const jsonContainer = document.getElementById('draft-preview-json');
+    if (jsonContainer) {
+        renderJsonPreview(lastSourceText || '', jsonContainer, activeCursorOffset);
+    }
+    if (!lastParsedAst || !renderedContainer) return;
+    const nextRowIndex = findTableRowIndexForOffset(lastParsedAst, activeCursorOffset);
+    if (nextRowIndex !== activeRowIndex) {
+        activeRowIndex = nextRowIndex;
+        renderedContainer.innerHTML = '';
+        renderRenderedPreview(lastParsedAst.value, renderedContainer, { rowIndex: activeRowIndex });
+    }
+}
+
+function findTableRowIndexForOffset(ast, offset) {
+    if (!ast || offset == null) return null;
+    const tableNode = findNodeByPath(ast, ['table']);
+    if (!tableNode || tableNode.type !== 'Array') return null;
+    for (let i = 0; i < tableNode.children.length; i += 1) {
+        const rowNode = tableNode.children[i];
+        if (!rowNode || !rowNode.loc) continue;
+        if (offset >= rowNode.loc.start.offset && offset <= rowNode.loc.end.offset) {
+            return i;
+        }
+    }
+    return null;
+}
+
+function getRawRangeForStringSegment(node, startIndex, endIndex) {
+    if (!node || !node.loc) return null;
+    const start = Math.max(0, startIndex);
+    const end = Math.max(start, endIndex);
+    const rawStart = getOffsetForStringIndex(node, start);
+    const rawEnd = getOffsetForStringIndex(node, Math.max(end - 1, start)) + 1;
+    if (rawStart == null || rawEnd == null) return null;
+    return { rawStart, rawEnd };
+}
+
+function updateRubyGlossDecorations() {
+    if (!editor || !rubyGlossDecorations) return;
+    const model = editor.getModel();
+    if (!model) return;
+    if (!lastParsedAst) {
+        rubyGlossDecorations.set([]);
+        return;
+    }
+    const decorations = [];
+    const stringNodes = collectStringNodes(lastParsedAst, []);
+    stringNodes.forEach((node) => {
+        if (!node || typeof node.value !== 'string') return;
+        const segments = parseContentToSegments(node.value);
+        segments.forEach((seg) => {
+            if (!seg || !seg.range) return;
+            if (seg.kind !== 'Annotated' && seg.kind !== 'Gloss') return;
+            const rawRange = getRawRangeForStringSegment(node, seg.range.start, seg.range.end);
+            if (!rawRange) return;
+            const startPos = model.getPositionAt(rawRange.rawStart);
+            const endPos = model.getPositionAt(rawRange.rawEnd);
+            decorations.push({
+                range: new monaco.Range(
+                    startPos.lineNumber,
+                    startPos.column,
+                    endPos.lineNumber,
+                    endPos.column
+                ),
+                options: {
+                    inlineClassName: 'ruby-gloss-highlight'
+                }
+            });
+        });
+    });
+    rubyGlossDecorations.set(decorations);
 }
 
 function collectStringNodes(node, list = []) {
@@ -147,46 +249,208 @@ function collectStringNodes(node, list = []) {
     return list;
 }
 
+function collectStringNodesWithMeta(node, list = []) {
+    if (!node) return list;
+    if (node.type === 'String') {
+        list.push({ node, isKey: false });
+        return list;
+    }
+    if (node.type === 'Property') {
+        if (node.key && node.key.type === 'String') {
+            list.push({ node: node.key, isKey: true });
+        }
+        collectStringNodesWithMeta(node.value, list);
+        return list;
+    }
+    if (node.type === 'Object' || node.type === 'Array') {
+        (node.children || []).forEach(child => {
+            collectStringNodesWithMeta(child, list);
+        });
+    }
+    return list;
+}
+
 function appendPlainText(parent, text) {
     if (!text) return;
     parent.appendChild(document.createTextNode(text));
 }
 
-function renderJsonPreview(jsonText, container) {
+function appendCursorMarker(parent, cursorState) {
+    const marker = document.createElement('span');
+    marker.className = 'json-cursor';
+    parent.appendChild(marker);
+    if (cursorState) {
+        cursorState.inserted = true;
+        cursorState.element = marker;
+    }
+}
+
+function appendTokenText(parent, text, className) {
+    if (!text) return;
+    if (!className) {
+        appendPlainText(parent, text);
+        return;
+    }
+    const span = document.createElement('span');
+    span.className = className;
+    span.textContent = text;
+    parent.appendChild(span);
+}
+
+function appendTokenWithCursor(parent, text, startOffset, cursorState, className) {
+    if (!text) return;
+    const cursorOffset = cursorState ? cursorState.offset : null;
+    const tokenEnd = startOffset + text.length;
+    if (
+        cursorState &&
+        !cursorState.inserted &&
+        cursorOffset != null &&
+        cursorOffset >= startOffset &&
+        cursorOffset <= tokenEnd
+    ) {
+        const index = Math.max(0, Math.min(text.length, cursorOffset - startOffset));
+        appendTokenText(parent, text.slice(0, index), className);
+        appendCursorMarker(parent, cursorState);
+        appendTokenText(parent, text.slice(index), className);
+        return;
+    }
+    appendTokenText(parent, text, className);
+}
+
+function getTokenClass(tokenText) {
+    if (/^\s+$/.test(tokenText)) return null;
+    if (/^[{}\[\]:,]$/.test(tokenText)) return 'json-token-punct';
+    if (tokenText === 'true' || tokenText === 'false') return 'json-token-boolean';
+    if (tokenText === 'null') return 'json-token-null';
+    if (/^-?\d/.test(tokenText)) return 'json-token-number';
+    return null;
+}
+
+function appendJsonTextSegment(parent, text, startOffset, cursorState) {
+    if (!text) return;
+    const tokenRegex = /\s+|true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[{}\[\]:,]/g;
+    let lastIndex = 0;
+    let match;
+    while ((match = tokenRegex.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            appendTokenWithCursor(
+                parent,
+                text.slice(lastIndex, match.index),
+                startOffset + lastIndex,
+                cursorState,
+                null
+            );
+        }
+        const tokenText = match[0];
+        appendTokenWithCursor(
+            parent,
+            tokenText,
+            startOffset + match.index,
+            cursorState,
+            getTokenClass(tokenText)
+        );
+        lastIndex = match.index + tokenText.length;
+    }
+    if (lastIndex < text.length) {
+        appendTokenWithCursor(
+            parent,
+            text.slice(lastIndex),
+            startOffset + lastIndex,
+            cursorState,
+            null
+        );
+    }
+}
+
+function getDecodedIndexForRawOffset(node, rawOffset) {
+    if (!node || !node.loc) return null;
+    const rawStart = node.loc.start.offset + 1;
+    const rawEnd = node.loc.end.offset - 1;
+    if (rawOffset == null || rawOffset < rawStart) return 0;
+    if (rawOffset >= rawEnd) return (node.value || '').length;
+    const map = getStringOffsetMap(node);
+    if (!map || map.length === 0) {
+        return Math.max(0, rawOffset - rawStart);
+    }
+    let index = 0;
+    for (let i = 0; i < map.length; i += 1) {
+        if (map[i] < rawOffset) {
+            index = i + 1;
+        } else {
+            break;
+        }
+    }
+    return index;
+}
+
+function appendJsonStringSegment(parent, node, isKey, cursorState) {
+    if (!node || !node.loc) return;
+    const rawStart = node.loc.start.offset;
+    const rawEnd = node.loc.end.offset;
+    const stringClass = isKey ? 'json-token-string json-token-key' : 'json-token-string';
+    appendTokenWithCursor(parent, '"', rawStart, cursorState, stringClass);
+
+    const contentWrapper = document.createElement('span');
+    contentWrapper.className = stringClass;
+    const cursorOffset = cursorState ? cursorState.offset : null;
+    let cursorIndex = null;
+    if (cursorOffset != null && cursorOffset >= rawStart + 1 && cursorOffset <= rawEnd - 1) {
+        cursorIndex = getDecodedIndexForRawOffset(node, cursorOffset);
+    }
+    renderStringValue(contentWrapper, node.value ?? '', node, [], 'decoded', cursorState, cursorIndex);
+    parent.appendChild(contentWrapper);
+
+    appendTokenWithCursor(parent, '"', rawEnd - 1, cursorState, stringClass);
+}
+
+function renderPlainJsonWithCursor(container, jsonText, cursorState) {
+    const frag = document.createDocumentFragment();
+    appendJsonTextSegment(frag, jsonText, 0, cursorState);
+    if (cursorState && !cursorState.inserted && cursorState.offset != null) {
+        appendCursorMarker(frag, cursorState);
+    }
+    container.appendChild(frag);
+    if (cursorState && cursorState.element && activePreviewTab === 'json') {
+        cursorState.element.scrollIntoView({ block: 'center', inline: 'center' });
+    }
+}
+
+function renderJsonPreview(jsonText, container, cursorOffset = null) {
     container.innerHTML = '';
+    const cursorState = { offset: cursorOffset, inserted: false, element: null };
     if (!lastParsedAst || !lastParsedAst.loc) {
-        container.textContent = jsonText;
+        renderPlainJsonWithCursor(container, jsonText, cursorState);
         return;
     }
 
-    const stringNodes = collectStringNodes(lastParsedAst, []);
-    stringNodes.sort((a, b) => a.loc.start.offset - b.loc.start.offset);
+    const stringNodes = collectStringNodesWithMeta(lastParsedAst, []);
+    stringNodes.sort((a, b) => a.node.loc.start.offset - b.node.loc.start.offset);
 
     const frag = document.createDocumentFragment();
     let cursor = 0;
 
-    stringNodes.forEach((node) => {
+    stringNodes.forEach((entry) => {
+        const node = entry.node;
         if (!node || !node.loc) return;
         const start = node.loc.start.offset;
         const end = node.loc.end.offset;
         if (start < cursor) return;
 
-        appendPlainText(frag, jsonText.slice(cursor, start));
-        appendPlainText(frag, jsonText.slice(start, start + 1));
-
-        const rawContent = jsonText.slice(start + 1, end - 1);
-        if (rawContent) {
-            const span = document.createElement('span');
-            renderStringValue(span, rawContent, node, [], 'raw');
-            frag.appendChild(span);
-        }
-
-        appendPlainText(frag, jsonText.slice(end - 1, end));
+        appendJsonTextSegment(frag, jsonText.slice(cursor, start), cursor, cursorState);
+        appendJsonStringSegment(frag, node, entry.isKey, cursorState);
         cursor = end;
     });
 
-    appendPlainText(frag, jsonText.slice(cursor));
+    appendJsonTextSegment(frag, jsonText.slice(cursor), cursor, cursorState);
+
+    if (!cursorState.inserted && cursorState.offset != null) {
+        appendCursorMarker(frag, cursorState);
+    }
+
     container.appendChild(frag);
+    if (cursorState.element && activePreviewTab === 'json') {
+        cursorState.element.scrollIntoView({ block: 'center', inline: 'center' });
+    }
 }
 
 // Map rendered elements back to JSON location
@@ -313,29 +577,66 @@ function createStyledSpan(text, styles = []) {
     return span;
 }
 
-function appendTextWithOffsets(parent, text, node, baseIndex = 0, styles = [], offsetMode = 'decoded') {
+function appendTextWithOffsets(
+    parent,
+    text,
+    node,
+    baseIndex = 0,
+    styles = [],
+    offsetMode = 'decoded',
+    cursorState = null,
+    cursorIndex = null
+) {
     if (!text) return;
     for (let i = 0; i < text.length; i += 1) {
         const ch = text[i];
         if (ch === '\n') {
+            if (cursorState && !cursorState.inserted && cursorIndex === baseIndex + i) {
+                appendCursorMarker(parent, cursorState);
+            }
             parent.appendChild(document.createElement('br'));
             continue;
+        }
+        if (cursorState && !cursorState.inserted && cursorIndex === baseIndex + i) {
+            appendCursorMarker(parent, cursorState);
         }
         const span = createStyledSpan(ch, styles);
         const offset = node ? getOffsetForIndex(node, baseIndex + i, offsetMode) : null;
         attachJump(span, offset);
         parent.appendChild(span);
     }
+    if (cursorState && !cursorState.inserted && cursorIndex === baseIndex + text.length) {
+        appendCursorMarker(parent, cursorState);
+    }
 }
 
-function renderInlineSegments(parent, segments, node, offsetMode = 'decoded') {
+function renderInlineSegments(parent, segments, node, offsetMode = 'decoded', cursorState = null, cursorIndex = null) {
     (segments || []).forEach((seg) => {
         if (!seg || !seg.kind) return;
         if (seg.kind === 'Plain') {
-            appendTextWithOffsets(parent, seg.text || '', node, seg.range ? seg.range.start : 0, [], offsetMode);
+            appendTextWithOffsets(
+                parent,
+                seg.text || '',
+                node,
+                seg.range ? seg.range.start : 0,
+                [],
+                offsetMode,
+                cursorState,
+                cursorIndex
+            );
             return;
         }
         if (seg.kind === 'Math') {
+            if (
+                cursorState &&
+                !cursorState.inserted &&
+                cursorIndex != null &&
+                seg.range &&
+                cursorIndex >= seg.range.start &&
+                cursorIndex <= seg.range.end
+            ) {
+                appendCursorMarker(parent, cursorState);
+            }
             const span = createStyledSpan(seg.tex || '', ['katex']);
             const offset = node && seg.range ? getOffsetForIndex(node, seg.range.start, offsetMode) : null;
             attachJump(span, offset);
@@ -344,7 +645,7 @@ function renderInlineSegments(parent, segments, node, offsetMode = 'decoded') {
     });
 }
 
-function renderGlossSegment(parent, seg, node, offsetMode = 'decoded') {
+function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorState = null, cursorIndex = null) {
     const glossSpan = document.createElement('span');
     glossSpan.className = 'gloss';
 
@@ -353,14 +654,33 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded') {
         if (!child || !child.kind) return;
         if (child.kind === 'Annotated') {
             const rb = document.createElement('rb');
-            renderInlineSegments(rb, child.base || [], node, offsetMode);
+            renderInlineSegments(rb, child.base || [], node, offsetMode, cursorState, cursorIndex);
             const rt = document.createElement('rt');
-            appendTextWithOffsets(rt, child.reading || '', node, child.rubyRange ? child.rubyRange.start : 0, [], offsetMode);
+            appendTextWithOffsets(
+                rt,
+                child.reading || '',
+                node,
+                child.rubyRange ? child.rubyRange.start : 0,
+                [],
+                offsetMode,
+                cursorState,
+                cursorIndex
+            );
             rubyEl.appendChild(rb);
             rubyEl.appendChild(rt);
             return;
         }
         if (child.kind === 'Math') {
+            if (
+                cursorState &&
+                !cursorState.inserted &&
+                cursorIndex != null &&
+                child.range &&
+                cursorIndex >= child.range.start &&
+                cursorIndex <= child.range.end
+            ) {
+                appendCursorMarker(rubyEl, cursorState);
+            }
             const rb = document.createElement('rb');
             const span = createStyledSpan(child.tex || '', ['katex']);
             const offset = node && child.range ? getOffsetForIndex(node, child.range.start, offsetMode) : null;
@@ -373,7 +693,16 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded') {
         }
         if (child.kind === 'Plain') {
             const rb = document.createElement('rb');
-            appendTextWithOffsets(rb, child.text || '', node, child.range ? child.range.start : 0, [], offsetMode);
+            appendTextWithOffsets(
+                rb,
+                child.text || '',
+                node,
+                child.range ? child.range.start : 0,
+                [],
+                offsetMode,
+                cursorState,
+                cursorIndex
+            );
             const rt = document.createElement('rt');
             rubyEl.appendChild(rb);
             rubyEl.appendChild(rt);
@@ -392,15 +721,34 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded') {
                 if (child.kind === 'Annotated') {
                     const ruby = document.createElement('ruby');
                     const rb = document.createElement('rb');
-                    renderInlineSegments(rb, child.base || [], node, offsetMode);
+                    renderInlineSegments(rb, child.base || [], node, offsetMode, cursorState, cursorIndex);
                     const rt = document.createElement('rt');
-                    appendTextWithOffsets(rt, child.reading || '', node, child.rubyRange ? child.rubyRange.start : 0, [], offsetMode);
+                    appendTextWithOffsets(
+                        rt,
+                        child.reading || '',
+                        node,
+                        child.rubyRange ? child.rubyRange.start : 0,
+                        [],
+                        offsetMode,
+                        cursorState,
+                        cursorIndex
+                    );
                     ruby.appendChild(rb);
                     ruby.appendChild(rt);
                     altSpan.appendChild(ruby);
                     return;
                 }
                 if (child.kind === 'Math') {
+                    if (
+                        cursorState &&
+                        !cursorState.inserted &&
+                        cursorIndex != null &&
+                        child.range &&
+                        cursorIndex >= child.range.start &&
+                        cursorIndex <= child.range.end
+                    ) {
+                        appendCursorMarker(altSpan, cursorState);
+                    }
                     const span = createStyledSpan(child.tex || '', ['katex']);
                     const offset = node && child.range ? getOffsetForIndex(node, child.range.start, offsetMode) : null;
                     attachJump(span, offset);
@@ -408,7 +756,16 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded') {
                     return;
                 }
                 if (child.kind === 'Plain') {
-                    appendTextWithOffsets(altSpan, child.text || '', node, child.range ? child.range.start : 0, [], offsetMode);
+                    appendTextWithOffsets(
+                        altSpan,
+                        child.text || '',
+                        node,
+                        child.range ? child.range.start : 0,
+                        [],
+                        offsetMode,
+                        cursorState,
+                        cursorIndex
+                    );
                 }
             });
             altsWrapper.appendChild(altSpan);
@@ -419,14 +776,33 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded') {
     parent.appendChild(glossSpan);
 }
 
-function renderSegments(parent, segments, node, offsetMode = 'decoded') {
+function renderSegments(parent, segments, node, offsetMode = 'decoded', cursorState = null, cursorIndex = null) {
     (segments || []).forEach((seg) => {
         if (!seg || !seg.kind) return;
         if (seg.kind === 'Plain') {
-            appendTextWithOffsets(parent, seg.text || '', node, seg.range ? seg.range.start : 0, [], offsetMode);
+            appendTextWithOffsets(
+                parent,
+                seg.text || '',
+                node,
+                seg.range ? seg.range.start : 0,
+                [],
+                offsetMode,
+                cursorState,
+                cursorIndex
+            );
             return;
         }
         if (seg.kind === 'Math') {
+            if (
+                cursorState &&
+                !cursorState.inserted &&
+                cursorIndex != null &&
+                seg.range &&
+                cursorIndex >= seg.range.start &&
+                cursorIndex <= seg.range.end
+            ) {
+                appendCursorMarker(parent, cursorState);
+            }
             const span = createStyledSpan(seg.tex || '', ['katex']);
             const offset = node && seg.range ? getOffsetForIndex(node, seg.range.start, offsetMode) : null;
             attachJump(span, offset);
@@ -434,34 +810,83 @@ function renderSegments(parent, segments, node, offsetMode = 'decoded') {
             return;
         }
         if (seg.kind === 'Annotated') {
+            const cursorInSegment =
+                cursorState &&
+                !cursorState.inserted &&
+                cursorIndex != null &&
+                seg.range &&
+                cursorIndex >= seg.range.start &&
+                cursorIndex <= seg.range.end;
+            const cursorInBase =
+                cursorInSegment &&
+                seg.baseRange &&
+                cursorIndex >= seg.baseRange.start &&
+                cursorIndex <= seg.baseRange.end;
+            const cursorInRuby =
+                cursorInSegment &&
+                seg.rubyRange &&
+                cursorIndex >= seg.rubyRange.start &&
+                cursorIndex <= seg.rubyRange.end;
+            if (cursorInSegment && !cursorInBase && !cursorInRuby) {
+                appendCursorMarker(parent, cursorState);
+            }
             const rubyEl = document.createElement('ruby');
             const rb = document.createElement('rb');
-            renderInlineSegments(rb, seg.base || [], node, offsetMode);
+            renderInlineSegments(rb, seg.base || [], node, offsetMode, cursorState, cursorIndex);
             const rt = document.createElement('rt');
-            appendTextWithOffsets(rt, seg.reading || '', node, seg.rubyRange ? seg.rubyRange.start : 0, [], offsetMode);
+            appendTextWithOffsets(
+                rt,
+                seg.reading || '',
+                node,
+                seg.rubyRange ? seg.rubyRange.start : 0,
+                [],
+                offsetMode,
+                cursorState,
+                cursorIndex
+            );
             rubyEl.appendChild(rb);
             rubyEl.appendChild(rt);
             parent.appendChild(rubyEl);
             return;
         }
         if (seg.kind === 'Gloss') {
-            renderGlossSegment(parent, seg, node, offsetMode);
+            const cursorInSegment =
+                cursorState &&
+                !cursorState.inserted &&
+                cursorIndex != null &&
+                seg.range &&
+                cursorIndex >= seg.range.start &&
+                cursorIndex <= seg.range.end;
+            if (cursorInSegment && seg.base && seg.base.length) {
+                const inBase = seg.base.some(
+                    (child) =>
+                        child.range &&
+                        cursorIndex >= child.range.start &&
+                        cursorIndex <= child.range.end
+                );
+                if (!inBase) {
+                    appendCursorMarker(parent, cursorState);
+                }
+            } else if (cursorInSegment) {
+                appendCursorMarker(parent, cursorState);
+            }
+            renderGlossSegment(parent, seg, node, offsetMode, cursorState, cursorIndex);
         }
     });
 }
 
-function renderStringValue(parent, value, node, styles = [], offsetMode = 'decoded') {
+function renderStringValue(parent, value, node, styles = [], offsetMode = 'decoded', cursorState = null, cursorIndex = null) {
     const raw = value != null ? String(value) : '';
     if (!raw) return;
     const segments = parseContentToSegments(raw);
     if (styles && styles.length) {
         const wrapper = document.createElement('span');
         applyStyles(wrapper, styles);
-        renderSegments(wrapper, segments, node, offsetMode);
+        renderSegments(wrapper, segments, node, offsetMode, cursorState, cursorIndex);
         parent.appendChild(wrapper);
         return;
     }
-    renderSegments(parent, segments, node, offsetMode);
+    renderSegments(parent, segments, node, offsetMode, cursorState, cursorIndex);
 }
 
 function normalizeTokenArray(value) {
@@ -826,9 +1251,12 @@ function setPreviewTab(tab) {
     if (jsonContainer) {
         jsonContainer.classList.toggle('hidden', tab !== 'json');
     }
+    if (tab === 'json' && jsonContainer) {
+        renderJsonPreview(lastSourceText || '', jsonContainer, activeCursorOffset);
+    }
 }
 
-function renderRenderedPreview(rawValue, container) {
+function renderRenderedPreview(rawValue, container, options = {}) {
     if (!rawValue || typeof rawValue !== 'object') {
         const empty = document.createElement('div');
         empty.className = 'text-xs app-text-muted';
@@ -861,20 +1289,30 @@ function renderRenderedPreview(rawValue, container) {
 
     const patterns = Array.isArray(rawValue.patterns) ? rawValue.patterns : [];
     const table = Array.isArray(rawValue.table) ? rawValue.table : [];
-    const previewRow = table[0] || null;
-    const previewRowPath = previewRow ? ['table', 0] : null;
+    const rowIndex = Number.isInteger(options.rowIndex) ? options.rowIndex : null;
+    const previewRow = rowIndex != null ? table[rowIndex] : null;
+    const previewRowPath = previewRow ? ['table', rowIndex] : null;
 
-    if (!previewRow) {
+    if (!table.length) {
         const note = document.createElement('div');
         note.className = 'text-xs app-text-danger';
-        note.textContent = 'Table rows are missing. Previews that depend on row data may be empty.';
+        note.textContent = 'Table rows are missing. Add a row to preview questions.';
         container.appendChild(note);
-    } else {
-        const note = document.createElement('div');
-        note.className = 'text-[11px] app-text-muted';
-        note.textContent = `Preview row: ${previewRow.id || 'row_1'} (first row)`;
-        container.appendChild(note);
+        return;
     }
+
+    if (rowIndex == null || !previewRow) {
+        const note = document.createElement('div');
+        note.className = 'text-xs app-text-muted';
+        note.textContent = 'Move the cursor inside a table row to preview this question.';
+        container.appendChild(note);
+        return;
+    }
+
+    const note = document.createElement('div');
+    note.className = 'text-[11px] app-text-muted';
+    note.textContent = `Preview row: ${previewRow.id || `row_${rowIndex + 1}`} (from cursor)`;
+    container.appendChild(note);
 
     if (!patterns.length) {
         const empty = document.createElement('div');
@@ -991,6 +1429,98 @@ function attachEditorToolbarHandlers() {
     }
 }
 
+function attachExplorerHandlers() {
+    if (explorerInitialized) return;
+    explorerInitialized = true;
+    const refreshButton = document.getElementById('draft-explorer-refresh');
+    if (refreshButton) {
+        refreshButton.addEventListener('click', async () => {
+            await refreshPathList();
+        });
+    }
+}
+
+function buildPathTree(paths) {
+    const root = { name: '', type: 'folder', children: new Map() };
+    paths.forEach((path) => {
+        if (!path) return;
+        const parts = path.split('/').filter(Boolean);
+        let current = root;
+        parts.forEach((part, index) => {
+            const isFile = index === parts.length - 1;
+            if (isFile) {
+                current.children.set(part, { name: part, type: 'file', path });
+                return;
+            }
+            if (!current.children.has(part)) {
+                current.children.set(part, { name: part, type: 'folder', children: new Map() });
+            }
+            current = current.children.get(part);
+        });
+    });
+    return root;
+}
+
+function renderExplorerNodes(container, node) {
+    const entries = Array.from(node.children.values());
+    entries.sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    entries.forEach((entry) => {
+        if (entry.type === 'folder') {
+            const details = document.createElement('details');
+            details.open = true;
+            details.className = 'group';
+
+            const summary = document.createElement('summary');
+            summary.className = 'cursor-pointer select-none py-1 text-[11px] app-text-strong';
+            summary.textContent = entry.name;
+            details.appendChild(summary);
+
+            const childContainer = document.createElement('div');
+            childContainer.className = 'ml-3 border-l app-border-subtle pl-2 space-y-1';
+            renderExplorerNodes(childContainer, entry);
+            details.appendChild(childContainer);
+
+            container.appendChild(details);
+            return;
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'w-full text-left px-2 py-1 rounded app-text-main hover:app-text-strong hover:app-surface-overlay transition';
+        button.textContent = entry.name;
+        button.dataset.path = entry.path;
+        button.title = entry.path;
+        if (entry.path === currentDraftPath) {
+            button.classList.add('font-semibold', 'app-surface-overlay');
+        }
+        button.addEventListener('click', async () => {
+            await loadDraftByPath(entry.path);
+        });
+        container.appendChild(button);
+    });
+}
+
+function renderDraftExplorer(drafts) {
+    const container = document.getElementById('draft-explorer-list');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!drafts || drafts.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'text-[11px] app-text-muted';
+        empty.textContent = 'No local drafts yet.';
+        container.appendChild(empty);
+        return;
+    }
+    const tree = buildPathTree(
+        drafts.map((draft) => draft && draft.path).filter(Boolean)
+    );
+    renderExplorerNodes(container, tree);
+}
+
 async function refreshPathList() {
     const list = document.getElementById('draft-path-list');
     if (!list) return;
@@ -1002,6 +1532,7 @@ async function refreshPathList() {
         option.value = draft.path;
         list.appendChild(option);
     });
+    renderDraftExplorer(drafts);
 }
 
 function buildDefaultDraft(path) {
@@ -1059,6 +1590,8 @@ async function loadDraftByPath(path) {
             : buildDefaultDraft(path);
     editor.setValue(initialValue);
     handleContentChange(initialValue);
+    const drafts = await getAllDrafts();
+    renderDraftExplorer(drafts);
 }
 
 async function createNewDraft(path) {
