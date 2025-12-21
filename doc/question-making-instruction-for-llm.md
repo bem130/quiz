@@ -10,6 +10,13 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
 以下の例の"data1Tokens","data2Tokens","data3Tokens",...については、それぞれ適切な意味を持つ名前に変えてください
 "conditionTokens","formulaTokens","conceptTokens","factorsTokens","regionTokens","issueTokens","meaningTokens","usageTokens","conjugationTokens" など自由に命名できます
 
+作成できる問題形式は **`table_fill_choice` 相当のみ**です  
+`questionFormat` は **書きません**  
+`hide.answer.mode` は **`choice_from_entities` のみ**です  
+選択肢数は **4 択固定**で、`choiceCount: 4` と `distractorSource.count: 3` を使います  
+`avoidSameId` と `avoidSameText` は **必ず true** にします  
+フィルタ機能やマッチング問題は使いません
+
 ```json
 {
   "title": "[数学/すうがく]クイズ {Mathematics/数学}",
@@ -18,6 +25,7 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
   "table": [
     {
       "id": "recordの名前",
+      "choiceGroup": "groupの名前",
       "data1Tokens": [
         {
           "type": "content",
@@ -60,7 +68,6 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
     {
       "id": "patternの名前",
       "label": "patternの短い説明",
-      "questionFormat": "table_fill_choice",
       "tokens": [
         {
           "type": "key",
@@ -101,7 +108,8 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
             "distractorSource": {
               "count": 3,
               "avoidSameId": true,
-              "avoidSameText": true
+              "avoidSameText": true,
+              "groupField": "choiceGroup"
             }
           }
         },
@@ -140,6 +148,19 @@ record に持たせた Token 配列（data1Tokens など）は問題文、回答
   ]
 }
 ```
+
+# 4択の設計（table と hide）
+
+`choice_from_entities` では、table の行から正解と誤答を選びます  
+4択として成立させるために、table と hide は次を守ってください
+
+- table には **最低 4 行**の候補が必要です（正解 1 + 誤答 3）
+- 「条件を満たす候補が複数あるが、選択肢には同時に 1 つだけ表示したい」場合は、
+  同じ条件の候補に **共通のグループ値**（例: `choiceGroup`）を持たせます
+- hide の `distractorSource.groupField` にそのフィールド名を指定すると、
+  **正解行と同じグループ値の行が誤答候補から除外**されます
+
+`groupField` を使わない場合は、`choiceGroup` を省略して構いません
 
 # 説明の書き方
 

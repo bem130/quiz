@@ -52,7 +52,6 @@
     {
       "id": "p_def_to_term",
       "label": "定義 → 用語",
-      "questionFormat": "table_fill_choice",
       "tokens": [
         { "type": "text", "value": "次の定義に当てはまる用語は " },
         {
@@ -63,7 +62,6 @@
             "mode": "choice_from_entities",
             "choiceCount": 4,
             "distractorSource": {
-              "scope": "all",
               "count": 3,
               "avoidSameId": true,
               "avoidSameText": true
@@ -78,7 +76,6 @@
     {
       "id": "p_term_to_formula",
       "label": "用語 → 公式",
-      "questionFormat": "table_fill_choice",
       "tokens": [
         { "type": "text", "value": "用語 " },
         { "type": "key", "field": "termJa" },
@@ -91,7 +88,6 @@
             "mode": "choice_from_entities",
             "choiceCount": 4,
             "distractorSource": {
-              "scope": "all",
               "count": 3,
               "avoidSameId": true,
               "avoidSameText": true
@@ -100,24 +96,6 @@
         },
         { "type": "text", "value": " である。" }
       ]
-    },
-    {
-      "id": "p_match_term_def",
-      "label": "用語と定義のマッチング",
-      "questionFormat": "table_matching",
-      "tokens": [
-        { "type": "text", "value": "用語と定義を対応させよ。" }
-      ],
-      "matchingSpec": {
-        "mode": "matching_pairs_from_entities",
-        "leftField": "termJa",
-        "rightField": "definition",
-        "count": 4,
-        "shuffle": {
-          "left": false,
-          "right": true
-        }
-      }
     }
   ]
 }

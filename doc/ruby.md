@@ -1,3 +1,7 @@
+## 適用範囲（v3）
+ruby 記法と gloss 記法は、title / description / label / text / content など **表示される文字列すべて**に使用できます  
+識別子（id / type / field など）には使用しないでください  
+
 ## 日本語ふりがな
 ruby記法は`[漢字/かんじ]`の記法です  
 全ての漢字にはrubyを付けます  

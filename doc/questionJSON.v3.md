@@ -1,6 +1,6 @@
 # クイズ問題ファイル仕様 v3
 
-この文書は、アミノ酸などの知識を扱う 4 択クイズ／マッチング問題のための **問題定義 JSON 仕様 v3** を定義します。
+この文書は、アミノ酸などの知識を扱う 4 択クイズのための **問題定義 JSON 仕様 v3** を定義します。
 
 * 仕様パートでは、
 
@@ -15,14 +15,7 @@
 
 ### 1.1 対象範囲
 
-本仕様は、次の 3 種類の問題形式をサポートします：
-
-1. **table_fill_choice**
-   table から生成する **n 択穴埋め問題**（典型的には 4 択）
-2. **table_matching**
-   table から生成する **マッチング問題（対応付け問題）**
-3. **sentence_fill_choice**
-   table の各行に持たせた文（tokens）から生成する **n 択穴埋め問題**
+本仕様は、table から生成する **n 択穴埋め問題**（典型的には 4 択）のみをサポートします。
 
 共通ポリシー：
 
@@ -170,26 +163,30 @@ v3 では、**UI 表示用の文字列フィールドのすべて**で ruby 記�
 #### 処理
 
 * `id` をキーとして内部 Map に変換して保持しても構いません。
-* `table_fill_choice` / `table_matching` / `sentence_fill_choice` のすべてで利用されます。
-* `entityFilter` / `propertyFilter` の対象になります。
+* table を使った問題生成で利用されます。
 
-### 3.2 sentence_fill_choice 用の行
+### 3.2 選択肢グループ（任意）
 
 #### 記述
 
-`questionFormat: "sentence_fill_choice"` では、`table` の各行に `tokens` を持たせます：
+「条件を満たす候補が複数あるが、選択肢には同時に 1 つだけ表示したい」場合は、
+table 行に **選択肢グループ用のフィールド**を追加します。
 
 ```jsonc
 {
-  "id": "row_sentence_01",
-  "tokens": [ /* Token[] */ ]
-  // 必要に応じて desc, mnemonic などのフィールドを追加してもよい
+  "id": "row_001",
+  "choiceGroup": "acid",
+  "nameJa": "...",
+  "definition": "..."
 }
 ```
 
+* フィールド名は任意ですが、`choiceGroup` のように分かりやすい名前を推奨します。
+* `hide.answer.distractorSource.groupField` で、このフィールド名を参照します。
+
 #### 処理
 
-* エンジンは `table` から 1 行を選び、その `tokens` を問題文として使用します。
+* `groupField` が指定されている場合、正解行と同じグループ値を持つ行は誤答候補から除外されます。
 
 ---
 
@@ -222,53 +219,16 @@ v3 では、**UI 表示用の文字列フィールドのすべて**で ruby 記�
   "id": "p_abbr_to_name",
   "label": "略号 → 名前",
 
-  "questionFormat": "table_fill_choice" | "table_matching" | "sentence_fill_choice",
-
-  "entityFilter": { /* Filter */ },  // 任意
-
-  "tokens": [ /* Token[] */ ],       // table_fill_choice で使用
-
-  "matchingSpec": { /* matching 用 */ },
+  "tokens": [ /* Token[] */ ],       // 必須
 
   "tips": [ /* TipBlock[] */ ]       // 任意
 }
 ```
 
-**questionFormat ごとのルール：**
+**ルール：**
 
-* `"table_fill_choice"`
-
-  * 必須：
-
-    * `tokens`（文と `hide` を含む Token 配列）
-  * 任意：
-
-    * `entityFilter`
-  * 役割：
-
-    * table 行から 1 行を選び、その行をもとに **n 択穴埋め問題** を生成
-
-* `"table_matching"`
-
-  * 必須：
-
-    * `matchingSpec`（マッチング設定）
-  * 任意：
-
-    * `entityFilter`（出題対象とする行の絞り込み）
-    * `tokens`（問題文用のテキスト；`hide` は通常使用しない）
-  * 役割：
-
-    * table 行から複数行を選び、左右を対応付けさせる **マッチング問題** を生成
-
-* `"sentence_fill_choice"`
-
-  * 必須：
-
-    * table 行に `tokens` が存在すること
-  * 役割：
-
-    * table の 1 行から `tokens` を取り出し、その `tokens` 中の `hide` に対して **n 択穴埋め問題** を生成
+* `tokens` は **必須**です。
+* `tokens` の中に `hide` を含め、**n 択穴埋め問題**を定義します。
 
 #### tips フィールド（TipBlock）の仕様
 
@@ -313,16 +273,7 @@ v3 では、**UI 表示用の文字列フィールドのすべて**で ruby 記�
 
 #### 処理
 
-* エンジンは Pattern ごとに `questionFormat` を読み取り、問題生成ルートを切り替えます：
-
-  * `table_fill_choice` → `tokens` を展開し、各 `hide` から Answer を生成
-  * `table_matching` → `matchingSpec` に従いマッチング問題を構成
-  * `sentence_fill_choice` → table 行の `tokens` を使用
-* `entityFilter` は `table_fill_choice` / `table_matching` の両方で任意に利用でき、
-
-  * 同じ table に対しても Pattern ごとに異なる Filter を設定することで、
-
-    * 「酸性アミノ酸だけ」「芳香族だけ」「全体」など、**分野別 Pattern** を簡単に作ることができます。
+* エンジンは table から 1 行を選び、`tokens` を展開して各 `hide` から Answer を生成します。
 
 ---
 
@@ -559,23 +510,17 @@ v3 では、**UI 表示用の文字列フィールドのすべて**で ruby 記�
 
 #### 記述
 
-v3 で使用する `answer.mode` は次の 3 種類です：
+v3 で使用する `answer.mode` は次の 1 種類です：
 
-| mode                             | 使用可能な questionFormat              | 用途                         |
-| -------------------------------- | --------------------------------- | -------------------------- |
-| `"choice_from_entities"`         | `"table_fill_choice"`, `"sentence_fill_choice"` | 表の行から正解＋誤答を選ぶ n 択          |
-| `"choice_unique_property"`       | `"table_fill_choice"`, `"sentence_fill_choice"` | 特定プロパティを満たす行を 1 つだけ含む n 択  |
-| `"matching_pairs_from_entities"` | `"table_matching"`（Pattern 全体で使用） | 表から作るマッチング問題（hide では使わない）  |
+| mode                     | 用途                         |
+| ------------------------ | -------------------------- |
+| `"choice_from_entities"` | 表の行から正解＋誤答を選ぶ n 択          |
 
 **共通ポリシー：**
 
 * すべてボタン選択（クリック／タップ）方式
 * 1 つの選択肢に対する正解は 1 つのみ
 * 部分点なし
-
-> `"matching_pairs_from_entities"` は **Pattern の `matchingSpec` 専用**モードであり、`hide.answer.mode` として使用することはありません。
-
----
 
 ### 6.3 `choice_from_entities`
 
@@ -586,10 +531,10 @@ v3 で使用する `answer.mode` は次の 3 種類です：
   "mode": "choice_from_entities",
   "choiceCount": 4,
   "distractorSource": {
-    "scope": "filtered",
     "count": 3,
     "avoidSameId": true,
-    "avoidSameText": true
+    "avoidSameText": true,
+    "groupField": "choiceGroup"
   }
 }
 ```
@@ -597,33 +542,20 @@ v3 で使用する `answer.mode` は次の 3 種類です：
 * `choiceCount`: 実際に表示する選択肢の個数（正解 + 誤答）
 * `distractorSource`: 誤答候補の取り方を指定するオブジェクト
 
-  * `scope?: "filtered" | "all"`
-
-    * 誤答候補をどの範囲から取るかを指定します。
-    * 省略時は `"filtered"` とみなします。
-    * `"filtered"`:
-
-      * Pattern の `entityFilter` を適用した **出題対象行集合** をもとに誤答候補を選びます。
-    * `"all"`:
-
-      * table 全体の行集合をもとに誤答候補を選びます。
   * `count`: 誤答候補として必要な行数
   * `avoidSameId`: 正解行と同じ `id` を持つ行を誤答候補から除外するか
   * `avoidSameText`: 正解表示と同じテキストを持つ候補を除外するか（同じ表示内容の選択肢を避ける）
+  * `groupField?: string`:
+
+    * 値が指定された場合、`row[groupField]` を **選択肢グループ**として扱います。
+    * 正解行と同じグループ値を持つ行は誤答候補から除外されます。
+    * 「条件を満たす候補が複数あるが、選択肢には同時に 1 つだけ表示したい」場合に使用します。
 
 #### 処理
 
-1. Pattern の `entityFilter` を table に適用し、**出題対象行集合** `rowsFiltered` を得る。
-2. `rowsFiltered` から、現在の問題で使用している **正解行** `correctRow` を 1 行特定する。
-3. 誤答候補の母集合 `rowsForDistractors` を決める：
-
-   * `distractorSource.scope === "all"` の場合：
-
-     * table 全体の行集合 `rowsAll` を用いる（`entityFilter` 未適用）。
-   * それ以外（省略または `"filtered"`）の場合：
-
-     * `rowsFiltered` を用いる。
-4. `rowsForDistractors` から、以下のフィルタを適用して **誤答候補集合** `rowsCandidates` を得る：
+1. table 全体の行集合から、現在の問題で使用している **正解行** `correctRow` を 1 行特定する。
+2. table 全体の行集合 `rowsAll` を誤答候補の母集合とする。
+3. `rowsAll` から、以下の条件を適用して **誤答候補集合** `rowsCandidates` を得る：
 
    * `avoidSameId === true` の場合：
 
@@ -633,8 +565,11 @@ v3 で使用する `answer.mode` は次の 3 種類です：
      * `hide.value` をレンダリングしたテキストと同じ表示になる候補を除外。
 
        * ここでの「表示テキスト」は、`hide.value` の Token 配列を実際に描画したときの文字列を想定。
-5. `rowsCandidates` から、`distractorSource.count` 行をランダムに選び、誤答候補とする。
-6. 正解 1 行 + 誤答候補行を 1 つの配列にし、ランダムシャッフルして `choiceCount` 個の選択肢として使用する。
+    * `groupField` が指定され、かつ `correctRow[groupField]` が定義されている場合：
+
+      * `row[groupField] === correctRow[groupField]` の行を除外。
+4. `rowsCandidates` から、`distractorSource.count` 行をランダムに選び、誤答候補とする。
+5. 正解 1 行 + 誤答候補行を 1 つの配列にし、ランダムシャッフルして `choiceCount` 個の選択肢として使用する。
 
 #### `choiceCount` と `distractorSource.count` の関係
 
@@ -653,154 +588,6 @@ v3 で使用する `answer.mode` は次の 3 種類です：
 
 ---
 
-### 6.4 `choice_unique_property`
-
-#### 記述
-
-特定のプロパティ条件を満たす行が **選択肢中でちょうど 1 行だけ**になるような問題を作るモードです。
-
-```jsonc
-"answer": {
-  "mode": "choice_unique_property",
-  "choiceCount": 4,
-  "propertyFilter": {
-    "eq": { "field": "carboxylic", "value": true }
-  }
-}
-```
-
-* `propertyFilter`: 行に対する条件（`Filter` と同じ構造）
-
-#### 処理
-
-1. `entityFilter` を table に適用し、候補行集合 `rows` を得る。
-2. `propertyFilter` を `rows` に適用し、
-
-   * 条件を満たす行集合 `rowsTrue`
-   * 条件を満たさない行集合 `rowsFalse`
-   を得る。
-3. `rowsTrue` から 1 行を正解として選び、`rowsFalse` から誤答候補を選ぶ。
-
-#### 一意性の厳密条件
-
-* `choice_unique_property` という名前どおり、**選択肢中で `propertyFilter` を満たす行は必ず 1 行だけ**でなければなりません。
-* したがって、`rowsTrue.length === 1` の場合のみ問題を生成する、という運用も考えられますが、
-
-  * v3 では、「候補全体では複数存在していても、選択肢として採用するのは 1 行だけ」という挙動を正とします。
-  * ただし、`rowsTrue.length === 0` の場合や `rowsFalse.length < choiceCount - 1` の場合はスキップします。
-
----
-
-### 6.5 `matchingSpec` の仕様
-
-#### 記述
-
-`questionFormat: "table_matching"` の Pattern で使用されます：
-
-```jsonc
-"matchingSpec": {
-  "mode": "matching_pairs_from_entities",
-
-  "leftField": "nameJa",
-  "rightField": "classJa",
-
-  "count": 4,
-
-  "shuffle": {
-    "left": false,
-    "right": true
-  }
-}
-```
-
-* `mode`: 現時点では `"matching_pairs_from_entities"` のみサポート。
-* `leftField`: 左側リストに表示するフィールド名。
-* `rightField`: 右側リストに表示するフィールド名。
-* `count`: 何組のペアを出題するか。
-* `shuffle`:
-
-  * `left: boolean` （省略時 `false`）
-  * `right: boolean`（省略時 `true`）
-  * 左右どちらをシャッフルするかを制御する。
-
-#### 処理
-
-1. `entityFilter` を table に適用し、候補行 `rows` を得る。
-2. `rows.length < count` の場合 → 出題不可能 → スキップ。
-3. `rows` から `count` 行をランダムに選び、`selected` とする。
-4. `leftList` を作成：
-
-   * 基本は `selected` の順番どおりに `leftField` を取り出す。
-   * `shuffle.left === true` の場合は、`selected` の順自体をシャッフルしてから `leftField` を生成。
-5. `rightList` を作成：
-
-   * `selected` の `rightField` を取り出した配列を作る。
-
----
-
-## 7. Filter 仕様
-
-### 7.1 Filter トップレベル
-
-#### 記述
-
-Filter は `entityFilter` や `propertyFilter` で使用される条件式です：
-
-```jsonc
-{ "eq": { "field": "classJa", "value": "酸性" } }
-```
-
-複数条件は `and` / `or` / `not` で組み合わせます。
-
----
-
-### 7.2 Filter の種類
-
-#### `eq` / `neq`
-
-```jsonc
-{ "eq":  { "field": "carboxylic", "value": true } }
-{ "neq": { "field": "classJa", "value": "酸性" } }
-```
-
-* `row[field] === value` / `row[field] !== value` で評価。
-
-#### `in` / `notIn`
-
-```jsonc
-{ "in":    { "field": "classJa", "values": ["酸性", "塩基性"] } }
-{ "notIn": { "field": "classJa", "values": ["中性"] } }
-```
-
-* `row[field]` が集合に含まれるかで評価。
-
-#### `exists`
-
-```jsonc
-{ "exists": { "field": "mnemonic" } }
-```
-
-* 指定フィールドが存在するかで評価。
-
-#### `and` / `or` / `not`
-
-```jsonc
-{ "and": [ { /* Filter */ }, { /* Filter */ } ] }
-{ "or":  [ { /* Filter */ }, { /* Filter */ } ] }
-{ "not": { /* Filter */ } }
-```
-
-* `and`: すべて true のとき true
-* `or`: いずれか true のとき true
-* `not`: 逆転
-
-#### 処理
-
-* `entityFilter` は table から出題対象行を絞り込みます。
-* `propertyFilter` は Answer 生成時に使用されます。
-
----
-
-## 8. 例（v3）
+## 7. 例（v3）
 
 `data/sample/math-v3.json` を参照してください。
