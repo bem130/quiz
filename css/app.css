@@ -144,8 +144,12 @@ button:active {
 }
 
 /* Monaco inline highlight for ruby/gloss markers */
-.monaco-editor .ruby-gloss-delimiter {
-    color: var(--color-ruby-gloss-delimiter) !important;
+.monaco-editor .ruby-delimiter {
+    color: var(--color-ruby-delimiter) !important;
+}
+
+.monaco-editor .gloss-delimiter {
+    color: var(--color-gloss-delimiter) !important;
 }
 
 /* JSON preview cursor */

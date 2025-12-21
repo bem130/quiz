@@ -212,7 +212,7 @@ function updateRubyGlossDecorations() {
     const decorations = [];
     const stringNodes = collectStringNodes(lastParsedAst, []);
 
-    const addDelimiterDecoration = (node, index) => {
+    const addDelimiterDecoration = (node, index, className) => {
         if (!node || index == null) return;
         const rawOffset = getOffsetForStringIndex(node, index);
         if (rawOffset == null) return;
@@ -226,7 +226,38 @@ function updateRubyGlossDecorations() {
                 endPos.column
             ),
             options: {
-                inlineClassName: 'ruby-gloss-delimiter'
+                inlineClassName: className
+            }
+        });
+    };
+
+    const addRubyDelimiters = (node, seg) => {
+        if (!seg || !seg.range) return;
+        const positions = new Set();
+        positions.add(seg.range.start);
+        if (seg.range.end != null) positions.add(seg.range.end - 1);
+        if (seg.baseRange && seg.baseRange.end != null) {
+            positions.add(seg.baseRange.end);
+        }
+        positions.forEach((pos) => addDelimiterDecoration(node, pos, 'ruby-delimiter'));
+    };
+
+    const addGlossDelimiters = (node, seg) => {
+        if (!seg || !seg.range) return;
+        const positions = new Set();
+        positions.add(seg.range.start);
+        if (seg.range.end != null) positions.add(seg.range.end - 1);
+        if (Array.isArray(seg.slashPositions)) {
+            seg.slashPositions.forEach((pos) => positions.add(pos));
+        }
+        positions.forEach((pos) => addDelimiterDecoration(node, pos, 'gloss-delimiter'));
+    };
+
+    const addRubyFromGlossChildren = (node, children) => {
+        (children || []).forEach((child) => {
+            if (!child || !child.kind) return;
+            if (child.kind === 'Annotated') {
+                addRubyDelimiters(node, child);
             }
         });
     };
@@ -237,21 +268,11 @@ function updateRubyGlossDecorations() {
         segments.forEach((seg) => {
             if (!seg || !seg.range) return;
             if (seg.kind === 'Annotated') {
-                const positions = new Set();
-                positions.add(seg.range.start);
-                if (seg.range.end != null) positions.add(seg.range.end - 1);
-                if (seg.baseRange && seg.baseRange.end != null) {
-                    positions.add(seg.baseRange.end);
-                }
-                positions.forEach((pos) => addDelimiterDecoration(node, pos));
+                addRubyDelimiters(node, seg);
             } else if (seg.kind === 'Gloss') {
-                const positions = new Set();
-                positions.add(seg.range.start);
-                if (seg.range.end != null) positions.add(seg.range.end - 1);
-                if (Array.isArray(seg.slashPositions)) {
-                    seg.slashPositions.forEach((pos) => positions.add(pos));
-                }
-                positions.forEach((pos) => addDelimiterDecoration(node, pos));
+                addGlossDelimiters(node, seg);
+                addRubyFromGlossChildren(node, seg.base);
+                (seg.glosses || []).forEach((alt) => addRubyFromGlossChildren(node, alt));
             }
         });
     });
@@ -399,12 +420,19 @@ function appendJsonStringSegment(parent, node, isKey, state) {
     if (!node || !node.loc) return;
     const rawStart = node.loc.start.offset;
     const rawEnd = node.loc.end.offset;
-    const stringClass = isKey ? 'json-token-string json-token-key' : 'json-token-string';
+    const rawValue = node.value != null ? String(node.value) : '';
+    const segments = parseContentToSegments(rawValue);
+    const hasRubyGloss = segments.some(
+        (seg) => seg && (seg.kind === 'Annotated' || seg.kind === 'Gloss')
+    );
+    const stringClass = isKey
+        ? 'json-token-string json-token-key'
+        : `json-token-string${hasRubyGloss ? ' json-token-string-rich' : ''}`;
     appendJsonToken(parent, '"', rawStart, stringClass, state);
 
     const contentWrapper = document.createElement('span');
     contentWrapper.className = stringClass;
-    renderStringValue(contentWrapper, node.value ?? '', node, [], 'decoded');
+    renderStringValue(contentWrapper, rawValue, node, [], 'decoded', null, null, segments);
     parent.appendChild(contentWrapper);
 
     appendJsonToken(parent, '"', rawEnd - 1, stringClass, state);
@@ -979,18 +1007,28 @@ function renderSegments(parent, segments, node, offsetMode = 'decoded', cursorSt
     });
 }
 
-function renderStringValue(parent, value, node, styles = [], offsetMode = 'decoded', cursorState = null, cursorIndex = null) {
+function renderStringValue(
+    parent,
+    value,
+    node,
+    styles = [],
+    offsetMode = 'decoded',
+    cursorState = null,
+    cursorIndex = null,
+    segmentsOverride = null
+) {
     const raw = value != null ? String(value) : '';
-    if (!raw) return;
-    const segments = parseContentToSegments(raw);
+    if (!raw) return [];
+    const segments = segmentsOverride || parseContentToSegments(raw);
     if (styles && styles.length) {
         const wrapper = document.createElement('span');
         applyStyles(wrapper, styles);
         renderSegments(wrapper, segments, node, offsetMode, cursorState, cursorIndex);
         parent.appendChild(wrapper);
-        return;
+        return segments;
     }
     renderSegments(parent, segments, node, offsetMode, cursorState, cursorIndex);
+    return segments;
 }
 
 function normalizeTokenArray(value) {

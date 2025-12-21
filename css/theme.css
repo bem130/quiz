@@ -97,12 +97,14 @@
 
     --color-json-key: #0451a5;
     --color-json-string: #a31515;
+    --color-json-string-rich: var(--color-text-main);
     --color-json-number: #098658;
     --color-json-boolean: #0000ff;
     --color-json-null: #0000ff;
     --color-json-punct: #000000;
     --color-json-cursor: #005fb8;
-    --color-ruby-gloss-delimiter: #005fb8;
+    --color-ruby-delimiter: #2563eb;
+    --color-gloss-delimiter: #16a34a;
 }
 
 html[data-theme="dark"] {
@@ -202,12 +204,14 @@ html[data-theme="dark"] {
 
     --color-json-key: #9cdcfe;
     --color-json-string: #ce9178;
+    --color-json-string-rich: var(--color-text-main);
     --color-json-number: #b5cea8;
     --color-json-boolean: #569cd6;
     --color-json-null: #569cd6;
     --color-json-punct: #d4d4d4;
     --color-json-cursor: #aeafad;
-    --color-ruby-gloss-delimiter: #4fc1ff;
+    --color-ruby-delimiter: #93c5fd;
+    --color-gloss-delimiter: #86efac;
 }
 
 html[data-theme="black"] {
@@ -307,12 +311,14 @@ html[data-theme="black"] {
 
     --color-json-key: #9cdcfe;
     --color-json-string: #ce9178;
+    --color-json-string-rich: var(--color-text-main);
     --color-json-number: #b5cea8;
     --color-json-boolean: #569cd6;
     --color-json-null: #569cd6;
     --color-json-punct: #d4d4d4;
     --color-json-cursor: #aeafad;
-    --color-ruby-gloss-delimiter: #4fc1ff;
+    --color-ruby-delimiter: #93c5fd;
+    --color-gloss-delimiter: #86efac;
 }
 
 body {
@@ -404,6 +410,10 @@ body.app-ready .layout-container {
 /* JSON preview highlight */
 .json-token-string {
     color: var(--color-json-string);
+}
+
+.json-token-string-rich {
+    color: var(--color-json-string-rich);
 }
 
 .json-token-key {
