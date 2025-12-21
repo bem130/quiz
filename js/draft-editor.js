@@ -225,9 +225,7 @@ function updateRubyGlossDecorations() {
                 endPos.lineNumber,
                 endPos.column
             ),
-            options: {
-                inlineClassName: className
-            }
+            options: { inlineClassName: className }
         });
     };
 
@@ -245,9 +243,7 @@ function updateRubyGlossDecorations() {
                 endPos.lineNumber,
                 endPos.column
             ),
-            options: {
-                inlineClassName: className
-            }
+            options: { inlineClassName: className }
         });
     };
 
@@ -255,13 +251,9 @@ function updateRubyGlossDecorations() {
         if (!seg || !seg.range) return;
         const delimLen = seg.display ? 2 : 1;
         addDelimiterDecoration(node, seg.range.start, 'katex-delimiter');
-        if (delimLen === 2) {
-            addDelimiterDecoration(node, seg.range.start + 1, 'katex-delimiter');
-        }
+        if (delimLen === 2) addDelimiterDecoration(node, seg.range.start + 1, 'katex-delimiter');
         addDelimiterDecoration(node, seg.range.end - 1, 'katex-delimiter');
-        if (delimLen === 2) {
-            addDelimiterDecoration(node, seg.range.end - 2, 'katex-delimiter');
-        }
+        if (delimLen === 2) addDelimiterDecoration(node, seg.range.end - 2, 'katex-delimiter');
         const contentStart = seg.range.start + delimLen;
         const contentEnd = seg.range.end - delimLen;
         if (contentStart < contentEnd) {
@@ -269,65 +261,58 @@ function updateRubyGlossDecorations() {
         }
     };
 
-    const addRubyDelimiters = (node, seg) => {
+    const addRubyDecorations = (node, seg) => {
         if (!seg || !seg.range) return;
-        const positions = new Set();
-        positions.add(seg.range.start);
-        if (seg.range.end != null) positions.add(seg.range.end - 1);
-        if (seg.baseRange && seg.baseRange.end != null) {
-            positions.add(seg.baseRange.end);
-        }
-        positions.forEach((pos) => addDelimiterDecoration(node, pos, 'ruby-delimiter'));
+        if (seg.baseRange) addRangeDecoration(node, seg.baseRange.start, seg.baseRange.end, 'ruby-base-content');
+        if (seg.openDelimRange) addRangeDecoration(node, seg.openDelimRange.start, seg.openDelimRange.end, 'ruby-delimiter');
+        if (seg.slashRange) addRangeDecoration(node, seg.slashRange.start, seg.slashRange.end, 'ruby-delimiter');
+        if (seg.closeDelimRange) addRangeDecoration(node, seg.closeDelimRange.start, seg.closeDelimRange.end, 'ruby-delimiter');
 
-        // Add content highlighting for base (handle nested math/ruby)
         if (Array.isArray(seg.base)) {
             seg.base.forEach(child => {
-                if (child.kind === 'Math') {
-                    addMathDecorations(node, child);
-                } else if (child.kind === 'Plain' && child.range) {
-                    addRangeDecoration(node, child.range.start, child.range.end, 'ruby-content');
-                }
+                if (child.kind === 'Math') addMathDecorations(node, child);
+                else if (child.kind === 'Plain') addRangeDecoration(node, child.range.start, child.range.end, 'ruby-content');
+                else if (child.kind === 'Escape') addRangeDecoration(node, child.range.start, child.range.end, 'json-escape');
+                else if (child.kind === 'Annotated') addRubyDecorations(node, child);
             });
         }
 
-        // Add content highlighting for ruby text
-        if (seg.rubyRange && seg.rubyRange.start != null && seg.rubyRange.end != null) {
+        if (seg.rubyRange) {
             addRangeDecoration(node, seg.rubyRange.start, seg.rubyRange.end, 'ruby-content');
         }
     };
 
-    const addGlossDelimiters = (node, seg) => {
+    const addGlossDecorations = (node, seg) => {
         if (!seg || !seg.range) return;
-        const positions = new Set();
-        positions.add(seg.range.start);
-        if (seg.range.end != null) positions.add(seg.range.end - 1);
-        if (Array.isArray(seg.slashPositions)) {
-            seg.slashPositions.forEach((pos) => positions.add(pos));
+        if (seg.openDelimRange) addRangeDecoration(node, seg.openDelimRange.start, seg.openDelimRange.end, 'gloss-delimiter');
+        if (Array.isArray(seg.slashRanges)) {
+            seg.slashRanges.forEach(r => addRangeDecoration(node, r.start, r.end, 'gloss-delimiter'));
         }
-        positions.forEach((pos) => addDelimiterDecoration(node, pos, 'gloss-delimiter'));
+        if (seg.closeDelimRange) addRangeDecoration(node, seg.closeDelimRange.start, seg.closeDelimRange.end, 'gloss-delimiter');
+
+        addSegmentsToDecorations(node, seg.base, 'gloss-content', true);
+        (seg.glosses || []).forEach(alt => addSegmentsToDecorations(node, alt, 'gloss-content'));
     };
 
-    const addSegmentsDecorations = (node, segments, defaultContentClass) => {
-        (segments || []).forEach((seg) => {
+    const addSegmentsToDecorations = (node, segments, defaultContentClass, isGlossBase = false) => {
+        (segments || []).forEach(seg => {
             if (!seg || !seg.range) return;
-            if (seg.kind === 'Annotated') {
-                addRubyDelimiters(node, seg);
-            } else if (seg.kind === 'Gloss') {
-                addGlossDelimiters(node, seg);
-                addSegmentsDecorations(node, seg.base, 'gloss-content');
-                (seg.glosses || []).forEach((alt) => addSegmentsDecorations(node, alt, 'gloss-content'));
-            } else if (seg.kind === 'Math') {
-                addMathDecorations(node, seg);
-            } else if (seg.kind === 'Plain' && defaultContentClass) {
-                addRangeDecoration(node, seg.range.start, seg.range.end, defaultContentClass);
+            if (seg.kind === 'Annotated') addRubyDecorations(node, seg);
+            else if (seg.kind === 'Gloss') addGlossDecorations(node, seg);
+            else if (seg.kind === 'Math') addMathDecorations(node, seg);
+            else if (seg.kind === 'Plain') {
+                if (defaultContentClass) addRangeDecoration(node, seg.range.start, seg.range.end, defaultContentClass);
+                if (isGlossBase) addRangeDecoration(node, seg.range.start, seg.range.end, 'gloss-base-content');
+            } else if (seg.kind === 'Escape') {
+                addRangeDecoration(node, seg.range.start, seg.range.end, 'json-escape');
             }
         });
     };
 
-    stringNodes.forEach((node) => {
+    stringNodes.forEach(node => {
         if (!node || typeof node.value !== 'string') return;
         const segments = parseContentToSegments(node.value);
-        addSegmentsDecorations(node, segments, null);
+        addSegmentsToDecorations(node, segments, null);
     });
     rubyGlossDecorations.set(decorations);
 }
@@ -831,7 +816,7 @@ function appendTextWithOffsets(
     }
 }
 
-function renderInlineSegments(parent, segments, node, offsetMode = 'decoded', cursorState = null, cursorIndex = null) {
+function renderInlineSegments(parent, segments, node, offsetMode = 'decoded', cursorState = null, cursorIndex = null, isJsonPreview = false) {
     (segments || []).forEach((seg) => {
         if (!seg || !seg.kind) return;
         if (seg.kind === 'Plain') {
@@ -862,6 +847,18 @@ function renderInlineSegments(parent, segments, node, offsetMode = 'decoded', cu
             const offset = node && seg.range ? getOffsetForIndex(node, seg.range.start, offsetMode) : null;
             attachJump(span, offset);
             parent.appendChild(span);
+            return;
+        }
+        if (seg.kind === 'Escape') {
+            if (isJsonPreview) {
+                const span = document.createElement('span');
+                span.className = 'json-token-escape';
+                span.textContent = seg.text;
+                parent.appendChild(span);
+            } else {
+                parent.appendChild(document.createElement('br'));
+            }
+            return;
         }
     });
 }
@@ -875,7 +872,7 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorSta
         if (!child || !child.kind) return;
         if (child.kind === 'Annotated') {
             const rb = document.createElement('rb');
-            renderInlineSegments(rb, child.base || [], node, offsetMode, cursorState, cursorIndex);
+            renderInlineSegments(rb, child.base || [], node, offsetMode, cursorState, cursorIndex, isJsonPreview);
             const rt = document.createElement('rt');
             appendTextWithOffsets(
                 rt,
@@ -914,12 +911,9 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorSta
         }
         if (child.kind === 'Plain') {
             const rb = document.createElement('rb');
-
-            // Add base text tinting class for JSON preview
             if (isJsonPreview) {
                 rb.classList.add('json-gloss-base');
             }
-
             appendTextWithOffsets(
                 rb,
                 child.text || '',
@@ -948,7 +942,7 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorSta
                 if (child.kind === 'Annotated') {
                     const ruby = document.createElement('ruby');
                     const rb = document.createElement('rb');
-                    renderInlineSegments(rb, child.base || [], node, offsetMode, cursorState, cursorIndex);
+                    renderInlineSegments(rb, child.base || [], node, offsetMode, cursorState, cursorIndex, isJsonPreview);
                     const rt = document.createElement('rt');
                     appendTextWithOffsets(
                         rt,
@@ -999,7 +993,6 @@ function renderGlossSegment(parent, seg, node, offsetMode = 'decoded', cursorSta
         });
         glossSpan.appendChild(altsWrapper);
     }
-
     parent.appendChild(glossSpan);
 }
 
@@ -1060,12 +1053,11 @@ function renderSegments(parent, segments, node, offsetMode = 'decoded', cursorSt
             const rubyEl = document.createElement('ruby');
             const rb = document.createElement('rb');
 
-            // Add base text tinting class for JSON preview
             if (isJsonPreview) {
                 rb.classList.add('json-ruby-base');
             }
 
-            renderInlineSegments(rb, seg.base || [], node, offsetMode, cursorState, cursorIndex);
+            renderInlineSegments(rb, seg.base || [], node, offsetMode, cursorState, cursorIndex, isJsonPreview);
             const rt = document.createElement('rt');
             appendTextWithOffsets(
                 rt,
@@ -1104,6 +1096,18 @@ function renderSegments(parent, segments, node, offsetMode = 'decoded', cursorSt
                 appendCursorMarker(parent, cursorState);
             }
             renderGlossSegment(parent, seg, node, offsetMode, cursorState, cursorIndex, isJsonPreview);
+            return;
+        }
+        if (seg.kind === 'Escape') {
+            if (isJsonPreview) {
+                const span = document.createElement('span');
+                span.className = 'json-token-escape';
+                span.textContent = seg.text;
+                parent.appendChild(span);
+            } else {
+                parent.appendChild(document.createElement('br'));
+            }
+            return;
         }
     });
 }
@@ -1116,7 +1120,8 @@ function renderStringValue(
     offsetMode = 'decoded',
     cursorState = null,
     cursorIndex = null,
-    segmentsOverride = null
+    segmentsOverride = null,
+    isJsonPreview = false
 ) {
     const raw = value != null ? String(value) : '';
     if (!raw) return [];
@@ -1124,11 +1129,11 @@ function renderStringValue(
     if (styles && styles.length) {
         const wrapper = document.createElement('span');
         applyStyles(wrapper, styles);
-        renderSegments(wrapper, segments, node, offsetMode, cursorState, cursorIndex);
+        renderSegments(wrapper, segments, node, offsetMode, cursorState, cursorIndex, isJsonPreview);
         parent.appendChild(wrapper);
         return segments;
     }
-    renderSegments(parent, segments, node, offsetMode, cursorState, cursorIndex);
+    renderSegments(parent, segments, node, offsetMode, cursorState, cursorIndex, isJsonPreview);
     return segments;
 }
 

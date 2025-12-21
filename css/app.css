@@ -143,7 +143,7 @@ button:active {
     transform: scale(0.98);
 }
 
-/* Monaco inline highlight for ruby/gloss markers */
+/* Monaco Highlights */
 .monaco-editor .ruby-delimiter {
     color: var(--color-ruby-delimiter) !important;
 }
@@ -156,14 +156,56 @@ button:active {
     color: var(--color-katex-delimiter) !important;
 }
 
-/* Monaco content highlighting (white for ruby/gloss/katex) */
+.monaco-editor .json-escape {
+    color: var(--color-json-escape) !important;
+    font-weight: bold;
+}
+
+.monaco-editor .ruby-base-content,
+.monaco-editor .gloss-base-content {
+    background-color: var(--color-monaco-base-tint);
+}
+
 .monaco-editor .ruby-content,
 .monaco-editor .gloss-content,
 .monaco-editor .katex-content {
     color: var(--color-monaco-content) !important;
 }
 
-/* JSON preview bracket nesting colors */
+/* JSON Preview Tokens */
+.json-token-key {
+    color: var(--color-json-key);
+}
+
+.json-token-string {
+    color: var(--color-json-string);
+}
+
+.json-token-string-rich {
+    color: var(--color-json-string-rich);
+}
+
+.json-token-number {
+    color: var(--color-json-number);
+}
+
+.json-token-boolean {
+    color: var(--color-json-boolean);
+}
+
+.json-token-null {
+    color: var(--color-json-null);
+}
+
+.json-token-punct {
+    color: var(--color-json-punct);
+}
+
+.json-token-escape {
+    color: var(--color-json-escape) !important;
+    font-weight: bold;
+}
+
 .json-bracket-0 {
     color: var(--color-bracket-0) !important;
 }
@@ -188,7 +230,6 @@ button:active {
     color: var(--color-bracket-5) !important;
 }
 
-/* JSON preview base text tinting */
 .json-ruby-base {
     color: var(--color-ruby-base-tint) !important;
 }
@@ -197,8 +238,6 @@ button:active {
     color: var(--color-gloss-base-tint) !important;
 }
 
-
-/* JSON preview cursor */
 .json-preview {
     position: relative;
 }
@@ -238,21 +277,17 @@ ruby rt {
 .chem-inline-viewer-inner {
     display: block;
     transform-origin: left bottom;
-    /* テキスト行のベースライン寄せ */
 }
 
 .chem-inline-viewer-inner canvas {
     image-rendering: smooth;
-    /* Prevent blurring when scaled down */
 }
 
-/* 2024-05-18: Tips panel should be scrollable when content is long */
 #tips-panel {
     max-height: 70%;
     overflow-y: auto;
 }
 
-/* Share modal theming using CSS variables so it follows data-theme */
 #share-modal .modal-backdrop {
     background: var(--color-surface-overlay);
 }
@@ -270,290 +305,18 @@ ruby rt {
     padding: 6px;
 }
 
-/* QR image: use rem-based size so it follows root font-size and --app-scale */
 #share-modal #share-qr-image {
     width: 12.5rem;
-    /* ~200px at default 16px root */
     height: 12.5rem;
     max-width: 100%;
     object-fit: contain;
     display: block;
 }
 
-/* Ensure pixel-based Tailwind arbitrary text sizes scale with root font-size
-   so they follow `--app-scale`. Add rules for commonly used pixel sizes. */
 .text-\[11px\] {
     font-size: 0.6875rem;
-    /* 11px -> 0.6875rem */
 }
 
 .text-\[10px\] {
     font-size: 0.625rem;
-    /* 10px -> 0.625rem */
-}
-
-#share-modal #share-url-input {
-
-    /* 横長レイアウト時の main:sub 比率 */
-    --layout-main-weight-land: 3;
-    --layout-side-weight-land: 2;
-
-    /* 縦長レイアウト時の main:sub 比率 */
-    --layout-main-weight-port: 5;
-    --layout-side-weight-port: 2;
-}
-
-/* 画面サイズ + ユーザ設定スケールでフォントサイズを決める */
-html {
-    font-size: calc((1.5vw + 1vh)* 0.7 * var(--app-scale));
-}
-
-/* 全体設定 */
-body {
-    height: var(--app-height);
-    /* モバイルブラウザ対策 */
-    overflow: hidden;
-    /* 全体スクロールを防ぎ、中身だけスクロール */
-
-    /* テキスト選択禁止（ドラッグ選択でレイアウトが崩れないように） */
-    -webkit-user-select: none;
-    /* Safari / Chrome */
-    -moz-user-select: none;
-    /* Firefox */
-    -ms-user-select: none;
-    /* 旧 Edge / IE */
-    user-select: none;
-    /* 標準 */
-}
-
-body.app-loading .layout-container {
-    opacity: 0;
-    transform: translateY(0.25rem);
-}
-
-body.app-ready .layout-container {
-    opacity: 1;
-    transform: translateY(0);
-    transition:
-        opacity 0.2s ease-out,
-        transform 0.2s ease-out;
-}
-
-/* レイアウトコンテナ: 画面いっぱいのフレックス */
-.layout-container {
-    display: flex;
-    width: 100vw;
-    height: 100%;
-}
-
-/* =========================================================
-   横長（ランドスケープ）レイアウト
-   条件: aspect-ratio >= 3/4
-   → 左右 2 分割（main | side）
-   ====================================================== */
-@media (min-aspect-ratio: 1/1) {
-    .layout-container {
-        flex-direction: row;
-    }
-
-    .main-panel {
-        flex: var(--layout-main-weight-land);
-        height: 100%;
-        overflow-y: auto;
-    }
-
-    .side-panel {
-        flex: var(--layout-side-weight-land);
-        width: 0;
-        /* Force flex item to respect flex-basis for proper overflow */
-        height: 100%;
-        border-left-width: 1px;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-    }
-}
-
-/* =========================================================
-   縦長（ポートレート）レイアウト
-   条件: aspect-ratio <= 3/4
-   → 上下 2 分割（main ↑, side ↓）
-   ====================================================== */
-@media (max-aspect-ratio: 1/1) {
-    .layout-container {
-        flex-direction: column;
-    }
-
-    .main-panel {
-        flex: var(--layout-main-weight-port);
-        width: 100%;
-        overflow-y: auto;
-    }
-
-    .side-panel {
-        flex: var(--layout-side-weight-port);
-        width: 100%;
-        height: 0;
-        /* Force flex item to respect flex-basis for proper overflow */
-        border-top-width: 1px;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-    }
-}
-
-/* ちょっとしたフェードイン */
-.fade-in {
-    animation: fadeIn 0.25s ease-in-out;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(0.25rem);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* ボタンの押し込み表現用 */
-button {
-    transition:
-        background-color 0.15s ease,
-        border-color 0.15s ease,
-        color 0.15s ease,
-        transform 0.05s ease;
-}
-
-button:active {
-    transform: scale(0.98);
-}
-
-/* Long text block used in Mistakes / Result question text */
-.quiz-text-block {
-    /* explicitly allow wrapping & keep manual line breaks */
-    white-space: pre-wrap;
-
-    /* make long words / formulas wrap instead of overflowing */
-    word-break: break-word;
-    overflow-wrap: break-word;
-
-    /* better behaviour for Japanese text */
-    line-break: strict;
-}
-
-/* gloss and ruby */
-
-.gloss,
-.term {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.gloss-alts {
-    display: inline-flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    column-gap: 0.35em;
-    row-gap: 0.1em;
-    font-size: 0.5em;
-    margin-top: -0.7em;
-    opacity: 0.5;
-    line-height: 1.2;
-}
-
-.gloss-alt {
-    white-space: nowrap;
-}
-
-.gloss-alt+.gloss-alt::before {
-    content: " / ";
-    opacity: 0.45;
-}
-
-.term-alt {
-    font-size: 0.6em;
-    margin-top: -1.1em;
-    opacity: 0.5;
-}
-
-ruby rt {
-    font-size: 0.6em;
-    opacity: 0.7;
-}
-
-.chem-inline-viewer {
-    display: inline-block;
-    vertical-align: baseline;
-    margin: 0 0.25rem;
-    background-color: transparent;
-}
-
-.chem-inline-viewer-inner {
-    display: block;
-    transform-origin: left bottom;
-    /* テキスト行のベースライン寄せ */
-}
-
-.chem-inline-viewer-inner canvas {
-    image-rendering: smooth;
-    /* Prevent blurring when scaled down */
-}
-
-/* 2024-05-18: Tips panel should be scrollable when content is long */
-#tips-panel {
-    max-height: 70%;
-    overflow-y: auto;
-}
-
-/* Share modal theming using CSS variables so it follows data-theme */
-#share-modal .modal-backdrop {
-    background: var(--color-surface-overlay);
-}
-
-#share-modal .modal-panel {
-    background: var(--color-surface-card);
-    color: var(--color-text-main);
-    border: 1px solid var(--color-border-subtle);
-}
-
-#share-modal #share-qr-container {
-    background: var(--color-input-bg);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 8px;
-    padding: 6px;
-}
-
-#share-modal #share-url-input {
-    background: var(--color-input-bg);
-    color: var(--color-input-text);
-    border-color: var(--color-input-border);
-}
-
-#share-modal button {
-    color: var(--color-text-main);
-}
-
-/* Content Token Styles */
-.content-token {
-    line-height: 1.8;
-    /* Preserve newlines and spacing inside content tokens so `\n` becomes visible */
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-
-/* KaTeX Block Style */
-.katex-block {
-    display: block;
-    margin: 0.5rem 0;
-    text-align: center;
-}
-
-.katex-display {
-    margin: 0.2em 0em;
 }

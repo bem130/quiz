@@ -132,6 +132,11 @@ function appendInlineSegmentsInto(parent, segments) {
             const styles = ['katex'];
             if (seg.display) styles.push('katex-block');
             parent.appendChild(createStyledSpan(seg.tex || '', styles));
+            return;
+        }
+        if (seg.kind === 'Escape') {
+            parent.appendChild(document.createElement('br'));
+            return;
         }
     });
 }
@@ -169,6 +174,11 @@ function appendGlossSegmentsInto(parent, segments) {
             const styles = ['katex'];
             if (seg.display) styles.push('katex-block');
             parent.appendChild(createStyledSpan(seg.tex || '', styles));
+            return;
+        }
+        if (seg.kind === 'Escape') {
+            parent.appendChild(document.createElement('br'));
+            return;
         }
     });
 }
@@ -254,6 +264,11 @@ export function appendContentString(parent, value, styles = []) {
                 glossSpan.appendChild(altsWrapper);
             }
             wrapper.appendChild(glossSpan);
+            return;
+        }
+        if (seg.kind === 'Escape') {
+            wrapper.appendChild(document.createElement('br'));
+            return;
         }
     });
 

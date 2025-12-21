@@ -87,7 +87,7 @@ function tokenize(input) {
     const tokens = [];
     let i = 0;
     const len = input.length;
-    const SPECIAL_CHARS = ['[', ']', '/', '{', '}'];
+    const SPECIAL_CHARS = ['[', ']', '/', '{', '}', '\n'];
 
     while (i < len) {
         const char = input[i];
@@ -101,14 +101,10 @@ function tokenize(input) {
                     tokens.push({ kind: "Text", value: next, start: i, end: i + 2 });
                     i += 2;
                 } else {
-                    // Backslash followed by normal char -> keep backslash?
-                    // Or just treat backslash as literal?
-                    // Usually \a -> \a if a is not special.
                     tokens.push({ kind: "Text", value: '\\', start: i, end: i + 1 });
                     i++;
                 }
             } else {
-                // Trailing backslash
                 tokens.push({ kind: "Text", value: '\\', start: i, end: i + 1 });
                 i++;
             }
@@ -148,14 +144,43 @@ function splitInlineMathSegments(text, baseOffset = 0) {
 
     const flushPlain = () => {
         if (plainBuffer.length > 0) {
-            segments.push({
-                kind: "Plain",
-                text: plainBuffer,
-                range: {
-                    start: baseOffset + plainStart,
-                    end: baseOffset + plainStart + plainBuffer.length
+            // Further split plainBuffer by newlines
+            let pos = 0;
+            while (pos < plainBuffer.length) {
+                const nlIndex = plainBuffer.indexOf('\n', pos);
+                if (nlIndex === -1) {
+                    segments.push({
+                        kind: "Plain",
+                        text: plainBuffer.slice(pos),
+                        range: {
+                            start: baseOffset + plainStart + pos,
+                            end: baseOffset + plainStart + plainBuffer.length
+                        }
+                    });
+                    break;
+                } else {
+                    if (nlIndex > pos) {
+                        segments.push({
+                            kind: "Plain",
+                            text: plainBuffer.slice(pos, nlIndex),
+                            range: {
+                                start: baseOffset + plainStart + pos,
+                                end: baseOffset + plainStart + nlIndex
+                            }
+                        });
+                    }
+                    segments.push({
+                        kind: "Escape",
+                        text: "\\n",
+                        value: "\n",
+                        range: {
+                            start: baseOffset + plainStart + nlIndex,
+                            end: baseOffset + plainStart + nlIndex + 1
+                        }
+                    });
+                    pos = nlIndex + 1;
                 }
-            });
+            }
             plainBuffer = "";
             plainStart = 0;
         }
@@ -268,6 +293,7 @@ function parseRubyBlock(tokens, start) {
     let baseEnd = null;
     let rubyStart = null;
     let rubyEnd = null;
+    let slashRange = null;
 
     while (i < tokens.length) {
         const t = tokens[i];
@@ -284,6 +310,9 @@ function parseRubyBlock(tokens, start) {
                     base: splitInlineMathSegments(base, baseStart == null ? tokens[start].end : baseStart),
                     reading,
                     range: { start: tokens[start].start, end: t.end },
+                    openDelimRange: { start: tokens[start].start, end: tokens[start].end },
+                    closeDelimRange: { start: t.start, end: t.end },
+                    slashRange,
                     baseRange: baseStart != null ? { start: baseStart, end: baseEnd } : null,
                     rubyRange: rubyStart != null ? { start: rubyStart, end: rubyEnd } : null
                 },
@@ -295,6 +324,7 @@ function parseRubyBlock(tokens, start) {
                 reading += t.value;
             } else {
                 foundSlash = true;
+                slashRange = { start: t.start, end: t.end };
             }
             i++;
         } else if (t.kind === 'Symbol' && t.value === '[') {
@@ -338,6 +368,7 @@ function parseGlossBlock(tokens, start) {
     let i = start + 1;
     const parts = [];
     const slashPositions = [];
+    const slashRanges = [];
     let currentSegments = [];
     let buffer = "";
     let bufferStart = null;
@@ -372,7 +403,10 @@ function parseGlossBlock(tokens, start) {
                     base: parts[0] || [],
                     glosses: parts.slice(1),
                     slashPositions,
-                    range: { start: tokens[start].start, end: t.end }
+                    slashRanges,
+                    range: { start: tokens[start].start, end: t.end },
+                    openDelimRange: { start: tokens[start].start, end: tokens[start].end },
+                    closeDelimRange: { start: t.start, end: t.end }
                 },
                 nextIndex: i + 1
             };
@@ -380,6 +414,7 @@ function parseGlossBlock(tokens, start) {
 
         if (t.kind === 'Symbol' && t.value === '/') {
             slashPositions.push(t.start);
+            slashRanges.push({ start: t.start, end: t.end });
             flushPart();
             i++;
             continue;
@@ -445,6 +480,17 @@ function parseLineToSegments(line, baseOffset = 0) {
                 i = result.nextIndex;
                 continue;
             }
+        }
+
+        if (t.kind === 'Symbol' && t.value === '\n') {
+            segments.push({
+                kind: "Escape",
+                text: "\\n",
+                value: "\n",
+                range: { start: t.start, end: t.end }
+            });
+            i++;
+            continue;
         }
 
         // Treat as plain text
