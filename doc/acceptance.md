@@ -69,7 +69,7 @@
 | Issue・要件 | 実装とテストの根拠 | 判定・残件 |
 | --- | --- | --- |
 | #61 必須資産と offline | [build-assets](../scripts/build-assets.ts)、[worker](../src/service-worker.ts)、[build unit](../tests/core/build-assets.test.ts)、[PWA E2E](../tests/e2e/pwa.spec.ts)「本番build」 | 同梱fonts／WASM／worker、完全offlineで草稿編集→保存→browserプロセス再起動→出題→回答保存をpersistent profileで検証。後続統合SHAで再実行する。 |
-| #62 欠損・HTML fallback | [build-assets](../scripts/build-assets.ts)、[worker](../src/service-worker.ts)、[build unit](../tests/core/build-assets.test.ts)、[worker unit](../tests/core/service-worker.test.ts)「hash」「HTML」 | 手動一覧を廃止し size と SHA-256 を照合。公開 HTTP MIME と install 失敗時の表示は別確認。 |
+| #62 欠損・HTML fallback | [build-assets](../scripts/build-assets.ts)、[worker](../src/service-worker.ts)、[build unit](../tests/core/build-assets.test.ts)、[worker unit](../tests/core/service-worker.test.ts)「hash」「HTML」 | 手動一覧を廃止し、buildで存在・size・SHA-256を確定する。worker installは実応答のMIME・size・hashを検査する。正しいJS本文＋text/htmlを拒否して旧版とDBを保持し、再試行で回復するPWA回帰を追加した。公開先のHTTP headerは配信後に確認する。 |
 | #63 再起動後のデータ分類 | [worker](../src/service-worker.ts)、[worker unit](../tests/core/service-worker.test.ts)「拡張子なし」「再起動」、[application E2E](../tests/e2e/application.spec.ts)「SVG資産」 | メモリ登録 URL に依存しない bounded cache の根拠あり。再起動 unit は新 harness による検証、実公開 CORS は別途。 |
 | #64 更新 metadata・waiting・明示適用 | [worker](../src/service-worker.ts)、[application](../src/web/application.ts)、[worker unit](../tests/core/service-worker.test.ts)、[PWA E2E](../tests/e2e/pwa.spec.ts)「旧版から新版」 | 回答保存中・dirty草稿・複数tab・旧hashedasset保持、install integrity失敗／sw404／旧lazyhash欠落とmanualreload復旧をnative workerで検証。後続統合CI待ち。 |
 | #65 hash と版統一 | [vite.config](../vite.config.ts)、[build-assets](../scripts/build-assets.ts)、[worker](../src/service-worker.ts)、[build unit](../tests/core/build-assets.test.ts)「同一version」、[PWA E2E](../tests/e2e/pwa.spec.ts) | 決定的versionとhashedmoduleの一致、改変assetのinstall拒否、旧tabと新workerの共存、欠落後の明示reload復旧を検証。公開先での更新確認は別に行う。 |
@@ -85,18 +85,18 @@
 | #69 旧データ移行 | [計画](typescript-web-plan.md)、[規範](domain-contract.md) | 対応しないとして終了。新サイトの schema upgrade／backup は #46。 |
 | #70 外部 CORS・redirect・MIME | [network](../src/web/network.ts)、[application](../src/web/application.ts)、[application E2E](../tests/e2e/application.spec.ts)「外部entry共有」「外部entryが失敗」 | network.spec.tsの別origin実HTTPサーバーでredirect・entry／JSON CORS許可／拒否・HTML誤応答を3browser計12件検証。公開ドメインの応答は公開後に別記録。 |
 | #71 OGP と両 host の範囲 | [ogp-card.php](../ogp-card.php)、[PHP unit](../tests/ogp/unit.php)、[OGP test](../tests/ogp/ogp.test.mjs)、[index](../index.html) | PHP専用bundle・固定Regular font/OFL・metadata・手順を用意し、ローカル生PHP/GDの5テストと画像目視が成功。bem130.com更新はユーザー主導。live確認は独立追跡しアプリ公開を待たせない。 |
-| #72 全体受け入れ | [application](../tests/e2e/application.spec.ts)、[editor](../tests/e2e/editor.spec.ts)、[svg](../tests/e2e/svg.spec.ts)、[PWA](../tests/e2e/pwa.spec.ts)、[設定](../playwright.config.ts) | 追加PWAはnative DB upgradeを含む7ケース×3browser、study4ケース×3browser、startup3ケース×3browser、補助機能6ケース×3browserを担当検証。全体CI／実機／読み上げ／公開先確認は残る。 |
+| #72 全体受け入れ | [application](../tests/e2e/application.spec.ts)、[editor](../tests/e2e/editor.spec.ts)、[svg](../tests/e2e/svg.spec.ts)、[PWA](../tests/e2e/pwa.spec.ts)、[設定](../playwright.config.ts) | PWAはnative DB upgrade・install/register/MIME失敗・旧版保持を含む10ケース×3browserを定義。共有範囲7ケース×3browser、標準入力とMonaco初期化8ケース×3browserも統合対象とする。最終SHAの全体CIと公開先確認を別途記録し、実機・実IME・画面キーボード・読み上げはPages公開後に確認する。 |
 | #78 本番公開 | [Pages](../.github/workflows/pages.yml)、[配信契約](deployment.md)、本書 | 本番未実施。OGPのユーザー更新は独立作業として公開の前提から外す。アプリ本体の検証条件を満たし次第、自主的に更新する。 |
 
-## 公開前の残件
+## ソフトウェア検証・公開・公開後の残件
 
 1. 最終 SHA の clean install、型・lint・全 unit・build・全 browser・PWA と公開資産一覧を記録する。旧実装撤去と OGP 統合後も同じ成果物を検証する。
 2. #74の後続型修正と#76の公式validator比較を最終SHAの検査対象へ含める。比較の正本は規範契約第7節。
 3. 完全offlineの草稿編集→保存→browser再起動→出題→回答保存は担当7ケースで検証済み。最終統合SHAでも実行し、未取得外部データの利用不可と併せて記録する。
 4. dirty更新・install失敗・旧asset欠落・native DB upgrade・時間切れ・due待ち・学習再挑戦・容量変更／回復の専用browser回帰を実装し担当検証が成功。後続統合CIで同じsourceと成果物へ結び付ける。
-5. iOS Safari と Android Chrome、タッチ、実画面キーボード、OS の日本語 IME、フォーカス、読み上げ、狭幅・拡大文字を実機で確認する。desktop viewport と合成イベントで代替しない。
+5. ユーザー指示によりPagesを先に公開し、そのURLでiOS Safari／Android Chrome、touch、画面キーボード、実IME、フォーカス、読み上げを確認する。別の実機用URLは設けず、desktopや合成イベントで代替しない。
 6. 実配信元一覧とPages originからのCORS／redirect／MIMEを確認する。bem130.comの更新とlive OGP確認はユーザー主導の#71で独立追跡し、アプリ公開を待たせない。
-7. #72 完了後に #78 の手動公開を実行し、正規 URL、初回起動、保存・再起動、offline、更新、OGP、rollback を公開 SHA に結び付ける。
+7. #72のソフトウェア検証後に #78 の手動公開を実行し、正規URL、初回起動、保存・再起動、offline、更新、rollbackを公開SHAに結び付ける。実機確認は公開後の #72、OGPはユーザー主導の #71 へ残す。
 
 残件を解消したら、対象 SHA、環境、コマンドまたは操作、期待結果と実結果を追記する。未検証の行を一律に完了へ置き換えない。
 

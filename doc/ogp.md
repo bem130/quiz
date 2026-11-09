@@ -4,6 +4,8 @@
 
 2026-11-09のユーザー指示により、bem130.comの更新はユーザー主導で行う。開発側は検証済みbundle、配置手順、配信後の確認項目を用意する。ローカルPHP/GDの成功と、ユーザーによるサーバー更新後の実環境確認を分けて記録する。
 
+開発側はbem130.comへアップロードせず、サーバーの接続情報や秘密情報を要求しない。OGP未更新でもアプリ本体は動作するため、#71のサーバー更新待ちを #72／#78 のアプリ公開条件にしない。ユーザーが更新した後、下記の公開URL確認を行うまで #71 の実環境項目を未確認として追跡する。
+
 ## 配信物の準備
 
 Node 24で、空の `tmp/` 配下ディレクトリを指定する。
@@ -67,3 +69,14 @@ node --test tests/ogp/*.test.mjs
 独立レビュー後の最終Regular版は `tmp/ogp-dist-regular-final/` に準備し、上記環境変数のbundleだけを切り替えた検証で5テストが成功した。Unicode空白だけの入力も既定画像と同じPNGになることを確認した。`tmp/ogp-evidence/` の日本語・長文・題庫metadata画像を目視し、太さ、3行＋4行の配置、枠内の折返し、省略、ruby/gloss構文が露出しないことを確認した。旧可変フォントの比較画像は `tmp/ogp-evidence-variable-review/`、取得した固定font/licenseは `tmp/ogp-font-review/` に残した。これらtmpの証拠とPHP bundleはPages公開物に含めない。
 
 GDの座標・UTF-8仕様は [imagettfbbox](https://www.php.net/manual/en/function.imagettfbbox.php) と [imagettftext](https://www.php.net/manual/en/function.imagettftext.php) に従う。PHP 8.5で非推奨となり8.0以降効果がない [imagedestroy](https://www.php.net/manual/en/function.imagedestroy.php) は使わない。fontの出典は [固定commitの公式notofonts/noto-cjk](https://github.com/notofonts/noto-cjk/tree/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/SubsetOTF/JP) である。
+
+## ユーザー配備後の確認
+
+ユーザーがbundleを配備した後に、実行日時とbundleの元SHA、検証URL、HTTP結果、PNGと目視結果を記録する。配備前のlive 500報告と、ローカル5テスト成功は別の記録として残す。
+
+- 正規URLのGETで200、Content-Typeがimage/png、1280×720の正常なPNG、日本語fontの太さと欠けのない本文を確認する。既定、日本語、長文、改行、空値、quiz=math-v3を含める。
+- HEADは200で本文なし、invalid UTF-8／配列／過長／不正quizは400、存在しないquizは404、POSTは405、エラー時はtext/plainとno-storeで内部パスを表示しないことを確認する。
+- PHP/GD・FreeType・mbstring、fontとOFL、metadataが同じbundleで配置されていることをユーザー側で確認する。開発側は接続情報を受け取らず、公開応答から確認できる項目を検証する。
+- Pagesの既定OGPが正規画像URLを指すことを確認する。SNS等の取得結果はそのサービスのcacheと取得日時も記録し、PHPの新しいPNGと古いpreviewを混同しない。
+
+配備後の確認がまだ行われていなければ、live 500が解消したとも #71 が完了したとも記録しない。OGP以外のアプリ更新は独立した [deployment.md](deployment.md) の手順で進める。

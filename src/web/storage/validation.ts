@@ -1,6 +1,7 @@
 import { isRevision, parseQuizJson, serializeQuiz } from '../../core/schema.ts';
 import { isSessionId, isUserId, parsePackageId, parseRecordKey, recordKey } from '../../core/identity.ts';
 import { prepareQuiz } from '../../core/quiz-engine.ts';
+import { resolveHttpUrl } from '../network.ts';
 import type { Option, Result } from '../../core/result.ts';
 import type {
     AssetRecord, AttemptRecord, BackupSnapshot, ConceptStatsRecord, ConfusionRecord, DatabaseRecords, DraftRecord,
@@ -60,7 +61,13 @@ function packageRecord(value: unknown): value is PackageRecord {
         !isRevision(value['revision']) || !nonnegative(value['updatedAt']) || !parsePackageId(value['id']).ok) return false;
     const parsed = parseQuizJson(value['json']);
     const source = parseRecordKey(value['id']);
-    return parsed.ok && serializeQuiz(parsed.value) === value['revision'] && source.ok && source.value[1] === value['source'];
+    if (!parsed.ok || serializeQuiz(parsed.value) !== value['revision'] || !source.ok || source.value[1] !== value['source']) return false;
+    if (source.value[0] === 'remote') {
+        // backup/DBも外部入力であり、Webで正規化済みというcoreの前提を再確認する。
+        const canonical = resolveHttpUrl(value['source'], value['source']);
+        return canonical.ok && canonical.value === value['source'];
+    }
+    return true;
 }
 
 export function scoped(value: string, packageId: string, kind: string, size: number): boolean {

@@ -1,4 +1,4 @@
-import { isPatternId, packageIdentity, parsePackageId, parseUserId, parseSessionId } from '../core/identity.ts';
+import { packageIdentity, parsePackageId, parseUserId, parseSessionId } from '../core/identity.ts';
 import type { PatternId } from '../core/identity.ts';
 import type { QuizFile } from '../core/model.ts';
 import { prepareQuiz } from '../core/quiz-engine.ts';
@@ -19,7 +19,7 @@ import type { EditorController } from './editor.ts';
 import { importDraft } from './draft-import.ts';
 import { addRubyItem, editorFilesFromEntry, editorFilesFromSetting, folderKeys, sourceControls } from './source-tools.ts';
 import type { EditorFile, RubyBufferItem, SourceInfo, SourceRegion } from './source-tools.ts';
-import { shareQr, shareUrl, sharedEntries } from './sharing.ts';
+import { shareQr, shareUrl, sharedEntries, sharedScope } from './sharing.ts';
 import { clearAppCache } from './cache-reset.ts';
 
 type LoadedPackage = Readonly<{ record: PackageRecord; quiz: QuizFile; prepared: PreparedQuiz }>;
@@ -30,6 +30,10 @@ type Screen = Readonly<{ kind: 'menu' }> | Readonly<{ kind: 'editor' }> | Readon
     Readonly<{ kind: 'result'; session: SessionState }>;
 type ReadyState = Readonly<{ kind: 'ready'; data: Data; screen: Screen; selected: readonly PatternId[]; preferences: Preferences }>;
 type AppState = Readonly<{ kind: 'loading' }> | Readonly<{ kind: 'error'; message: string }> | ReadyState;
+type EntryLoadIntent = 'refresh' | 'manual' | 'shared';
+type UpdateState = Readonly<{ kind: 'idle' | 'preparing' | 'reload' }> |
+    Readonly<{ kind: 'ready'; registration: ServiceWorkerRegistration; worker: ServiceWorker }> |
+    Readonly<{ kind: 'failed'; initial: boolean }>;
 const DEFAULTS: Preferences = { theme: 'light', font: 'sans', scale: 1, mode: 'study', completion: 'questions', count: 10, minutes: 10 };
 const BACKUP_MAX_BYTES = 50_000_000;
 
@@ -70,10 +74,13 @@ export class QuizApplication {
     private readonly host: HTMLElement;
     private readonly message: HTMLElement;
     private readonly view: HTMLElement;
-    private updateRegistration: Option<ServiceWorkerRegistration> = none;
+    private updateState: UpdateState = { kind: 'idle' };
+    private readonly observedRegistrations = new WeakSet<ServiceWorkerRegistration>();
+    private readonly observedWorkers = new WeakSet<ServiceWorker>();
     private rubyState: Readonly<{ sessionId: string; items: readonly RubyBufferItem[] }> = { sessionId: '', items: [] };
     private draftImportText = '';
     private draftImportPath = `imports/quiz-${crypto.randomUUID()}.json`;
+    private sharedInputError: Option<string> = none;
 
     constructor(host: HTMLElement) {
         this.host = host;
@@ -108,6 +115,10 @@ export class QuizApplication {
     private isSaving(): boolean { return this.state.kind === 'ready' && this.state.screen.kind === 'playing' && this.state.screen.session.phase.kind === 'saving'; }
 
     async start(): Promise<void> {
+        const incoming = new URL(location.href);
+        const incomingScope = incoming.searchParams.get('scope');
+        const incomingEntries = sharedEntries(incoming.searchParams, document.baseURI);
+        this.sharedInputError = none;
         const generation = ++this.startGeneration;
         ++this.loadingGeneration;
         if (this.storage.kind === 'some') this.storage.value.close();
@@ -136,31 +147,32 @@ export class QuizApplication {
         if (!loaded.ok) { this.state = { kind: 'error', message: loaded.error }; this.render(); return; }
         this.state = { kind: 'ready', data: loaded.value, screen: { kind: 'menu' }, selected: [], preferences };
         this.render();
-        await this.loadEntry(new URL('entry.json', document.baseURI).href, false);
+        await this.loadEntry(new URL('entry.json', document.baseURI).href, 'refresh');
         if (superseded()) return;
         if (this.state.kind === 'ready') {
             const entries = this.state.data.entries;
             for (const entry of entries) if (entry !== new URL('entry.json', document.baseURI).href) {
-                await this.loadEntry(entry, false); if (superseded()) return;
+                await this.loadEntry(entry, 'refresh'); if (superseded()) return;
             }
         }
-        const requested = new URLSearchParams(location.search).get('entry');
-        if (requested) await this.loadEntry(requested, true);
-        if (superseded()) return;
-        for (const entry of sharedEntries(new URLSearchParams(location.search), document.baseURI)) {
-            await this.loadEntry(entry, false); if (superseded()) return;
+        const received: PatternId[] = [];
+        let receivedShared = false;
+        if (incomingEntries.ok) for (const entry of incomingEntries.value) {
+            const loadedEntry = await this.loadEntry(entry, 'shared'); if (superseded()) return;
+            if (loadedEntry.kind === 'some') { receivedShared = true; received.push(...loadedEntry.value); }
         }
-        const selection = new URLSearchParams(location.search).get('scope');
-        if (selection && this.state.kind === 'ready') {
-            try {
-                const parsed: unknown = JSON.parse(selection);
-                if (Array.isArray(parsed)) {
-                    const valid = new Set(this.state.data.packages.flatMap((item) => item.prepared.candidates.map((candidate) => candidate.patternId)));
-                    const selected: PatternId[] = [];
-                    for (const id of parsed) if (typeof id === 'string' && isPatternId(id) && valid.has(id)) selected.push(id);
-                    this.state = { ...this.state, selected }; this.render();
-                }
-            } catch { this.inform('共有URLの出題範囲を解釈できない。範囲を選び直せる。'); }
+        if (this.state.kind === 'ready') {
+            const valid = new Set(this.state.data.packages.flatMap((item) => item.prepared.candidates.map((candidate) => candidate.patternId)));
+            const scope = sharedScope(incomingScope, valid);
+            if (!incomingEntries.ok || !scope.ok) {
+                const message = [incomingEntries.ok ? '' : incomingEntries.error, scope.ok ? '' : scope.error].filter(Boolean).join('\n');
+                this.sharedInputError = some(message); this.inform(message);
+            }
+            else if (scope.value.kind === 'some') {
+                this.state = { ...this.state, selected: scope.value.value };
+                const url = new URL(location.href); url.searchParams.set('scope', JSON.stringify(scope.value.value)); history.replaceState(null, '', url);
+            } else if (receivedShared) this.state = { ...this.state, selected: [...new Set(received)] };
+            this.render();
         }
         await this.registerWorker();
         } catch (error) {
@@ -243,24 +255,26 @@ export class QuizApplication {
         return pending;
     }
 
-    private async loadEntry(rawUrl: string, select: boolean): Promise<void> {
-        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.busy) return;
-        const db = this.database(); if (db.kind === 'none') return;
+    private async loadEntry(rawUrl: string, intent: EntryLoadIntent): Promise<Option<readonly PatternId[]>> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.busy) return none;
+        const db = this.database(); if (db.kind === 'none') return none;
         const url = resolveHttpUrl(rawUrl, document.baseURI);
-        if (!url.ok) { this.inform('entry URLはHTTP(S)で指定する。'); return; }
+        if (!url.ok) { this.inform('entry URLはHTTP(S)で指定する。'); return none; }
         const generation = ++this.loadingGeneration;
         this.busy = true; this.inform('問題一覧を取得中…'); this.render();
         try {
-        if (select && !this.state.data.entries.includes(url.value)) {
-            const saved = await db.value.setSetting({ id: 'entrySources', value: JSON.stringify([...this.state.data.entries, url.value].slice(-50)) });
-            if (generation !== this.loadingGeneration) return;
-            if (!saved.ok) { this.inform(saved.error.message); return; }
+        if (intent !== 'refresh' && !this.state.data.entries.includes(url.value)) {
+            const entries = [...this.state.data.entries, url.value].slice(-50);
+            const saved = await db.value.setSetting({ id: 'entrySources', value: JSON.stringify(entries) });
+            if (generation !== this.loadingGeneration) return none;
+            if (!saved.ok) { this.inform(saved.error.message); return none; }
+            this.state = { ...this.state, data: { ...this.state.data, entries } };
         }
             const fetched = await fetchText(url.value);
-            if (generation !== this.loadingGeneration) return;
-            if (!fetched.ok) { this.inform('問題一覧を取得できない。保存済み題庫と草稿は引き続き利用できる。'); return; }
+            if (generation !== this.loadingGeneration) return none;
+            if (!fetched.ok) { this.inform('問題一覧を取得できない。保存済み題庫と草稿は引き続き利用できる。'); return none; }
             const entry = parseEntryJson(fetched.value.text);
-            if (!entry.ok) { this.inform(`entryの形式が不正: ${entry.error.path} ${entry.error.detail}`); return; }
+            if (!entry.ok) { this.inform(`entryの形式が不正: ${entry.error.path} ${entry.error.detail}`); return none; }
             const editorMapping = editorFilesFromEntry(fetched.value.text, fetched.value.url, entry.value.files);
             const newEditorFiles: EditorFile[] = [];
             const selected: PatternId[] = [];
@@ -270,7 +284,7 @@ export class QuizApplication {
                 if (!resolved.ok) { errors.push(path); continue; }
                 const before = await db.value.listPackages(); if (!before.ok) { errors.push(path); continue; }
                 const text = await fetchText(resolved.value);
-                if (generation !== this.loadingGeneration) return;
+                if (generation !== this.loadingGeneration) return none;
                 if (!text.ok) { errors.push(path); continue; }
                 const quiz = parseQuizJson(text.value.text);
                 const identity = packageIdentity({ kind: 'remote', url: text.value.url });
@@ -283,16 +297,19 @@ export class QuizApplication {
                 if (!saved.ok) { errors.push(path); continue; }
                 selected.push(...prepareQuiz(quiz.value, identity.value, json).candidates.map((candidate) => candidate.patternId));
             }
-            if (generation !== this.loadingGeneration) return;
+            if (generation !== this.loadingGeneration) return none;
             const entrySources = entry.value.files.flatMap((path) => { const resolved = resolveHttpUrl(path, fetched.value.url); return resolved.ok ? [resolved.value] : []; });
             const savedEditorFiles = await db.value.setSetting({ id: 'editorFiles', value: JSON.stringify([...this.state.data.editorFiles.filter((item) => !entrySources.includes(item.source)), ...newEditorFiles]) });
-            if (!savedEditorFiles.ok) { this.inform(savedEditorFiles.error.message); return; }
+            if (!savedEditorFiles.ok) { this.inform(savedEditorFiles.error.message); return none; }
             await this.refreshData();
-            if (this.state.kind === 'ready' && (select || !this.state.selected.length) && (selected.length > 0 || errors.length === 0)) this.state = { ...this.state, selected: [...new Set(selected)] };
-            if (select && (selected.length > 0 || errors.length === 0)) {
+            if (generation !== this.loadingGeneration) return none;
+            if (this.state.kind === 'ready' && (intent === 'manual' || (intent === 'refresh' && !this.state.selected.length)) && (selected.length > 0 || errors.length === 0)) this.state = { ...this.state, selected: [...new Set(selected)] };
+            if (intent === 'manual' && (selected.length > 0 || errors.length === 0)) {
+                this.sharedInputError = none;
                 const shared = new URL(location.href); shared.searchParams.set('entry', url.value); shared.searchParams.delete('scope'); history.replaceState(null, '', shared);
             }
             this.inform(errors.length ? `${errors.length}ファイルを取得・検証できなかった。以前の有効版は保持している。` : `${entry.value.label} を読み込んだ。`);
+            return selected.length > 0 || errors.length === 0 ? some([...new Set(selected)]) : none;
         } finally { if (generation === this.loadingGeneration) { this.busy = false; this.render(); } }
     }
 
@@ -418,6 +435,7 @@ export class QuizApplication {
     private renderMenu(state: ReadyState): void {
         const layout = element('main', '', 'menu-layout');
         const scope = element('section', '', 'panel'); scope.append(element('h2', '出題範囲'));
+        if (this.sharedInputError.kind === 'some') { const notice = element('p', this.sharedInputError.value, 'warning'); notice.setAttribute('role', 'alert'); scope.append(notice); }
         scope.append(this.button('すべて選択', () => {
             if (this.state.kind === 'ready') { this.state = { ...this.state, selected: [...new Set(this.state.data.packages.flatMap((item) => item.prepared.candidates.map((candidate) => candidate.patternId)))] }; this.render(); }
         }, this.busy));
@@ -542,10 +560,10 @@ export class QuizApplication {
             return this.savePreferences({ ...this.state.preferences, scale });
         }));
         const url = element('input'); url.type = 'url'; url.placeholder = 'https://example.com/entry.json'; url.setAttribute('aria-label', '問題一覧のURL');
-        settings.append(url, this.button('問題一覧を読み込む', () => this.loadEntry(url.value, true), this.busy));
+        settings.append(url, this.button('問題一覧を読み込む', async () => { await this.loadEntry(url.value, 'manual'); }, this.busy));
         for (const entry of state.data.entries) {
             const item = element('div'); item.append(element('small', entry));
-            item.append(this.button('更新', () => this.loadEntry(entry, false), this.busy));
+            item.append(this.button('更新', async () => { await this.loadEntry(entry, 'refresh'); }, this.busy));
             item.append(this.button('登録解除', async () => {
                 const db = this.database(); if (db.kind === 'none' || this.state.kind !== 'ready') return;
                 const saved = await db.value.setSetting({ id: 'entrySources', value: JSON.stringify(this.state.data.entries.filter((value) => value !== entry)) });
@@ -554,7 +572,7 @@ export class QuizApplication {
             }, this.busy));
             settings.append(item);
         }
-        settings.append(this.button('サンプルを再読込', () => this.loadEntry(new URL('entry.json', document.baseURI).href, false), this.busy));
+        settings.append(this.button('サンプルを再読込', async () => { await this.loadEntry(new URL('entry.json', document.baseURI).href, 'refresh'); }, this.busy));
         settings.append(this.button('offline cacheを削除して再起動', async () => {
             if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.busy) return;
             if (!confirm('このアプリのoffline cacheを削除して再起動する。IndexedDBの草稿・ユーザー・学習記録は保持する。再取得には通信が必要である。よいか。')) return;
@@ -594,7 +612,9 @@ export class QuizApplication {
             const cleared = await db.value.clearAll(); if (!cleared.ok) { this.inform(cleared.error.message); return; }
             this.state = { ...state, preferences: DEFAULTS, selected: [] }; await this.refreshData(); this.inform('新サイトの全保存データを削除した。');
         }));
-        if (this.updateRegistration.kind === 'some') parent.append(this.button('新しいアプリ版を適用', () => this.applyUpdate()));
+        if (this.updateState.kind === 'ready' && this.updateState.registration.waiting === this.updateState.worker) parent.append(this.button('新しいアプリ版を適用', () => this.applyUpdate()));
+        else if (this.updateState.kind === 'failed') parent.append(this.button('オフライン・更新の準備を再試行', () => this.retryWorker()));
+        else if (this.updateState.kind === 'reload') parent.append(this.button('新しい版でページを開き直す', () => this.applyUpdate()));
         parent.append(details);
     }
 
@@ -831,14 +851,59 @@ export class QuizApplication {
         const link = element('a'); link.href = url; link.download = name; document.body.append(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+    private setUpdateState(next: UpdateState, message = ''): void {
+        const previous = this.updateState;
+        const changed = previous.kind !== next.kind ||
+            (previous.kind === 'ready' && next.kind === 'ready' && previous.worker !== next.worker);
+        this.updateState = next;
+        if (message) this.inform(message);
+        if (changed && this.state.kind === 'ready' && this.state.screen.kind === 'menu') this.render();
+    }
+    private workerFailed(initial: boolean): void {
+        this.setUpdateState({ kind: 'failed', initial }, initial ?
+            'オフライン用の準備を完了できない。オンラインで利用できる。接続を確認して再試行できる。' :
+            '新しい版の準備を完了できない。現在の版と保存データを保持している。接続を確認して再試行できる。');
+    }
+    private refreshWorkerState(registration: ServiceWorkerRegistration): void {
+        const waiting = registration.waiting;
+        // 初回installのinstalled→自動activateは、旧activeを持つ更新のwaitingと区別する。
+        if (waiting && registration.active && waiting !== registration.active && waiting.state === 'installed') {
+            const changed = this.updateState.kind !== 'ready' || this.updateState.worker !== waiting;
+            this.setUpdateState({ kind: 'ready', registration, worker: waiting }, changed ? '新しい版の準備が完了した。学習・編集終了後に適用できる。' : '');
+        } else if (registration.installing || (waiting && !registration.active) || registration.active?.state === 'activating') {
+            this.setUpdateState({ kind: 'preparing' });
+        } else if (this.updateState.kind === 'ready' || this.updateState.kind === 'preparing') {
+            this.setUpdateState({ kind: 'idle' });
+        }
+    }
+    private observeWorker(registration: ServiceWorkerRegistration): void {
+        if (!this.observedRegistrations.has(registration)) {
+            this.observedRegistrations.add(registration);
+            registration.addEventListener('updatefound', () => this.observeWorker(registration));
+        }
+        const worker = registration.installing ?? registration.waiting;
+        if (worker && !this.observedWorkers.has(worker)) {
+            this.observedWorkers.add(worker);
+            const initial = registration.active === null;
+            let prepared = worker.state === 'installed' || worker.state === 'activating' || worker.state === 'activated';
+            worker.addEventListener('statechange', () => {
+                if (worker.state === 'installed' || worker.state === 'activating' || worker.state === 'activated') prepared = true;
+                // redundantは候補の置換でも起きる。原因を断定せず、install完了前の不成立として伝える。
+                if (worker.state === 'redundant' && !prepared && (!registration.installing || registration.installing === worker) && !registration.waiting) this.workerFailed(initial);
+                else {
+                    this.refreshWorkerState(registration);
+                    if (worker.state === 'activated' && initial) this.inform('オフライン用の準備が完了した。');
+                }
+            });
+        }
+        this.refreshWorkerState(registration);
+    }
     private async registerWorker(): Promise<void> {
         if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
         try {
             const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
-            const waiting = (): void => { if (registration.waiting) { this.updateRegistration = some(registration); this.inform('新しい版がある。学習・編集終了後に適用できる。'); if (this.state.kind === 'ready' && this.state.screen.kind === 'menu') this.render(); } };
-            waiting();
-            registration.addEventListener('updatefound', () => registration.installing?.addEventListener('statechange', waiting));
-        } catch { this.inform('オフライン用の準備に失敗した。オンラインでは利用できる。'); }
+            this.observeWorker(registration);
+        } catch { this.workerFailed(navigator.serviceWorker.controller === null); }
     }
     private async checkUpdate(): Promise<void> {
         if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || import.meta.env.DEV) return;
@@ -847,19 +912,41 @@ export class QuizApplication {
             const value: unknown = await response.json();
             if (isObject(value) && typeof value['version'] === 'string' && value['version'] !== __APP_VERSION__) {
                 const registration = await navigator.serviceWorker.getRegistration();
-                if (registration) { await registration.update(); if (registration.waiting) this.updateRegistration = some(registration); }
-                this.inform('新しい版がある。設定のバックアップを保存し、メニューから適用できる。'); this.render();
+                if (!registration) { this.workerFailed(true); return; }
+                this.observeWorker(registration);
+                try { await registration.update(); }
+                catch { this.workerFailed(registration.active === null); return; }
+                this.observeWorker(registration);
+                if (this.updateState.kind === 'idle') this.setUpdateState({ kind: 'reload' }, '配信された版とこのページの版が異なる。学習・編集を終了し、ページを開き直せる。');
             }
         } catch { /* offlineは通常動作。既存データを変更しない。 */ }
     }
-    private async applyUpdate(): Promise<void> {
+    private async retryWorker(): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.isSaving() || (this.editor.kind === 'some' && this.editor.value.isDirty())) { this.inform('学習・編集を終了してから準備を再試行する。'); return; }
+        const initial = this.updateState.kind === 'failed' ? this.updateState.initial : navigator.serviceWorker.controller === null;
+        this.setUpdateState({ kind: 'preparing' }, 'オフライン・更新の準備を再試行している。');
+        try {
+            const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
+            this.observeWorker(registration);
+            if (!registration.installing && !registration.waiting) { await registration.update(); this.observeWorker(registration); }
+            if (this.updateState.kind === 'idle') this.inform('オフライン・更新の準備を確認した。現在の版を引き続き利用できる。');
+        } catch { this.workerFailed(initial); }
+    }
+    private applyUpdate(): void {
         if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.isSaving() || (this.editor.kind === 'some' && this.editor.value.isDirty())) { this.inform('学習・編集を終了してから更新する。'); return; }
-        if (this.updateRegistration.kind === 'none') return;
-        const registration = this.updateRegistration.value;
-        await registration.update();
-        if (registration.waiting) {
-            navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
-            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
+        if (this.updateState.kind === 'reload') { location.reload(); return; }
+        if (this.updateState.kind !== 'ready') return;
+        const { registration, worker } = this.updateState;
+        if (registration.waiting !== worker || worker.state !== 'installed') { this.refreshWorkerState(registration); return; }
+        this.setUpdateState({ kind: 'preparing' });
+        const reload = (): void => {
+            // apply待ちの短い間に別の操作を始めた場合も、保存中・編集中の画面は破棄しない。
+            if (this.state.kind === 'ready' && this.state.screen.kind === 'menu' && !this.isSaving() &&
+                (this.editor.kind === 'none' || !this.editor.value.isDirty())) location.reload();
+            else this.setUpdateState({ kind: 'reload' }, '新しい版が有効になった。学習・編集を終了してからページを開き直せる。');
+        };
+        navigator.serviceWorker.addEventListener('controllerchange', reload, { once: true });
+        try { worker.postMessage({ type: 'SKIP_WAITING' }); }
+        catch { navigator.serviceWorker.removeEventListener('controllerchange', reload); this.workerFailed(false); }
     }
 }
