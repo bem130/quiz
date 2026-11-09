@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { packageIdentity, parsePackageId } from '../../src/core/identity.ts';
+import { packageIdentity, parsePackageId, parseUserId, parseSessionId } from '../../src/core/identity.ts';
 import { prepareQuiz } from '../../src/core/quiz-engine.ts';
 import type { Question } from '../../src/core/quiz-engine.ts';
 import { parseQuiz, parseQuizJson, serializeQuiz } from '../../src/core/schema.ts';
@@ -9,6 +9,9 @@ import type { AnswerInput, SessionConfig, SessionState } from '../../src/core/se
 import { initialSchedule } from '../../src/core/study.ts';
 import type { ScheduleRecord } from '../../src/core/study.ts';
 import type { Result } from '../../src/core/result.ts';
+
+function userIdentity(value: string) { return valueOf(parseUserId(value)); }
+function sessionIdentity(value: string) { return valueOf(parseSessionId(value)); }
 
 function valueOf<T, E>(result: Result<T, E>): T {
     if (!result.ok) throw new Error(JSON.stringify(result.error));
@@ -19,9 +22,9 @@ const quiz = valueOf(parseQuiz({ title: '題庫', description: '説明', table: 
     { id: 'a', label: 'A' }, { id: 'b', label: 'B' }, { id: 'c', label: 'C' }
 ], patterns: ['first', 'second'].map((id) => ({ id, tokens: [{ type: 'hide', id: 'answer',
     value: [{ type: 'key', field: 'label' }], answer: { mode: 'choice_from_entities' } }] })) }));
-const prepared = prepareQuiz(quiz, packageId, 'r1');
+const prepared = prepareQuiz(quiz, packageId, serializeQuiz(quiz));
 function session(overrides: Partial<SessionConfig> = {}): SessionState {
-    return valueOf(createSession({ id: 'session-1', userId: 'guest', mode: 'test',
+    return valueOf(createSession({ id: sessionIdentity('session-1'), userId: userIdentity('guest'), mode: 'test',
         completion: { kind: 'questions', count: 20 }, candidates: prepared.candidates,
         allowedPatternIds: [...new Set(prepared.candidates.map((candidate) => candidate.patternId))],
         seed: 'fixed', now: 0, schedules: [], confusions: [], conceptStats: [], ...overrides }));
@@ -100,7 +103,7 @@ await test('学習は同じ問題のdue到来で再出題し、dueまでは待�
 await test('drainは将来dueの問題を待たず、対象範囲のdueを解消した時点で終了する', () => {
     const first = prepared.candidates.at(0);
     assert.ok(first);
-    const schedule = { ...initialSchedule({ userId: 'guest', packageId, questionId: first.id,
+    const schedule = { ...initialSchedule({ userId: userIdentity('guest'), packageId, questionId: first.id,
         patternId: first.patternId, conceptId: first.conceptId }, 0), state: 'RELEARNING' as const, dueAt: 0 };
     let state = session({ mode: 'study', candidates: [first], schedules: [schedule], completion: { kind: 'drain' } });
     state = valueOf(nextQuestion(state, 0));
@@ -142,7 +145,7 @@ await test('誤答再挑戦は元sessionの記録先を使い回さず、新し�
     state = valueOf(confirmAnswer(state, 'wrong'));
     const retry = retryCandidates(state);
     assert.equal(retry.length, 1);
-    const second = valueOf(nextQuestion(session({ id: 'session-2', candidates: retry }), 2));
+    const second = valueOf(nextQuestion(session({ id: sessionIdentity('session-2'), candidates: retry }), 2));
     const answered = saveCorrect(second, 3);
     assert.equal(answered.attempts.at(0)?.sessionId, 'session-2');
 });
@@ -167,7 +170,7 @@ await test('期限に達した復習も常に現在の選択範囲で絞り込�
     assert.ok(first);
     assert.ok(outside);
     const schedules = [first, outside].map((candidate) => ({
-        ...initialSchedule({ userId: 'guest', packageId, questionId: candidate.id,
+        ...initialSchedule({ userId: userIdentity('guest'), packageId, questionId: candidate.id,
             patternId: candidate.patternId, conceptId: candidate.conceptId }, 0), state: 'REVIEW' as const
     }));
     let state = session({ mode: 'study', allowedPatternIds: [first.patternId], schedules, completion: { kind: 'drain' } });
@@ -196,7 +199,7 @@ await test('混同補修は同じペアを一会話で2回まで扱い、残り�
 await test('高い不確実度は補修とWeak判定へ反映し、ユーザーをまたがない', () => {
     const first = prepared.candidates.at(0);
     assert.ok(first);
-    const stats = { id: 'stat', userId: 'guest', packageId, conceptId: first.conceptId, uncertainty: 0.8, recentIdk: 3 };
+    const stats = { id: 'stat', userId: userIdentity('guest'), packageId, conceptId: first.conceptId, uncertainty: 0.8, recentIdk: 3 };
     let state = session({ mode: 'study', conceptStats: [stats] });
     state = valueOf(nextQuestion(state, 0));
     assert.equal(state.phase.kind, 'question');
@@ -204,7 +207,7 @@ await test('高い不確実度は補修とWeak判定へ反映し、ユーザー�
     assert.equal(question(state).conceptId, first.conceptId);
     state = saveCorrect(state, 1);
     assert.equal(state.attempts.at(0)?.result, 'weak');
-    const different = valueOf(nextQuestion(session({ mode: 'study', conceptStats: [{ ...stats, userId: 'other' }] }), 0));
+    const different = valueOf(nextQuestion(session({ mode: 'study', conceptStats: [{ ...stats, userId: userIdentity('other') }] }), 0));
     if (different.phase.kind === 'question') assert.equal(different.phase.stage, 'new');
 });
 
@@ -213,7 +216,7 @@ await test('誤答の短期リトライは3〜7題後に同じ題目を再生成
         table: Array.from({ length: 12 }, (_, index) => ({ id: `r${index}`, label: `L${index}` })),
         patterns: [{ id: 'p', tokens: [{ type: 'hide', id: 'answer', value: [{ type: 'key', field: 'label' }],
             answer: { mode: 'choice_from_entities' } }] }] }));
-    const largerPrepared = prepareQuiz(larger, packageId, 'r2');
+    const largerPrepared = prepareQuiz(larger, packageId, serializeQuiz(larger));
     let state = session({ mode: 'study', candidates: largerPrepared.candidates,
         allowedPatternIds: [...new Set(largerPrepared.candidates.map((candidate) => candidate.patternId))] });
     state = valueOf(nextQuestion(state, 0));
@@ -284,10 +287,10 @@ await test('候補数とschedule数が増えても開始と次問のschedule参�
         table: Array.from({ length: 1000 }, (_, index) => ({ id: `r${index}`, label: `L${index}` })),
         patterns: [{ id: 'p', tokens: [{ type: 'hide', id: 'h', value: [{ type: 'key', field: 'label' }],
             answer: { mode: 'choice_from_entities' } }] }] }));
-    const candidates = prepareQuiz(large, packageId, 'index-revision').candidates;
+    const candidates = prepareQuiz(large, packageId, serializeQuiz(large)).candidates;
     let reads = 0;
     const schedules = candidates.map<ScheduleRecord>((candidate) => ({ ...initialSchedule({
-        userId: 'guest', packageId, questionId: candidate.id, patternId: candidate.patternId,
+        userId: userIdentity('guest'), packageId, questionId: candidate.id, patternId: candidate.patternId,
         conceptId: candidate.conceptId
     }, 0), state: 'REVIEW', get questionId() { reads += 1; return candidate.id; } }));
     const state = session({ mode: 'study', candidates, schedules,
@@ -321,13 +324,13 @@ await test('無関係な不確実度補修では混同ペアの補修予算を�
         table: Array.from({ length: 12 }, (_, index) => ({ id: String(index), label: String(index) })),
         patterns: [{ id: 'p', tokens: [{ type: 'hide', id: 'h', value: [{ type: 'key', field: 'label' }],
             answer: { mode: 'choice_from_entities' } }] }] }));
-    const candidates = prepareQuiz(large, packageId, 'repair-revision').candidates;
+    const candidates = prepareQuiz(large, packageId, serializeQuiz(large)).candidates;
     const first = candidates.at(0); const second = candidates.at(1);
     assert.ok(first); assert.ok(second);
     const pair = { conceptId: first.conceptId, wrongConceptId: second.conceptId, score: 0.9 };
     let state = session({ mode: 'study', candidates, seed: '1', confusions: [pair],
         allowedPatternIds: [first.patternId], conceptStats: candidates.slice(2).map((candidate) => ({
-            id: candidate.id, userId: 'guest', packageId, conceptId: candidate.conceptId, uncertainty: 0.9, recentIdk: 0
+            id: candidate.id, userId: userIdentity('guest'), packageId, conceptId: candidate.conceptId, uncertainty: 0.9, recentIdk: 0
         })) });
     for (let index = 0; index < 3; index += 1) {
         state = valueOf(nextQuestion(state, index * 10));

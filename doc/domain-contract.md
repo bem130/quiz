@@ -74,6 +74,8 @@ remote 題庫の PackageId は、Web 境界で解決・正規化した fragment 
 
 識別子は役割別の branded string とする。PackageId、PatternId、RowId、ConceptId、QuestionId を区別し、外部値は対応する parse 関数で検証する。pattern、row、concept は PackageId と局所 ID でスコープする。明示 conceptId が同じでも、異なる PackageId 間で概念を暗黙共有しない。
 
+UserIdとSessionIdも表示名から独立した役割別のbranded stringとする。parseUserId・parseSessionIdは空白だけの入力を拒否し、UUID形式そのものは強制しない。Webでの新規作成にはcrypto.randomUUIDを使う。Revisionはstrict schemaを満たしcanonicalなv3 JSONと一致した文字列のbrandであり、serializeQuizが生成し、外部入力はparseRevisionで検証する。裸のstringをこれらのIDやRevisionとして内部へ渡さない。
+
 キーは次の canonical JSON tuple であり、`::` 等で分割しない。
 
 ```text

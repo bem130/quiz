@@ -1,4 +1,4 @@
-import { isPatternId, packageIdentity, parsePackageId } from '../core/identity.ts';
+import { isPatternId, packageIdentity, parsePackageId, parseUserId, parseSessionId } from '../core/identity.ts';
 import type { PatternId } from '../core/identity.ts';
 import type { QuizFile } from '../core/model.ts';
 import { prepareQuiz } from '../core/quiz-engine.ts';
@@ -17,7 +17,7 @@ import type { EditorController } from './editor.ts';
 
 type LoadedPackage = Readonly<{ record: PackageRecord; quiz: QuizFile; prepared: PreparedQuiz }>;
 type Preferences = Readonly<{ theme: 'light' | 'dark' | 'black'; font: 'sans' | 'serif'; scale: number; mode: 'study' | 'test'; completion: 'questions' | 'time' | 'drain'; count: number; minutes: number }>;
-type Data = Readonly<{ users: readonly UserRecord[]; userId: string; packages: readonly LoadedPackage[]; drafts: readonly DraftRecord[]; attempts: readonly AttemptRecord[]; entries: readonly string[] }>;
+type Data = Readonly<{ users: readonly UserRecord[]; userId: UserRecord['id']; packages: readonly LoadedPackage[]; drafts: readonly DraftRecord[]; attempts: readonly AttemptRecord[]; entries: readonly string[] }>;
 type Screen = Readonly<{ kind: 'menu' }> | Readonly<{ kind: 'editor' }> | Readonly<{ kind: 'starting'; requestId: string }> |
     Readonly<{ kind: 'playing'; session: SessionState; idkPrompt: boolean }> |
     Readonly<{ kind: 'result'; session: SessionState }>;
@@ -135,7 +135,8 @@ export class QuizApplication {
         const users = await db.value.listUsers(); if (!users.ok) return err(users.error.message);
         let userList = users.value;
         if (!userList.length) {
-            const user = await db.value.createUser({ id: crypto.randomUUID(), name: 'Guest', createdAt: Date.now() });
+            const id = parseUserId(crypto.randomUUID()); if (!id.ok) return err('ユーザーIDを作成できない。');
+            const user = await db.value.createUser({ id: id.value, name: 'Guest', createdAt: Date.now() });
             if (!user.ok) return err(user.error.message);
             userList = [user.value];
         }
@@ -374,7 +375,8 @@ export class QuizApplication {
         const name = element('input'); name.placeholder = '新しいユーザー名'; name.setAttribute('aria-label', '新しいユーザー名');
         settings.append(users, name, this.button('ユーザーを追加', async () => {
             const db = this.database(); if (db.kind === 'none' || !name.value.trim()) return;
-            const user = await db.value.createUser({ id: crypto.randomUUID(), name: name.value.trim(), createdAt: Date.now() });
+            const id = parseUserId(crypto.randomUUID()); if (!id.ok) { this.inform('ユーザーIDを作成できない。'); return; }
+            const user = await db.value.createUser({ id: id.value, name: name.value.trim(), createdAt: Date.now() });
             if (!user.ok) { this.inform(user.error.message); return; }
             await db.value.setSetting({ id: 'activeUserId', value: user.value.id }); await this.refreshData();
         }));
@@ -460,7 +462,8 @@ export class QuizApplication {
         const stats = await db.value.listConceptStats(); if (!stats.ok) { this.inform(stats.error.message); return; }
         const preferences = state.preferences;
         const completion: Completion = override.kind === 'some' ? { kind: 'questions', count: candidates.length } : preferences.completion === 'questions' ? { kind: 'questions', count: preferences.count } : preferences.completion === 'time' ? { kind: 'time', durationMs: preferences.minutes * 60_000 } : { kind: 'drain' };
-        const created = createSession({ id: crypto.randomUUID(), userId: state.data.userId, mode: preferences.mode,
+        const sessionId = parseSessionId(crypto.randomUUID()); if (!sessionId.ok) { this.inform('セッションIDを作成できない。'); return; }
+        const created = createSession({ id: sessionId.value, userId: state.data.userId, mode: preferences.mode,
             completion, candidates, allowedPatternIds: override.kind === 'some' ? [...new Set(candidates.map((candidate) => candidate.patternId))] : state.selected,
             seed: crypto.randomUUID(), now: Date.now(), schedules: schedules.value,
             confusions: confusion.value.filter((item) => item.userId === state.data.userId).map((item) => ({ conceptId: item.conceptId, wrongConceptId: item.wrongConceptId, score: (item.chosen + item.idkNear * 0.25 + 1) / (item.shown + 4) })), conceptStats: stats.value });

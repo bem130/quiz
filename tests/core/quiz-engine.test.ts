@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { packageIdentity } from '../../src/core/identity.ts';
 import { generateQuestion, prepareQuiz } from '../../src/core/quiz-engine.ts';
 import type { QuestionCandidate } from '../../src/core/quiz-engine.ts';
-import { parseQuiz, parseQuizJson } from '../../src/core/schema.ts';
+import { parseQuiz, parseQuizJson, serializeQuiz } from '../../src/core/schema.ts';
 import { seedRandom } from '../../src/core/random.ts';
 import type { QuizFile } from '../../src/core/model.ts';
 import type { Result } from '../../src/core/result.ts';
@@ -16,7 +16,7 @@ function valueOf<T, E>(result: Result<T, E>): T {
     return result.value;
 }
 const packageId = valueOf(packageIdentity({ kind: 'remote', url: 'https://example.com/data/math.json' }));
-function prepare(quiz: QuizFile) { return prepareQuiz(quiz, packageId, 'revision-1'); }
+function prepare(quiz: QuizFile) { return prepareQuiz(quiz, packageId, serializeQuiz(quiz)); }
 function candidate(rows: readonly unknown[], answer: unknown = { type: 'key', field: 'label' }, group = false): readonly QuestionCandidate[] {
     const quiz = valueOf(parseQuiz({ version: 3, title: '題庫', description: '説明', table: rows,
         patterns: [{ id: 'p', tokens: [{ type: 'hide', id: 'h', value: [answer],

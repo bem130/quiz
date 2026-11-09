@@ -6,11 +6,27 @@ declare const patternBrand: unique symbol;
 declare const rowBrand: unique symbol;
 declare const conceptBrand: unique symbol;
 declare const questionBrand: unique symbol;
+declare const userBrand: unique symbol;
+declare const sessionBrand: unique symbol;
+declare const revisionBrand: unique symbol;
 export type PackageId = string & Readonly<{ [packageBrand]: true }>;
 export type PatternId = string & Readonly<{ [patternBrand]: true }>;
 export type RowId = string & Readonly<{ [rowBrand]: true }>;
 export type ConceptId = string & Readonly<{ [conceptBrand]: true }>;
 export type QuestionId = string & Readonly<{ [questionBrand]: true }>;
+export type UserId = string & Readonly<{ [userBrand]: true }>;
+export type SessionId = string & Readonly<{ [sessionBrand]: true }>;
+/** schemaで検証したcanonical v3 JSON。生成・検証APIはschema.tsが所有する。 */
+export type Revision = string & Readonly<{ [revisionBrand]: true }>;
+
+export function isUserId(value: unknown): value is UserId { return typeof value === 'string' && value.trim().length > 0; }
+export function isSessionId(value: unknown): value is SessionId { return typeof value === 'string' && value.trim().length > 0; }
+export function parseUserId(value: unknown): Result<UserId, DomainError> {
+    return isUserId(value) ? ok(value) : err(domainError('invalid-identity', '$.userId', 'user ID must be nonempty', 'identity'));
+}
+export function parseSessionId(value: unknown): Result<SessionId, DomainError> {
+    return isSessionId(value) ? ok(value) : err(domainError('invalid-identity', '$.sessionId', 'session ID must be nonempty', 'identity'));
+}
 export type PackageSource =
     | Readonly<{ kind: 'remote'; url: string }>
     | Readonly<{ kind: 'draft'; id: string }>;

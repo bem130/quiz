@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { conceptId, isConceptId, isPatternId, isQuestionId, isRowId, packageIdentity, parsePackageId, parseRecordKey, patternId, questionId, recordKey, rowId } from '../../src/core/identity.ts';
+import { conceptId, isConceptId, isPatternId, isQuestionId, isRowId, packageIdentity, parsePackageId, parseRecordKey, parseSessionId, parseUserId, patternId, questionId, recordKey, rowId } from '../../src/core/identity.ts';
 import type { PackageId } from '../../src/core/identity.ts';
 
 function remote(url: string): PackageId {
@@ -8,6 +8,15 @@ function remote(url: string): PackageId {
     if (!result.ok) assert.fail(JSON.stringify(result.error));
     return result.value;
 }
+
+await test('ユーザーとsessionは非空IDとして検証しUUIDや表示名の形式を要求しない', () => {
+    for (const parse of [parseUserId, parseSessionId]) {
+        for (const value of ['', '   ', null, undefined, 1, {}]) assert.equal(parse(value).ok, false);
+        const valid = parse('日本語::local-id');
+        assert.equal(valid.ok, true);
+        if (valid.ok) assert.equal(valid.value, '日本語::local-id');
+    }
+});
 
 await test('完全出典URLとdraftの別namespaceで同名行を分離する', () => {
     const first = remote('https://one.example/data/quiz.json');

@@ -1,3 +1,4 @@
+import type { SessionId, UserId } from './identity.ts';
 import { generateQuestion } from './quiz-engine.ts';
 import type { ConfusionPair, Question, QuestionCandidate, QuestionOption } from './quiz-engine.ts';
 import { drawRandom, seedRandom, shuffle } from './random.ts';
@@ -9,7 +10,7 @@ import type { Option, Result } from './result.ts';
 import { initialSchedule, updateSchedule } from './study.ts';
 
 export type SessionConfig = Readonly<{
-    id: string; userId: string; mode: 'study' | 'test'; completion: Completion;
+    id: SessionId; userId: UserId; mode: 'study' | 'test'; completion: Completion;
     candidates: readonly QuestionCandidate[]; allowedPatternIds: readonly string[];
     seed: string; now: number; schedules: readonly ScheduleRecord[];
     confusions: readonly ConfusionPair[];

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { MAX_ANSWER_VARIANTS, parseEntry, parseEntryJson, parseQuiz, parseQuizJson, quizToJson, serializeQuiz } from '../../src/core/schema.ts';
+import { MAX_ANSWER_VARIANTS, isRevision, parseEntry, parseEntryJson, parseQuiz, parseQuizJson, parseRevision, quizToJson, serializeQuiz } from '../../src/core/schema.ts';
 import { getRowValue } from '../../src/core/model.ts';
 import type { DomainError, Result } from '../../src/core/result.ts';
 
@@ -23,6 +23,17 @@ function rejects(value: unknown, code: DomainError['code']): void {
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.error.code, code, JSON.stringify(result.error));
 }
+
+await test('revisionはschema検証済みcanonical v3 JSONだけを受理する', () => {
+    const quiz = requireOk(parseQuiz(fixture()));
+    const revision = serializeQuiz(quiz);
+    assert.equal(isRevision(revision), true);
+    assert.equal(requireOk(parseRevision(revision)), revision);
+    for (const value of [null, {}, '', 'r1', revision + '\n', JSON.stringify(quizToJson(quiz)), '{"title":01}', '{"version":3}']) {
+        assert.equal(isRevision(value), false);
+        assert.equal(parseRevision(value).ok, false);
+    }
+});
 
 await test('v3サンプルを検証し、正規化済みdomainと外部JSONを往復できる', async () => {
     for (const file of ['math-v3.json', 'multi-answer-v3.json']) {

@@ -1,10 +1,13 @@
+import { parseUserId } from '../../src/core/identity.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { initialSchedule, updateSchedule } from '../../src/core/study.ts';
 import type { AnswerResult, ScheduleRecord } from '../../src/core/study.ts';
 
 function initial(): ScheduleRecord {
-    return initialSchedule({ userId: 'guest', packageId: 'package', questionId: 'question::with::separators',
+    const user = parseUserId('guest');
+    if (!user.ok) throw new Error('invalid fixture user');
+    return initialSchedule({ userId: user.value, packageId: 'package', questionId: 'question::with::separators',
         patternId: 'pattern::with::separators', conceptId: 'concept' }, 1000);
 }
 

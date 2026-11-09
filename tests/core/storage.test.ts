@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
-import { conceptId, packageIdentity, parsePackageId, patternId, questionId } from '../../src/core/identity.ts';
+import { conceptId, packageIdentity, parsePackageId, patternId, questionId, parseUserId, parseSessionId } from '../../src/core/identity.ts';
 import { none } from '../../src/core/result.ts';
 import type { Result } from '../../src/core/result.ts';
 import type { CommitAnswer, PackageRecord, SessionRecord } from '../../src/core/records.ts';
 import { openQuizStorage } from '../../src/web/storage/database.ts';
 import { STORE_NAMES, storageKey } from '../../src/web/storage/types.ts';
-import { parseQuizJson } from '../../src/core/schema.ts';
+import { parseQuizJson, serializeQuiz } from '../../src/core/schema.ts';
 import { prepareQuiz } from '../../src/core/quiz-engine.ts';
 import { answerSession, confirmAnswer, createSession, nextQuestion } from '../../src/core/session.ts';
+
+function userIdentity(value: string) { return valueOf(parseUserId(value)); }
+function sessionIdentity(value: string) { return valueOf(parseSessionId(value)); }
 
 function valueOf<T, E>(result: Result<T, E>): T {
     if (!result.ok) assert.fail(JSON.stringify(result.error));
@@ -28,11 +31,11 @@ async function fixture() {
     const factory = new IDBFactory();
     const storage = valueOf(await openQuizStorage('storage-test', factory));
     const id = valueOf(packageIdentity({ kind: 'draft', id: 'math' }));
-    const packageRecord: PackageRecord = { id, source: 'math', json: quizJson(), revision: 'initial', updatedAt: 0 };
-    valueOf(await storage.createUser({ id: 'user', name: '利用者', createdAt: 0 }));
+    const packageRecord: PackageRecord = { id, source: 'math', json: quizJson(), revision: serializeQuiz(valueOf(parseQuizJson(quizJson()))), updatedAt: 0 };
+    valueOf(await storage.createUser({ id: userIdentity('user'), name: '利用者', createdAt: 0 }));
     const savedPackage = valueOf(await storage.replacePackage(packageRecord, none));
     const session: SessionRecord = {
-        id: 'session', userId: 'user', packageIds: [id], mode: 'study', startedAt: 0, endedAt: none, summary: none,
+        id: sessionIdentity('session'), userId: userIdentity('user'), packageIds: [id], mode: 'study', startedAt: 0, endedAt: none, summary: none,
         replay: { version: 1, seed: 'storage-test', completion: { kind: 'questions', count: 10 },
             allowedPatternIds: [patternId(id, 'p')], questionIds: [questionId(id, 'p', 'a'), questionId(id, 'p', 'b')],
             packages: [{ id, revision: savedPackage.revision }], schedules: [], confusions: [], conceptStats: [] }
@@ -42,14 +45,14 @@ async function fixture() {
     const question = questionId(id, 'p', 'a');
     const command: CommitAnswer = {
         attempt: {
-            id: 'answer', sessionId: 'session', userId: 'user', packageId: id,
+            id: 'answer', sessionId: sessionIdentity('session'), userId: userIdentity('user'), packageId: id,
             questionId: question, patternId: patternId(id, 'p'), conceptId: concept,
             chosenConceptId: { kind: 'some', value: concept }, result: 'strong', answerMs: 10, answeredAt: 10
         },
         schedule: { kind: 'some', value: {
             expectedVersion: 0,
             next: {
-                id: storageKey('user', question), userId: 'user', packageId: id, questionId: question,
+                id: storageKey('user', question), userId: userIdentity('user'), packageId: id, questionId: question,
                 patternId: patternId(id, 'p'), conceptId: concept, state: 'LEARNING', dueAt: 30_010,
                 intervalSec: 30, ease: 2.5, stepIndex: 0, streak: 1, lapses: 0, version: 1,
                 lastAnsweredAt: { kind: 'some', value: 10 }
@@ -130,9 +133,9 @@ await test('回答・調度・統計は一度だけ同時に保存され、同�
 await test('同じ題庫内でもsession候補範囲外の回答は保存しない', async (context) => {
     const { storage, session, command } = await fixture();
     context.after(() => storage.close());
-    valueOf(await storage.startSession({ ...session, id: 'subset', replay: { ...session.replay, questionIds: [questionId(valueOf(parsePackageId(command.attempt.packageId)), 'p', 'b')] } }));
+    valueOf(await storage.startSession({ ...session, id: sessionIdentity('subset'), replay: { ...session.replay, questionIds: [questionId(valueOf(parsePackageId(command.attempt.packageId)), 'p', 'b')] } }));
     const before = valueOf(await storage.exportBackup());
-    const rejected = await storage.commitAnswer({ ...command, attempt: { ...command.attempt, sessionId: 'subset' } });
+    const rejected = await storage.commitAnswer({ ...command, attempt: { ...command.attempt, sessionId: sessionIdentity('subset') } });
     assert.equal(rejected.ok, false);
     assert.deepEqual(valueOf(await storage.exportBackup()), before);
 });
@@ -179,8 +182,8 @@ await test('session終了は保存済みの回答と整合し、終了後の新�
 await test('テストmodeの回答は学習調度や統計を変更できない', async (context) => {
     const { storage, command, session } = await fixture();
     context.after(() => storage.close());
-    valueOf(await storage.startSession({ ...session, id: 'test', mode: 'test' }));
-    const testCommand = { ...command, attempt: { ...command.attempt, sessionId: 'test' } };
+    valueOf(await storage.startSession({ ...session, id: sessionIdentity('test'), mode: 'test' }));
+    const testCommand = { ...command, attempt: { ...command.attempt, sessionId: sessionIdentity('test') } };
     assert.equal((await storage.commitAnswer(testCommand)).ok, false);
     valueOf(await storage.commitAnswer({ ...testCommand, schedule: none, confusion: [], conceptStats: none }));
     assert.deepEqual(valueOf(await storage.listSchedule()), []);
@@ -208,7 +211,7 @@ await test('ユーザー削除は紐付く記録を同時削除し、同IDの再
     context.after(() => storage.close());
     valueOf(await storage.commitAnswer(command));
     valueOf(await storage.deleteUser('user'));
-    valueOf(await storage.createUser({ id: 'user', name: '新規利用者', createdAt: 100 }));
+    valueOf(await storage.createUser({ id: userIdentity('user'), name: '新規利用者', createdAt: 100 }));
     assert.deepEqual(valueOf(await storage.listAttempts()), []);
     assert.deepEqual(valueOf(await storage.listSessions()), []);
     assert.deepEqual(valueOf(await storage.listSchedule()), []);
@@ -307,7 +310,7 @@ await test('sessionの初期入力を保存し、題庫更新とbackup復元後�
     if (command.schedule.kind !== 'some') assert.fail('fixture requires a schedule');
     const initialSchedule = { ...command.schedule.value.next, state: 'REVIEW', dueAt: 0, lastAnsweredAt: none } as const;
     const replayRecord: SessionRecord = {
-        ...session, id: 'replay-session', replay: {
+        ...session, id: sessionIdentity('replay-session'), replay: {
             ...session.replay, schedules: [initialSchedule],
             confusions: command.confusion.map((entry) => ({ conceptId: entry.conceptId, wrongConceptId: entry.wrongConceptId, score: 0.8 })),
             conceptStats: [{ id: storageKey(session.userId, packageRecord.id, command.attempt.conceptId), userId: session.userId,
