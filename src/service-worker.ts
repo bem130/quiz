@@ -11,6 +11,10 @@ const dataName = `${prefix}data:v1`;
 const indexUrl = new URL('index.html', scope).href;
 const versionUrl = new URL('app-version.json', scope).href;
 const knownAssets = new Set(__PRECACHE__.map(asset => new URL(asset.url, scope).href));
+const knownHtml = new Set([...knownAssets].filter(asset => {
+    const url = new URL(asset);
+    return url.origin === scope.origin && url.pathname.startsWith(scope.pathname) && url.pathname.endsWith('.html');
+}));
 const MAX_DATA_ENTRIES = 32;
 const MAX_DATA_BYTES = 4 * 1024 * 1024;
 
@@ -113,8 +117,17 @@ async function networkFirst(request: Request): Promise<Response> {
 async function route(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.origin === scope.origin && url.pathname === new URL(versionUrl).pathname) return fetch(request, { cache: 'no-store' });
-    if (request.mode === 'navigate') return await (await caches.open(shellName)).match(indexUrl) ?? fetch(request);
     const documentData = /\.(?:json|svg)$/iu.test(url.pathname);
+    if (request.mode === 'navigate' && url.origin === scope.origin && url.pathname.startsWith(scope.pathname)) {
+        const canonical = new URL(url);
+        canonical.search = ''; canonical.hash = '';
+        if (knownHtml.has(canonical.href)) {
+            // 同梱HTML固有のhead/OGPを保持する。queryの正規化はこの分岐だけに限定する。
+            return await (await caches.open(shellName)).match(canonical.href, { ignoreVary: true }) ?? fetch(request);
+        }
+        // JSON/SVGや既知の非HTML資産は、queryを保持した通常の取得経路へ進める。
+        if (!documentData && !knownAssets.has(canonical.href)) return await (await caches.open(shellName)).match(indexUrl, { ignoreVary: true }) ?? fetch(request);
+    }
     if (!documentData) {
         const retained = await findStatic(request);
         if (retained) return retained;
