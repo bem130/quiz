@@ -1,237 +1,157 @@
 <?php
-// ogp-card.php
 declare(strict_types=1);
 
-mb_internal_encoding('UTF-8');
+const OGP_DEFAULT_TITLE = '4-choice Quiz';
+const OGP_DEFAULT_DESCRIPTION = 'Multiple-choice quiz app.';
 
-/**
- * 指定したフォントを優先順に探し、最初に見つかったパスを返す。
- */
-function resolveFontPath(array $candidates): ?string
+/** HTTP入力は文字列だけ受理し、描画前にUTF-8と上限を確認する。 */
+function ogpText(mixed $value, string $fallback, int $limit): string
 {
-    foreach ($candidates as $path) {
-        if (is_readable($path)) {
-            return $path;
-        }
+    if (!is_string($value) || !mb_check_encoding($value, 'UTF-8')) {
+        throw new InvalidArgumentException('Expected UTF-8 string.');
     }
-
-    return null;
+    if (mb_strlen($value, 'UTF-8') > $limit || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', $value)) {
+        throw new InvalidArgumentException('Text exceeds the limit or contains control characters.');
+    }
+    $text = preg_replace('/\A[\s\p{Z}\x{FEFF}]+|[\s\p{Z}\x{FEFF}]+\z/u', '', str_replace(["\r\n", "\r", "\t"], ["\n", "\n", ' '], $value));
+    if ($text === null) throw new RuntimeException('Text normalization failed.');
+    return $text === '' ? $fallback : $text;
 }
 
-/**
- * テキストを行ごとに分割し、各行が指定した幅を超えないように改行する。
- * 最大行数を超える場合は末尾に三点リーダーを付与する。
- */
-function wrapText(string $text, string $font, int $fontSize, int $maxWidth, ?int $maxLines = null): array
+/** quizは固定ローカル索引のキーであり、URLやファイルパスとして扱わない。 */
+function ogpInput(array $query, array $metadata): array
 {
-    $normalized = str_replace(["\r\n", "\r"], "\n", trim($text));
-    $characters = preg_split('//u', $normalized, -1, PREG_SPLIT_NO_EMPTY);
+    $title = ogpText($query['title'] ?? OGP_DEFAULT_TITLE, OGP_DEFAULT_TITLE, 240);
+    $description = ogpText($query['description'] ?? OGP_DEFAULT_DESCRIPTION, OGP_DEFAULT_DESCRIPTION, 1200);
+    $quiz = ogpText($query['quiz'] ?? '', '', 80);
+    if ($quiz !== '') {
+        if (!preg_match('/\A[A-Za-z0-9_-]{1,80}\z/D', $quiz)) {
+            throw new InvalidArgumentException('Invalid quiz identifier.');
+        }
+        if (!array_key_exists($quiz, $metadata)) throw new OutOfBoundsException('Unknown quiz.');
+        $entry = $metadata[$quiz];
+        if (!is_array($entry) || !array_key_exists('title', $entry) || !array_key_exists('description', $entry)) {
+            throw new RuntimeException('Invalid local metadata.');
+        }
+        try {
+            $title = ogpText($entry['title'], OGP_DEFAULT_TITLE, 240);
+            $description = ogpText($entry['description'], OGP_DEFAULT_DESCRIPTION, 1200);
+        } catch (InvalidArgumentException $error) {
+            throw new RuntimeException('Invalid local metadata.', 0, $error);
+        }
+    }
+    return ['title' => $title, 'description' => $description];
+}
+
+function ogpBounds(string $text, string $font, int $size): array
+{
+    $box = imagettfbbox($size, 0, $font, $text);
+    if ($box === false) throw new RuntimeException('Font measurement failed.');
+    return [min($box[0], $box[2], $box[4], $box[6]), min($box[1], $box[3], $box[5], $box[7]),
+        max($box[0], $box[2], $box[4], $box[6]), max($box[1], $box[3], $box[5], $box[7])];
+}
+
+function ogpWidth(string $text, string $font, int $size): int
+{
+    $box = ogpBounds($text, $font, $size);
+    return $box[2] - $box[0];
+}
+
+/** 実際に省略した場合だけ末尾に…を付ける。空行も行数に含める。 */
+function ogpWrap(string $text, string $font, int $size, int $width, int $limit): array
+{
+    $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+    if ($characters === false) throw new RuntimeException('Invalid UTF-8.');
     $lines = [];
-    $current = '';
-    $lineLimit = $maxLines ?? PHP_INT_MAX;
-
-    foreach ($characters as $char) {
-        if ($char === "\n") {
-            if ($current !== '') {
-                $lines[] = $current;
-                $current = '';
-            }
-            if (count($lines) >= $lineLimit) {
-                break;
-            }
-            continue;
-        }
-
-        $candidate = $current . $char;
-        $box = imagettfbbox($fontSize, 0, $font, $candidate);
-        $width = $box[2] - $box[0];
-
-        if ($width > $maxWidth && $current !== '') {
-            $lines[] = $current;
-            if (count($lines) >= $lineLimit) {
-                $current = '';
-                break;
-            }
-            $current = $char;
-            continue;
-        }
-
-        $current = $candidate;
+    $line = '';
+    foreach ($characters as $character) {
+        if ($character === "\n") {
+            $lines[] = $line;
+            $line = '';
+        } elseif ($line !== '' && ogpWidth($line . $character, $font, $size) > $width) {
+            $lines[] = $line;
+            $line = $character;
+        } else $line .= $character;
     }
-
-    if ($current !== '' && count($lines) < $lineLimit) {
-        $lines[] = $current;
+    $lines[] = $line;
+    if (count($lines) <= $limit) return $lines;
+    $lines = array_slice($lines, 0, $limit);
+    $last = $lines[$limit - 1];
+    while ($last !== '' && ogpWidth($last . '…', $font, $size) > $width) {
+        $last = mb_substr($last, 0, mb_strlen($last, 'UTF-8') - 1, 'UTF-8');
     }
-
-    if (count($lines) > $lineLimit) {
-        $lines = array_slice($lines, 0, $lineLimit);
-    }
-
-    if ($maxLines !== null && count($lines) === $lineLimit) {
-        $lastIndex = $lineLimit - 1;
-        $lines[$lastIndex] = trimToWidth($lines[$lastIndex], $font, $fontSize, $maxWidth, true);
-    }
-
+    $lines[$limit - 1] = $last . '…';
     return $lines;
 }
 
-/**
- * 指定した幅に収まるように文字列を切り詰める。必要に応じて三点リーダーを付加する。
- */
-function trimToWidth(string $text, string $font, int $fontSize, int $maxWidth, bool $ellipsis): string
+function ogpDrawLines(GdImage $image, array $lines, int $top, int $step, string $font, int $size, int $color): void
 {
-    $suffix = $ellipsis ? '…' : '';
-    $result = '';
-    $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
-
-    foreach ($characters as $char) {
-        $candidate = $result . $char . $suffix;
-        $box = imagettfbbox($fontSize, 0, $font, $candidate);
-        $width = $box[2] - $box[0];
-
-        if ($width > $maxWidth) {
-            break;
+    foreach ($lines as $index => $line) {
+        if ($line === '') continue;
+        $box = ogpBounds($line, $font, $size);
+        if (imagettftext($image, $size, 0, 110 - $box[0], $top + $index * $step - $box[1], $color, $font, $line) === false) {
+            throw new RuntimeException('Text rendering failed.');
         }
-        $result .= $char;
-    }
-
-    return $result . $suffix;
-}
-
-/**
- * 複数行のテキストを描画する。
- */
-function drawLines($image, array $lines, int $x, int $y, string $font, int $fontSize, int $lineHeight, int $color): void
-{
-    $offsetY = 0;
-    foreach ($lines as $line) {
-        imagettftext($image, $fontSize, 0, $x, $y + $offsetY, $color, $font, $line);
-        $offsetY += $lineHeight;
     }
 }
 
-/**
- * SVG を指定サイズにラスタライズして GD イメージとして返す。Imagick が利用できない場合は null を返す。
- */
-function rasterizeSvg(string $path, int $size): ?GdImage
+function ogpRender(array $input, string $font): string
 {
-    if (!class_exists('Imagick') || !class_exists('ImagickPixel')) {
-        return null;
-    }
-
-    if (!is_readable($path)) {
-        return null;
-    }
-
+    if (!is_readable($font)) throw new RuntimeException('Bundled font is missing.');
+    $image = imagecreatetruecolor(1280, 720);
+    if ($image === false) throw new RuntimeException('Image allocation failed.');
     try {
-        $imagick = new Imagick();
-        $imagick->setBackgroundColor(new ImagickPixel('transparent'));
-        $imagick->readImage($path);
-        $imagick->setImageFormat('png32');
-        $imagick->resizeImage($size, $size, Imagick::FILTER_LANCZOS, 1, true);
-        $blob = $imagick->getImagesBlob();
-        $imagick->clear();
-        $imagick->destroy();
-    } catch (Throwable $exception) {
-        return null;
-    }
-
-    $image = imagecreatefromstring($blob);
-    if ($image === false) {
-        return null;
-    }
-
-    return $image;
+        $background = imagecolorallocate($image, 6, 10, 26);
+        $accent = imagecolorallocate($image, 16, 185, 129);
+        $foreground = imagecolorallocate($image, 236, 242, 255);
+        $secondary = imagecolorallocate($image, 180, 192, 216);
+        imagefilledrectangle($image, 0, 0, 1279, 719, $background);
+        imagefilledrectangle($image, 60, 60, 1219, 659, $accent);
+        imagefilledrectangle($image, 70, 70, 1209, 649, $background);
+        $title = ogpWrap($input['title'], $font, 52, 1060, 3);
+        $description = ogpWrap($input['description'], $font, 28, 1060, 4);
+        ogpDrawLines($image, $title, 120, 80, $font, 52, $foreground);
+        ogpDrawLines($image, $description, 120 + count($title) * 80 + 25, 48, $font, 28, $secondary);
+        ob_start();
+        try {
+            if (!imagepng($image)) throw new RuntimeException('PNG encoding failed.');
+            $png = ob_get_contents();
+            if ($png === false) throw new RuntimeException('PNG output failed.');
+            return $png;
+        } finally { ob_end_clean(); }
+    } finally { unset($image); }
 }
 
-$defaultTitle = '4-choice Quiz';
-$defaultDescription = 'Multiple-choice quiz app.';
-
-$title = isset($_GET['title']) ? trim((string) $_GET['title']) : $defaultTitle;
-$description = isset($_GET['description']) ? trim((string) $_GET['description']) : $defaultDescription;
-$quizId = isset($_GET['quiz']) ? trim((string) $_GET['quiz']) : null;
-
-$fontPath = resolveFontPath([
-    __DIR__ . '/fonts/noto/NotoSansJP-Regular.otf',
-    __DIR__ . '/fonts/noto/NotoSansJP-Light.ttf',
-    __DIR__ . '/fonts/noto/NotoSerifJP-Light.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-]);
-
-if ($fontPath === null) {
-    http_response_code(500);
-    header('Content-Type: text/plain; charset=utf-8');
-    echo 'Font not found.';
-    exit;
-}
-
-if ($quizId !== null && $quizId !== '') {
-    $quizPath = __DIR__ . '/data/quizzes/' . basename($quizId) . '.json';
-    if (is_file($quizPath)) {
-        $raw = @file_get_contents($quizPath);
-        $decoded = json_decode((string) $raw, true);
-        if (is_array($decoded)) {
-            $title = isset($decoded['title']) && is_string($decoded['title'])
-                ? trim($decoded['title'])
-                : $title;
-            $description = isset($decoded['description']) && is_string($decoded['description'])
-                ? trim($decoded['description'])
-                : $description;
+function ogpRespond(): void
+{
+    // PHPの警告やファイルパスをPNG応答へ混入させない。
+    ini_set('display_errors', '0');
+    set_error_handler(static function (int $severity, string $message): never { throw new ErrorException($message, 0, $severity); });
+    try {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'HEAD') {
+            header('Allow: GET, HEAD');
+            http_response_code(405);
+            throw new InvalidArgumentException('Use GET or HEAD.');
         }
-    }
+        if (!extension_loaded('gd') || !extension_loaded('mbstring') || !function_exists('imagettfbbox')) throw new RuntimeException('GD/FreeType and mbstring are required.');
+        $raw = file_get_contents(__DIR__ . '/metadata.json', false, null, 0, 1_000_001);
+        if ($raw === false || strlen($raw) > 1_000_000) throw new RuntimeException('Local metadata is unavailable.');
+        $metadata = json_decode($raw, true, 32, JSON_THROW_ON_ERROR);
+        if (!is_array($metadata)) throw new RuntimeException('Invalid local metadata.');
+        $input = ogpInput($_GET, $metadata);
+        $png = ogpRender($input, __DIR__ . '/fonts/NotoSansJP-Regular.otf');
+        header('Content-Type: image/png');
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: public, max-age=86400');
+        header('Content-Length: ' . strlen($png));
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'HEAD') echo $png;
+    } catch (Throwable $error) {
+        if (http_response_code() !== 405) http_response_code($error instanceof InvalidArgumentException ? 400 : ($error instanceof OutOfBoundsException ? 404 : 500));
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Cache-Control: no-store');
+        header('X-Content-Type-Options: nosniff');
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'HEAD') echo http_response_code() === 500 ? 'OGP service unavailable.' : $error->getMessage();
+    } finally { restore_error_handler(); }
 }
 
-$width = 1280;
-$height = 720;
-$image = imagecreatetruecolor($width, $height);
-imagealphablending($image, false);
-imagesavealpha($image, true);
-
-$backgroundColor = imagecolorallocate($image, 6, 10, 26);
-$titleColor = imagecolorallocate($image, 236, 242, 255);
-$descriptionColor = imagecolorallocate($image, 180, 192, 216);
-$accentColor = imagecolorallocatealpha($image, 16, 185, 129, 40);
-
-imagefilledrectangle($image, 0, 0, $width, $height, $backgroundColor);
-imagefilledrectangle($image, 60, 60, $width - 60, $height - 60, $accentColor);
-imagefilledrectangle($image, 70, 70, $width - 70, $height - 70, $backgroundColor);
-
-$padding = 110;
-$textAreaWidth = $width - ($padding * 2);
-$titleFontSize = 60;
-$descriptionFontSize = 34;
-
-$titleBox = imagettfbbox($titleFontSize, 0, $fontPath, 'Ay');
-$descBox = imagettfbbox($descriptionFontSize, 0, $fontPath, 'Ay');
-$titleLineHeight = (int) abs($titleBox[5] - $titleBox[1]);
-$descriptionLineHeight = (int) abs($descBox[5] - $descBox[1]);
-
-$titleLines = wrapText($title, $fontPath, $titleFontSize, $textAreaWidth, 3);
-$descriptionLines = wrapText($description, $fontPath, $descriptionFontSize, $textAreaWidth, 5);
-
-$baseX = $padding;
-$baseY = $padding + $titleLineHeight;
-
-drawLines($image, $titleLines, $baseX, $baseY, $fontPath, $titleFontSize, $titleLineHeight + 8, $titleColor);
-
-$descriptionY = $baseY + (count($titleLines) * ($titleLineHeight + 8)) + 20;
-drawLines($image, $descriptionLines, $baseX, $descriptionY, $fontPath, $descriptionFontSize, $descriptionLineHeight + 6, $descriptionColor);
-
-$iconPath = __DIR__ . '/icons/icon-192.svg';
-if (is_file($iconPath)) {
-    $icon = rasterizeSvg($iconPath, 180);
-    if ($icon !== null) {
-        $iconSize = imagesx($icon);
-
-        $dstX = $width - $iconSize - 70;
-        $dstY = $height - $iconSize - 70;
-        imagecopy($image, $icon, $dstX, $dstY, 0, 0, $iconSize, $iconSize);
-
-        imagedestroy($icon);
-    }
-}
-
-header('Content-Type: image/png');
-header('Cache-Control: public, max-age=86400');
-imagepng($image);
-imagedestroy($image);
+if (!defined('QUIZ_OGP_LIBRARY')) ogpRespond();

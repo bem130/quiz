@@ -38,3 +38,27 @@ jobs:
         run: npm run test:e2e
       - name: Production PWA regression tests
         run: npm run test:pwa
+  ogp:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.14.1'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Install PHP and Japanese image rendering dependencies
+        run: sudo apt-get update && sudo apt-get install -y php8.3-cli php8.3-gd php8.3-mbstring
+      - name: Prepare separate PHP bundle with pinned font and license
+        run: npm run prepare:ogp
+      - name: PHP and GD regression tests
+        run: npm run test:ogp
+        env:
+          PHP_BIN: /usr/bin/php8.3
+          OGP_BUNDLE: tmp/ogp-dist
