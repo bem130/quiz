@@ -11,11 +11,12 @@
                     "preview":  "vite preview --host 127.0.0.1",
                     "typecheck":  "tsc --project tsconfig.json \u0026\u0026 tsc --project tsconfig.core.json \u0026\u0026 tsc --project tsconfig.worker.json",
                     "lint":  "eslint \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.ts\" vite.config.ts playwright.config.ts playwright.pwa.config.ts --max-warnings 0",
-                    "test":  "node --test tests/*.mjs tests/core/*.test.ts scripts/check-types.test.mjs",
-                    "check":  "npm run typecheck \u0026\u0026 npm run lint \u0026\u0026 npm test \u0026\u0026 npm run build",
+                    "test":  "node --test tests/core/*.test.ts scripts/check-types.test.mjs",
+                    "check":  "npm run check:sources \u0026\u0026 npm run typecheck \u0026\u0026 npm run lint \u0026\u0026 npm test \u0026\u0026 npm run build",
                     "test:e2e":  "playwright test",
                     "test:pwa":  "playwright test --config playwright.pwa.config.ts",
-                    "cli":  "node scripts/cli.ts"
+                    "cli":  "node scripts/cli.ts",
+                    "check:sources":  "node scripts/check-sources.ts"
                 },
     "overrides":  {
                       "monaco-editor":  {
