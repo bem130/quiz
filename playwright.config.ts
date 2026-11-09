@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
     testDir: './tests/e2e',
-    testIgnore: '**/pwa.spec.ts',
+    testIgnore: ['**/pwa.spec.ts', '**/published-sharing.spec.ts'],
     timeout: 60_000,
     fullyParallel: false,
     workers: 1,

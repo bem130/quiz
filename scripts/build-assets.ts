@@ -8,6 +8,7 @@ import type { Plugin, ResolvedConfig } from 'vite';
 import { parseEntryJson, parseQuizJson } from '../src/core/schema.ts';
 import { getRowValue } from '../src/core/model.ts';
 import type { Row, RowValue, Token } from '../src/core/model.ts';
+import { emitStaticSharePages } from './static-share-pages.ts';
 
 export type PrecacheAsset = Readonly<{ url: string; sha256: string; size: number }>;
 const ROOT = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -26,7 +27,7 @@ export function applicationVersion(root = ROOT): string {
     const directories = ['src', 'public', 'data', 'icons'];
     const files = [
         ...directories.flatMap(directory => sourceFiles(path.join(root, directory))),
-        ...['index.html', 'package.json', 'package-lock.json', 'vite.config.ts', 'scripts/build-assets.ts'].map(file => path.join(root, file)).filter(existsSync)
+        ...['index.html', 'package.json', 'package-lock.json', 'vite.config.ts', 'scripts/build-assets.ts', 'scripts/static-share-pages.ts'].map(file => path.join(root, file)).filter(existsSync)
     ].sort((left, right) => {
         const a = path.relative(root, left).replaceAll(path.sep, '/');
         const b = path.relative(root, right).replaceAll(path.sep, '/');
@@ -95,7 +96,7 @@ function svgReferences(tokens: readonly Token[], row: Row, depth = 0): readonly 
         }
     });
 }
-export async function emitStaticData(root: string, output: string): Promise<void> {
+export async function emitStaticData(root: string, output: string): Promise<readonly string[]> {
     const entry = parseEntryJson(await readFile(path.join(root, 'public/entry.json'), 'utf8'));
     if (!entry.ok) throw new Error(`Invalid static entry: ${JSON.stringify(entry.error)}`);
     const copied = new Set<string>();
@@ -118,6 +119,7 @@ export async function emitStaticData(root: string, output: string): Promise<void
         }
     }
     for (const icon of ['icon-192.svg', 'icon-512.svg']) await copyPublicFile(root, output, `icons/${icon}`);
+    return [...copied];
 }
 export async function outputFiles(directory: string, prefix = ''): Promise<readonly string[]> {
     const entries = await readdir(path.join(directory, prefix), { withFileTypes: true });
@@ -137,11 +139,13 @@ export async function inspectOutput(directory: string): Promise<readonly string[
         if (/\.(?:php|ts|tsx|mjs|py|map)$/iu.test(file) || /(?:^|\/)(?:src|js|tests|scripts|node_modules|\.git|doc)(?:\/|$)/u.test(file) || file.includes('ogp-card')) throw new Error(`Development/server file in public output: ${file}`);
     }
     if (!files.includes('index.html') || !files.includes('entry.json') || !files.includes('manifest.webmanifest')) throw new Error('Static shell is incomplete');
-    const html = await readFile(path.join(directory, 'index.html'), 'utf8');
-    if (/\b(?:src|href)\s*=\s*["'][^"']*\.php(?:[?#][^"']*)?["']/iu.test(html)) throw new Error('PHP runtime reference in static HTML');
-    for (const tag of html.match(/<(?:script|link)\b[^>]*>/giu) ?? []) {
-        if ((/^<script/iu.test(tag) || /\brel\s*=\s*["']stylesheet["']/iu.test(tag)) && /\b(?:src|href)\s*=\s*["']https?:\/\//iu.test(tag)) {
-            throw new Error('External runtime dependency in static HTML');
+    for (const htmlFile of files.filter(file => file.endsWith('.html'))) {
+        const html = await readFile(path.join(directory, htmlFile), 'utf8');
+        if (/\b(?:src|href)\s*=\s*["'][^"']*\.php(?:[?#][^"']*)?["']/iu.test(html)) throw new Error('PHP runtime reference in static HTML');
+        for (const tag of html.match(/<(?:script|link)\b[^>]*>/giu) ?? []) {
+            if ((/^<script/iu.test(tag) || /\brel\s*=\s*["']stylesheet["']/iu.test(tag)) && /\b(?:src|href)\s*=\s*["']https?:\/\//iu.test(tag)) {
+                throw new Error('External runtime dependency in static HTML');
+            }
         }
     }
     return files;
@@ -160,7 +164,8 @@ export function appAssetsPlugin(version: string): Plugin {
         configResolved(resolved) { config = resolved; },
         async closeBundle() {
             const output = path.resolve(config.root, config.build.outDir);
-            await emitStaticData(config.root, output);
+            const sources = await emitStaticData(config.root, output);
+            await emitStaticSharePages(output, config.base, sources);
             const assets = await precacheAssets(output, config.base);
             await writeFile(path.join(output, 'app-version.json'), `${JSON.stringify({ version })}\n`, 'utf8');
             await writeFile(path.join(output, 'precache-manifest.json'), `${JSON.stringify({ version, assets }, null, 2)}\n`, 'utf8');

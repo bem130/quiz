@@ -4,9 +4,23 @@ import type { Option, Result } from '../core/result.ts';
 import { isPatternId } from '../core/identity.ts';
 import type { PatternId } from '../core/identity.ts';
 import { resolveHttpUrl } from './network.ts';
+import { publishedShareTarget } from './published-sharing.ts';
+import type { PublishedPages, SharePackages } from './published-sharing.ts';
 
-export function shareUrl(base: string, selected: readonly string[], entries: readonly string[]): string {
+export function shareUrl(base: string, selected: readonly string[], entries: readonly string[], published?: Readonly<{ pages: PublishedPages; packages: SharePackages }>): string {
     const url = new URL(base);
+    if (published !== undefined) {
+        const target = publishedShareTarget(published.pages, selected, published.packages);
+        const destination = new URL(target.kind === 'some' ? target.value.url : published.pages.base);
+        url.pathname = destination.pathname;
+        url.searchParams.delete('entry');
+        if (target.kind === 'some') {
+            url.search = ''; url.hash = ''; url.searchParams.set('scope', JSON.stringify(selected));
+            // 旧workerが個別pathへbase無し旧indexを返しても、空DBから同梱題庫を取得できる。
+            url.searchParams.set('entries', JSON.stringify([new URL('entry.json', published.pages.base).href]));
+            return url.href;
+        }
+    }
     url.searchParams.set('scope', JSON.stringify(selected));
     const valid = [...new Set(entries.flatMap((entry) => { const value = resolveHttpUrl(entry, base); return value.ok ? [value.value] : []; }))];
     if (valid.length) url.searchParams.set('entries', JSON.stringify(valid));

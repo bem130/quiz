@@ -38,6 +38,8 @@ await test('公開入力の内容から決定的な版を作り、生成時刻�
         const second = applicationVersion(root);
         await file(root, 'src/core/quality-rules-test/negative.ts', 'temporary invalid code');
         assert.equal(second, applicationVersion(root));
+        await file(root, 'scripts/static-share-pages.ts', 'export const shareVersion=1;');
+        assert.notEqual(second, applicationVersion(root));
     });
 });
 
@@ -115,7 +117,7 @@ await test('静的題庫をstrict検証して必要なdataとiconsだけをcopy�
 
 await test('実際のVite buildが同一versionのpage・worker・更新metadataを生成する', async () => {
     await fixture(async root => {
-        await file(root, 'index.html', '<!doctype html><html><body><script type="module" src="/src/main.ts"></script></body></html>');
+        await file(root, 'index.html', '<!doctype html><html><head><title>Quiz</title></head><body><script type="module" src="/src/main.ts"></script></body></html>');
         await file(root, 'src/main.ts', 'document.body.dataset.version=__APP_VERSION__;');
         await file(root, 'src/service-worker.ts', await readFile(new URL('../../src/service-worker.ts', import.meta.url), 'utf8'));
         await file(root, 'public/entry.json', '{"version":3,"files":["./data/sample/math-v3.json"]}');
@@ -139,6 +141,11 @@ await test('実際のVite buildが同一versionのpage・worker・更新metadata
         assert.ok(main);
         assert.ok((await readFile(path.join(output, main), 'utf8')).includes(version));
         assert.ok(files.includes('data/sample/math-v3.json'));
+        assert.ok(files.includes('share/data/sample/math-v3.html'));
+        const page = await readFile(path.join(output, 'share/data/sample/math-v3.html'), 'utf8');
+        assert.ok(page.includes(`/quiz/${main}`));
+        assert.match(page, /<base href="\/quiz\/">/u);
+        assert.match(page, /name="quiz-share-pages"/u);
         assert.equal(files.some(name => name.endsWith('.php')), false);
         assert.equal(files.includes('.vite/manifest.json'), false);
         // 固定upload-pages-artifactの既定値と同じdot-path除外でも全配信物が残る。

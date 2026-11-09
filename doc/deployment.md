@@ -10,6 +10,8 @@ bem130.comの更新はユーザー主導で行う。開発側が用意するOGP�
 
 公開物は `dist` だけである。リポジトリ全体や作業ディレクトリを公開しない。公開用に `index.php`、`entry.php`、`manifest.php`、`sw.php` を実行するサーバーは不要である。
 
+2026-11-10（JST）の初回受け入れ済み版はSHA `54491c85ad0b14e0091053a3d2a6ef0c093b30b1`、version `source-3012db61c02e061112d3dbdb`、[Pages run42644286243](https://github.com/bem130/quiz/actions/runs/42644286243) である。公開後の3browser、82file、79precache、CORSの結果は [受け入れ記録](acceptance.md) に保持する。後続の公開状態は [#78](https://github.com/bem130/quiz/issues/78) を参照する。実機とbem130.comの配備確認は未完了である。
+
 ## 開発と検証
 
 Node.js の固定版と lockfile を用い、次を実行する。
@@ -35,6 +37,8 @@ npm run preview
 
 ビルド成果物にはアプリの JS/CSS、KaTeX のフォント、RDKit の WASM、Monaco の worker 等を含める。`scripts/build-assets.ts` は出力全体を走査し、各資産の URL、SHA-256、バイト数を `precache-manifest.json` へ記録する。一覧を人手で更新して import の追加を追いかけない。
 
+Viteのbackend連携用manifestはruntimeで参照しないため生成しない。固定版upload-pages-artifactの既定値は隠しファイル・ディレクトリを除外するので、出力のdot-pathをbuildで拒否する。受信artifact内の各ファイルが配信先と一致するだけでなく、precacheの全参照がartifactに存在しsize/hashも一致することを確認する。初回公開で欠落した `.vite/manifest.json` は [PR #84](https://github.com/bem130/quiz/pull/84) で修正した。
+
 PHP、TypeScript source、開発スクリプト、テスト、source map、`ogp-card.php` が成果物へ混入した場合は失敗させる。HTML に残る PHP 実行参照と外部 CDN の script／stylesheet 依存も拒否する。OGP の画像 URL や canonical のようなメタ情報は外部実行依存とは区別する。
 
 ## 版の契約
@@ -49,7 +53,7 @@ PHP、TypeScript source、開発スクリプト、テスト、source map、`ogp-
 
 登録先は `${import.meta.env.BASE_URL}sw.js` とする。manifest の start_url と scope は同じアプリの相対パスにする。Cache Storage の名前には登録 scope を含め、同一 origin にある別の Pages アプリのキャッシュを削除しない。
 
-install 時は全 precache 資産について HTTP 成功、バイト数、SHA-256 を検査する。存在しない JS の代わりに HTML が 200 で返った場合も拒否する。一件でも失敗したらその版の不完全な shell cache を破棄し、以前の版は保持する。
+install時は全precache資産についてHTTP成功、拡張子に対応するMIME、バイト数、SHA-256を検査する。存在しないJSの代わりのHTMLや、正しいJS本文をtext/htmlで返す配信も拒否する。一件でも失敗したらその版の不完全なshell cacheを破棄し、以前の版は保持する。
 
 新しい worker は install 後に勝手に `skipWaiting` しない。UI は利用者へ更新を知らせ、学習中・回答保存中・草稿の未保存変更がある間は適用を拒否する。適用可能な状態で利用者が選択した時だけ、待機 worker へ次の message を送る。
 
@@ -90,7 +94,7 @@ registration.waiting.postMessage({ type: 'SKIP_WAITING' });
 3. 任意外部entryの機能は、アプリpreviewとは**別のHTTPS origin**へ置いた非機密の実データで確認する。許可ありのentry→JSON→SVG、実HTTP 200だがCORS許可なしの読込拒否、redirect後の相対参照と題庫IDを含める。許可ありは本文を読んで実出題・図表示まで、拒否時は通信失敗表示と取得済み題庫・草稿の保持まで確認する。
 4. 結果へアプリSHA／version、preview URL、データ配信先、日時、browser、要求・最終URL、実GETのstatus／MIME／CORS設定、UI結果を記録する。ブラウザ側から読めない失敗応答はserver log／network記録と突き合わせる。`route.fulfill`／`route.abort`、curlだけの成功、HEAD、404のCORSヘッダーは、公開HTTPSの正常本文をブラウザで利用できた証拠にしない。
 
-Cloudflare Quick Tunnelを使う場合は、生成された一時URLとその有効期間を検証記録に残す。[公式資料](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/) が示す通りテスト・開発向けであり、恒久的な公開先やrollback先として使用しない。同一origin内のfixtureだけで外部CORSを確認したとは扱わない。
+初回の公開前確認で使ったCloudflare Quick Tunnelは停止済みである。一時URLを実機確認やrollback先へ再利用しない。実機は公開Pagesで確認する。公開後の外部CORS検証には既存公開GET endpointと公開SHAのraw GitHub資産を使い、新しいアプリ公開経路を作らなかった。同一origin内のfixtureだけで外部CORSを確認したとは扱わない。
 
 previewでの許可が本番originの許可を保証するわけではない。外部配信者のallowlistがpreview originだけを許可している場合、本番 `https://bem130.github.io` の確認は未実施である。この違いを残したまま、#72は上記事前確認の合格を評価する。#70の「公開前確認」と下記「本番後確認」を分け、#70全体のcloseをPages切替前に要求して実質循環を作らない。
 
@@ -115,7 +119,9 @@ previewでの許可が本番originの許可を保証するわけではない。�
 
 問題が発生した場合は、最後に受け入れを確認した SHA の静的成果物を再配信する。保存データは配信成果物とは分けて保持し、キャッシュ削除で IndexedDB を消さない。旧サイトの復旧や旧データ変換を rollback の前提にしない。
 
-rollback時は、まず直前の成功した「Publish Pages (manual)」runと公開SHAを #78 の記録から特定する。再実行可能な期間内であれば、`gh run rerun <成功runのID> --repo bem130/quiz` で同じSHA・refの検査と配信を再実行する。GitHubは再実行に元のSHA/refを使用し、再実行の期間制限があるため、実行前に [公式の再実行条件](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs) を確認する。期間外の場合は該当変更のrevertを新しいPRとして検査し、mainから手動配信する。
+rollback時は、実公開の受け入れに成功した「Publish Pages (manual)」runと公開SHAを #78 の記録から特定する。deploy jobの成功だけで選ばない。再実行可能な期間内であれば、`gh run rerun <受け入れ済みrunのID> --repo bem130/quiz` で同じSHA・refの検査と配信を再実行する。GitHubは再実行に元のSHA/refを使用し、再実行の期間制限があるため、実行前に [公式の再実行条件](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs) を確認する。期間外の場合は該当変更のrevertを新しいPRとして検査し、mainから手動配信する。
+
+現時点の最初の受け入れ済み版はSHA `54491c85`／run `42644286243` である。初回SHA `7cba49f`／run `42639746799` はdeploy成功後にPWA install不合格を確認したのでrollback候補にしない。本番rollbackそのものは未実施である。
 
 配信後は学習・編集の保存を済ませ、待機workerを明示適用して再読み込みし、`app-version.json` と公開資産・主要操作を確認する。初回公開で直前の新サイト版がない場合は、その事実を記録し、未検証の旧サイトへ戻さない。既定の保存領域は保持し、復旧のためにブラウザの「サイトデータをすべて削除」を無条件に案内しない。
 

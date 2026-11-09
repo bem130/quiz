@@ -29,6 +29,6 @@ npm run test:pwa
 - [草稿取込・Ruby Buffer・共有と出典](doc/web-tools.md)
 - [配信範囲・更新・公開手順](doc/deployment.md)
 - [OGP専用PHP配信と検証](doc/ogp.md)、[要件別の受け入れ状況](doc/acceptance.md)
-- [全体計画と公開前の残件](https://github.com/bem130/quiz/issues/38)
+- [全体計画と公開後の残件](https://github.com/bem130/quiz/issues/38)
 
 型検査・単体検証・build・Chromium/Firefox/WebKitの検証はそれぞれ独立して実行する。iOS SafariとAndroid Chromeの実機確認、読み上げ、OGPのPHP/GD実環境確認は自動テストとは別に記録する。Pagesはソフトウェア検証完了後に手動workflowで公開し、実機確認は公開されたPages URLで行う。実機用の別経路は設けない。

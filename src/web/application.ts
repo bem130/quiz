@@ -20,6 +20,8 @@ import { importDraft } from './draft-import.ts';
 import { addRubyItem, editorFilesFromEntry, editorFilesFromSetting, folderKeys, sourceControls } from './source-tools.ts';
 import type { EditorFile, RubyBufferItem, SourceInfo, SourceRegion } from './source-tools.ts';
 import { shareQr, shareUrl, sharedEntries, sharedScope } from './sharing.ts';
+import { currentPublishedPage, publishedPages } from './published-sharing.ts';
+import type { PublishedPages } from './published-sharing.ts';
 import { clearAppCache } from './cache-reset.ts';
 
 type LoadedPackage = Readonly<{ record: PackageRecord; quiz: QuizFile; prepared: PreparedQuiz }>;
@@ -81,6 +83,7 @@ export class QuizApplication {
     private draftImportText = '';
     private draftImportPath = `imports/quiz-${crypto.randomUUID()}.json`;
     private sharedInputError: Option<string> = none;
+    private published: Option<PublishedPages> = none;
 
     constructor(host: HTMLElement) {
         this.host = host;
@@ -118,6 +121,9 @@ export class QuizApplication {
         const incoming = new URL(location.href);
         const incomingScope = incoming.searchParams.get('scope');
         const incomingEntries = sharedEntries(incoming.searchParams, document.baseURI);
+        const registry = publishedPages(document.querySelector('meta[name="quiz-share-pages"]')?.getAttribute('content') ?? null, new URL(import.meta.env.BASE_URL, location.origin).href);
+        this.published = registry.ok ? registry.value : none;
+        const page = this.published.kind === 'some' ? currentPublishedPage(this.published.value, incoming.href) : none;
         this.sharedInputError = none;
         const generation = ++this.startGeneration;
         ++this.loadingGeneration;
@@ -162,16 +168,18 @@ export class QuizApplication {
             if (loadedEntry.kind === 'some') { receivedShared = true; received.push(...loadedEntry.value); }
         }
         if (this.state.kind === 'ready') {
-            const valid = new Set(this.state.data.packages.flatMap((item) => item.prepared.candidates.map((candidate) => candidate.patternId)));
+            const pagePatterns = page.kind === 'some' ? this.state.data.packages.filter(item => item.record.source === page.value.source).flatMap(item => item.prepared.candidates.map(candidate => candidate.patternId)) : [];
+            if (page.kind === 'some') this.state = { ...this.state, selected: [...new Set(pagePatterns)] };
+            const valid = new Set(page.kind === 'some' ? pagePatterns : this.state.data.packages.flatMap((item) => item.prepared.candidates.map((candidate) => candidate.patternId)));
             const scope = sharedScope(incomingScope, valid);
-            if (!incomingEntries.ok || !scope.ok) {
-                const message = [incomingEntries.ok ? '' : incomingEntries.error, scope.ok ? '' : scope.error].filter(Boolean).join('\n');
+            if (!registry.ok || !incomingEntries.ok || !scope.ok) {
+                const message = [registry.ok ? '' : registry.error, incomingEntries.ok ? '' : incomingEntries.error, scope.ok ? '' : scope.error].filter(Boolean).join('\n');
                 this.sharedInputError = some(message); this.inform(message);
             }
             else if (scope.value.kind === 'some') {
                 this.state = { ...this.state, selected: scope.value.value };
                 const url = new URL(location.href); url.searchParams.set('scope', JSON.stringify(scope.value.value)); history.replaceState(null, '', url);
-            } else if (receivedShared) this.state = { ...this.state, selected: [...new Set(received)] };
+            } else if (page.kind === 'none' && receivedShared) this.state = { ...this.state, selected: [...new Set(received)] };
             this.render();
         }
         await this.registerWorker();
@@ -306,7 +314,9 @@ export class QuizApplication {
             if (this.state.kind === 'ready' && (intent === 'manual' || (intent === 'refresh' && !this.state.selected.length)) && (selected.length > 0 || errors.length === 0)) this.state = { ...this.state, selected: [...new Set(selected)] };
             if (intent === 'manual' && (selected.length > 0 || errors.length === 0)) {
                 this.sharedInputError = none;
-                const shared = new URL(location.href); shared.searchParams.set('entry', url.value); shared.searchParams.delete('scope'); history.replaceState(null, '', shared);
+                const shared = new URL(location.href);
+                if (this.published.kind === 'some') shared.pathname = new URL(this.published.value.base).pathname;
+                shared.searchParams.set('entry', url.value); shared.searchParams.delete('entries'); shared.searchParams.delete('scope'); history.replaceState(null, '', shared);
             }
             this.inform(errors.length ? `${errors.length}ファイルを取得・検証できなかった。以前の有効版は保持している。` : `${entry.value.label} を読み込んだ。`);
             return selected.length > 0 || errors.length === 0 ? some([...new Set(selected)]) : none;
@@ -375,9 +385,18 @@ export class QuizApplication {
         }
     }
 
+    private selectionShareUrl(selected: readonly PatternId[]): string {
+        if (this.state.kind !== 'ready') return location.href;
+        const published = this.published.kind === 'some' ? {
+            pages: this.published.value,
+            packages: this.state.data.packages.map(item => ({ source: item.record.source, patternIds: item.prepared.candidates.map(candidate => candidate.patternId) }))
+        } : undefined;
+        return shareUrl(location.href, selected, this.state.data.entries, published);
+    }
+
     private async showShare(selected: readonly PatternId[]): Promise<void> {
         if (this.state.kind !== 'ready') return;
-        const text = shareUrl(location.href, selected, this.state.data.entries);
+        const text = this.selectionShareUrl(selected);
         const dialog = element('dialog'); dialog.setAttribute('aria-label', '出題範囲を共有');
         const url = element('textarea'); url.readOnly = true; url.value = text; url.setAttribute('aria-label', '共有URL');
         const image = element('img'); image.alt = '共有URLのQRコード'; image.style.maxWidth = '100%';
@@ -512,7 +531,7 @@ export class QuizApplication {
             await this.begin();
         }, this.busy || capacity === 0));
         controls.append(this.button('共有URLをコピー', async () => {
-            await navigator.clipboard.writeText(shareUrl(location.href, state.selected, state.data.entries)); this.inform('共有URLをコピーした。');
+            await navigator.clipboard.writeText(this.selectionShareUrl(state.selected)); this.inform('共有URLをコピーした。');
         }, capacity === 0));
         controls.append(this.button('共有URL・QRを表示', () => this.showShare(state.selected), capacity === 0));
         controls.append(this.button('草稿を編集', () => this.openEditor(), this.busy));
