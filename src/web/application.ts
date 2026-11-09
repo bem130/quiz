@@ -63,6 +63,7 @@ export class QuizApplication {
     private editor: Option<EditorController> = none;
     private renderGeneration = 0;
     private loadingGeneration = 0;
+    private startGeneration = 0;
     private notice = '';
     private busy = false;
     private refreshQueue: Promise<void> = Promise.resolve();
@@ -107,25 +108,48 @@ export class QuizApplication {
     private isSaving(): boolean { return this.state.kind === 'ready' && this.state.screen.kind === 'playing' && this.state.screen.session.phase.kind === 'saving'; }
 
     async start(): Promise<void> {
+        const generation = ++this.startGeneration;
+        ++this.loadingGeneration;
+        if (this.storage.kind === 'some') this.storage.value.close();
+        this.storage = none;
+        this.busy = false;
         this.state = { kind: 'loading' }; this.render();
+        let connection: Option<QuizStorage> = none;
+        const current = (): boolean => generation === this.startGeneration;
+        const superseded = (): boolean => {
+            if (current()) return false;
+            if (connection.kind === 'some') connection.value.close();
+            return true;
+        };
+        try {
         const opened = await openQuizStorage();
+        if (opened.ok) connection = some(opened.value);
+        if (superseded()) return;
         if (!opened.ok) { this.state = { kind: 'error', message: opened.error.message }; this.render(); return; }
         this.storage = some(opened.value);
         const settings = await opened.value.getSetting('preferences');
+        if (superseded()) return;
         if (!settings.ok) { this.state = { kind: 'error', message: settings.error.message }; this.render(); return; }
         const preferences = settings.value.kind === 'some' ? preferencesFrom(settings.value.value) : DEFAULTS;
         const loaded = await this.readData();
+        if (superseded()) return;
         if (!loaded.ok) { this.state = { kind: 'error', message: loaded.error }; this.render(); return; }
         this.state = { kind: 'ready', data: loaded.value, screen: { kind: 'menu' }, selected: [], preferences };
         this.render();
         await this.loadEntry(new URL('entry.json', document.baseURI).href, false);
+        if (superseded()) return;
         if (this.state.kind === 'ready') {
             const entries = this.state.data.entries;
-            for (const entry of entries) if (entry !== new URL('entry.json', document.baseURI).href) await this.loadEntry(entry, false);
+            for (const entry of entries) if (entry !== new URL('entry.json', document.baseURI).href) {
+                await this.loadEntry(entry, false); if (superseded()) return;
+            }
         }
         const requested = new URLSearchParams(location.search).get('entry');
         if (requested) await this.loadEntry(requested, true);
-        for (const entry of sharedEntries(new URLSearchParams(location.search), document.baseURI)) await this.loadEntry(entry, false);
+        if (superseded()) return;
+        for (const entry of sharedEntries(new URLSearchParams(location.search), document.baseURI)) {
+            await this.loadEntry(entry, false); if (superseded()) return;
+        }
         const selection = new URLSearchParams(location.search).get('scope');
         if (selection && this.state.kind === 'ready') {
             try {
@@ -139,6 +163,11 @@ export class QuizApplication {
             } catch { this.inform('共有URLの出題範囲を解釈できない。範囲を選び直せる。'); }
         }
         await this.registerWorker();
+        } catch (error) {
+            if (superseded()) return;
+            this.state = { kind: 'error', message: error instanceof Error ? error.message : '起動処理を完了できない。' };
+            this.render();
+        }
     }
 
     private async readData(): Promise<Result<Data, string>> {
@@ -192,7 +221,7 @@ export class QuizApplication {
                     const resolved = resolveHttpUrl(item, document.baseURI);
                     if (resolved.ok && !entries.includes(resolved.value)) entries.push(resolved.value);
                 }
-            } catch { this.inform('保存した問題一覧URLが不正なため、再追加が必要である。題庫は保持している。'); }
+            } catch { if (this.storage.kind === 'some' && this.storage.value === db.value) this.inform('保存した問題一覧URLが不正なため、再追加が必要である。題庫は保持している。'); }
         }
         const editorSetting = await db.value.getSetting('editorFiles'); if (!editorSetting.ok) return err(editorSetting.error.message);
         const editorFiles = editorSetting.value.kind === 'some' ? editorFilesFromSetting(editorSetting.value.value) : [];
@@ -224,9 +253,11 @@ export class QuizApplication {
         try {
         if (select && !this.state.data.entries.includes(url.value)) {
             const saved = await db.value.setSetting({ id: 'entrySources', value: JSON.stringify([...this.state.data.entries, url.value].slice(-50)) });
+            if (generation !== this.loadingGeneration) return;
             if (!saved.ok) { this.inform(saved.error.message); return; }
         }
             const fetched = await fetchText(url.value);
+            if (generation !== this.loadingGeneration) return;
             if (!fetched.ok) { this.inform('問題一覧を取得できない。保存済み題庫と草稿は引き続き利用できる。'); return; }
             const entry = parseEntryJson(fetched.value.text);
             if (!entry.ok) { this.inform(`entryの形式が不正: ${entry.error.path} ${entry.error.detail}`); return; }
@@ -275,9 +306,31 @@ export class QuizApplication {
 
     private render(): void {
         this.message.textContent = this.notice;
-        if (this.state.kind === 'loading') { this.view.replaceChildren(element('p', '保存領域を準備中…')); return; }
+        if (this.state.kind === 'loading') {
+            this.view.replaceChildren(element('p', '保存領域を準備中…'), this.button('起動をやり直す', () => this.start())); return;
+        }
         if (this.state.kind === 'error') {
-            this.view.replaceChildren(element('h1', '起動できない'), element('p', this.state.message), this.button('再試行', () => this.start())); return;
+            const recovery = element('section');
+            recovery.append(element('h1', '起動できない'), element('p', this.state.message), element('p', '保存データを削除せずに再試行できる。失敗が続く場合はページを再読み込みする。'), this.button('再試行', () => this.start()));
+            const db = this.storage;
+            if (db.kind === 'some') {
+                const generation = this.startGeneration;
+                const backup = this.button('保存済みデータをバックアップ', async () => {
+                    backup.disabled = true;
+                    try {
+                        const result = await db.value.exportBackup();
+                        if (generation !== this.startGeneration || this.state.kind !== 'error') return;
+                        if (!result.ok) { this.inform(`バックアップを作成できない: ${result.error.message} 保存データは削除していない。再試行または再読み込みできる。`); return; }
+                        const text = JSON.stringify(result.value, null, 2);
+                        if (new TextEncoder().encode(text).byteLength > BACKUP_MAX_BYTES) { this.inform('バックアップが50MBの上限を超えているため退避できない。保存データは削除していない。'); return; }
+                        this.download(text, 'quiz-recovery-backup.json'); this.inform('保存済みデータの退避用バックアップを作成した。');
+                    } catch (error) {
+                        if (generation === this.startGeneration && this.state.kind === 'error') this.inform(`バックアップを作成できない: ${error instanceof Error ? error.message : '予期しない保存エラー'} 保存データは削除していない。再試行または再読み込みできる。`);
+                    } finally { backup.disabled = false; }
+                });
+                recovery.append(backup);
+            } else recovery.append(element('p', '保存領域へ接続できないためバックアップを作成できない。保存データは削除していない。接続可能になってから再試行する。'));
+            this.view.replaceChildren(recovery); return;
         }
         const state = this.state;
         document.documentElement.dataset['theme'] = state.preferences.theme;
