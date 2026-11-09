@@ -94,12 +94,13 @@ function replayConfusion(value: unknown): value is ReplayDescriptor['confusions'
 }
 
 function replay(value: unknown, candidateCache: Map<string, ReadonlySet<string>>): value is ReplayDescriptor {
-    if (!objectValue(value) || value['version'] !== 1 || !text(value['seed']) || !strings(value['allowedPatternIds']) || !strings(value['questionIds']) ||
+    if (!objectValue(value) || value['version'] !== 1 || typeof value['retry'] !== 'boolean' || !text(value['seed']) || !strings(value['allowedPatternIds']) || !strings(value['questionIds']) ||
         !arrayOf(value['packages'], replayPackage) || !arrayOf(value['schedules'], schedule) ||
         !arrayOf(value['confusions'], replayConfusion) || !arrayOf(value['conceptStats'], conceptStats) || !objectValue(value['completion'])) return false;
     const completion = value['completion'];
     if (!(completion['kind'] === 'drain' || (completion['kind'] === 'questions' && count(completion['count']) && completion['count'] > 0) ||
         (completion['kind'] === 'time' && nonnegative(completion['durationMs']) && completion['durationMs'] > 0))) return false;
+    if (value['retry'] && (completion['kind'] !== 'questions' || completion['count'] !== value['questionIds'].length)) return false;
     const packageIds = new Set(value['packages'].map((entry) => entry.id));
     if (packageIds.size === 0 || packageIds.size !== value['packages'].length || new Set(value['allowedPatternIds']).size !== value['allowedPatternIds'].length) return false;
     const matchesScope = (key: string, kind: string, size: number): boolean => {

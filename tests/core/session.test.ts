@@ -274,12 +274,52 @@ await test('保存したreplay descriptorだけから候補subset・順序・選
     });
     const replayed = valueOf(createSession({ id: savedRecord.id, userId: savedRecord.userId,
         mode: savedRecord.mode, candidates: reconstructed, seed: savedRecord.replay.seed,
-        completion: savedRecord.replay.completion, allowedPatternIds: savedRecord.replay.allowedPatternIds,
+        completion: savedRecord.replay.completion, retry: savedRecord.replay.retry, allowedPatternIds: savedRecord.replay.allowedPatternIds,
         now: savedRecord.startedAt, schedules: savedRecord.replay.schedules,
         confusions: savedRecord.replay.confusions, conceptStats: savedRecord.replay.conceptStats }));
     assert.deepEqual(replayed.config.candidates.map((candidate) => candidate.id), original.config.candidates.map((candidate) => candidate.id));
     assert.deepEqual(question(valueOf(nextQuestion(replayed, 0))), question(valueOf(nextQuestion(original, 0))));
     assert.equal(replayed.config.candidates.length, 2);
+});
+
+await test('明示的な学習再挑戦は未来の調度を保持したまま候補を即時一巡し、replayから同じ順序を再現する', () => {
+    const candidates = prepared.candidates.filter(candidate => candidate.pattern.id === 'first');
+    const schedules = candidates.map(candidate => ({ ...initialSchedule({
+        userId: userIdentity('guest'), packageId: candidate.packageId, questionId: candidate.id,
+        patternId: candidate.patternId, conceptId: candidate.conceptId
+    }, 0), state: 'RELEARNING', version: 8, intervalSec: 120, dueAt: 120_000 } as const));
+    const original = session({ mode: 'study', retry: true, completion: { kind: 'questions', count: candidates.length }, candidates, schedules });
+    assert.equal(original.config.retry, true); assert.equal(original.record.replay.retry, true);
+    assert.deepEqual(original.schedules, schedules);
+    const replay = original.record.replay;
+    const restored = valueOf(createSession({ id: original.record.id, userId: original.record.userId,
+        mode: original.record.mode, retry: replay.retry, completion: replay.completion,
+        candidates, allowedPatternIds: replay.allowedPatternIds, seed: replay.seed, now: original.record.startedAt,
+        schedules: replay.schedules, confusions: replay.confusions, conceptStats: replay.conceptStats }));
+    const run = (start: SessionState): readonly string[] => {
+        let current = start;
+        const ids: string[] = [];
+        for (let index = 0; index < candidates.length; index += 1) {
+            // 一問目の更新後はdueを大幅に越えても、その候補を繰り返さない。
+            const now = index * 1_000_000;
+            current = valueOf(nextQuestion(current, now));
+            const selected = question(current); ids.push(selected.id);
+            assert.equal(current.phase.kind === 'question' ? current.phase.stage : '', 'retry');
+            const pending = valueOf(answerSession(current, { operationId: `retry-${index}`, selection: { kind: 'option', optionId: selected.correctOptionId }, now: now + 1 }));
+            if (pending.phase.kind !== 'saving' || pending.phase.commit.schedule.kind !== 'some') assert.fail('Schedule update missing');
+            assert.equal(pending.phase.commit.schedule.value.expectedVersion, 8);
+            assert.equal(pending.phase.commit.schedule.value.next.version, 9);
+            current = valueOf(confirmAnswer(pending, `retry-${index}`));
+        }
+        assert.equal(new Set(ids).size, candidates.length);
+        current = valueOf(nextQuestion(current, candidates.length * 1_000_000));
+        assert.equal(current.phase.kind === 'finished' ? current.phase.reason : '', 'target');
+        return ids;
+    };
+    assert.deepEqual(run(original), run(restored));
+    assert.equal(createSession({ ...original.config, completion: { kind: 'questions', count: 1 } }).ok, false);
+    assert.equal(createSession({ ...original.config, completion: { kind: 'time', durationMs: 60_000 } }).ok, false);
+    assert.equal(session().config.retry, false); assert.equal(session().record.replay.retry, false);
 });
 
 await test('候補数とschedule数が増えても開始と次問のschedule参照回数は線形である', () => {

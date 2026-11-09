@@ -27,7 +27,7 @@ function replayFixture(sameAnswers = false) {
     const revision = serializeQuiz(quiz);
     const session: SessionRecord = {
         id: sessionIdentity('session'), userId: userIdentity('user'), packageIds: [id], mode: 'test', startedAt: 0, endedAt: none, summary: none,
-        replay: { version: 1, seed: 'seed', completion: { kind: 'questions', count: 1 },
+        replay: { version: 1, seed: 'seed', retry: false, completion: { kind: 'questions', count: 1 },
             allowedPatternIds: [patternId(id, 'p')], questionIds: [questionId(id, 'p', 'a')],
             packages: [{ id, revision }], schedules: [], confusions: [], conceptStats: [] }
     };

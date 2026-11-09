@@ -559,7 +559,7 @@ export class QuizApplication {
         const preferences = state.preferences;
         const completion: Completion = override.kind === 'some' ? { kind: 'questions', count: candidates.length } : preferences.completion === 'questions' ? { kind: 'questions', count: preferences.count } : preferences.completion === 'time' ? { kind: 'time', durationMs: preferences.minutes * 60_000 } : { kind: 'drain' };
         const sessionId = parseSessionId(crypto.randomUUID()); if (!sessionId.ok) { this.inform('セッションIDを作成できない。'); return; }
-        const created = createSession({ id: sessionId.value, userId: state.data.userId, mode: preferences.mode,
+        const created = createSession({ id: sessionId.value, userId: state.data.userId, mode: preferences.mode, retry: override.kind === 'some',
             completion, candidates, allowedPatternIds: override.kind === 'some' ? [...new Set(candidates.map((candidate) => candidate.patternId))] : state.selected,
             seed: crypto.randomUUID(), now: Date.now(), schedules: schedules.value,
             confusions: confusion.value.filter((item) => item.userId === state.data.userId).map((item) => ({ conceptId: item.conceptId, wrongConceptId: item.wrongConceptId, score: (item.chosen + item.idkNear * 0.25 + 1) / (item.shown + 4) })), conceptStats: stats.value });

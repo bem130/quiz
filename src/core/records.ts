@@ -15,7 +15,7 @@ export type Completion =
     | Readonly<{ kind: 'drain' }>;
 /** 再生に必要な初期入力のsnapshot。revisionは題庫のcanonical v3 JSONで自己完結する。 */
 export type ReplayDescriptor = Readonly<{
-    version: 1; seed: string; completion: Completion;
+    version: 1; seed: string; completion: Completion; retry: boolean;
     allowedPatternIds: ReadonlyArray<string>; questionIds: ReadonlyArray<string>;
     packages: ReadonlyArray<Readonly<{ id: string; revision: Revision }>>;
     schedules: ReadonlyArray<ScheduleRecord>;

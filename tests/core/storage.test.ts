@@ -36,7 +36,7 @@ async function fixture() {
     const savedPackage = valueOf(await storage.replacePackage(packageRecord, none));
     const session: SessionRecord = {
         id: sessionIdentity('session'), userId: userIdentity('user'), packageIds: [id], mode: 'study', startedAt: 0, endedAt: none, summary: none,
-        replay: { version: 1, seed: 'storage-test', completion: { kind: 'questions', count: 10 },
+        replay: { version: 1, seed: 'storage-test', retry: false, completion: { kind: 'questions', count: 10 },
             allowedPatternIds: [patternId(id, 'p')], questionIds: [questionId(id, 'p', 'a'), questionId(id, 'p', 'b')],
             packages: [{ id, revision: savedPackage.revision }], schedules: [], confusions: [], conceptStats: [] }
     };
@@ -74,7 +74,7 @@ function replayQuestions(record: SessionRecord) {
         return candidate;
     });
     let state = valueOf(createSession({ id: record.id, userId: record.userId, mode: record.mode,
-        completion: replay.completion, candidates, allowedPatternIds: replay.allowedPatternIds,
+        completion: replay.completion, retry: replay.retry, candidates, allowedPatternIds: replay.allowedPatternIds,
         seed: replay.seed, now: record.startedAt, schedules: replay.schedules, confusions: replay.confusions, conceptStats: replay.conceptStats }));
     const questions = [];
     for (let index = 0; index < 2; index += 1) {
@@ -330,6 +330,29 @@ await test('sessionの初期入力を保存し、題庫更新とbackup復元後�
     const invalid = { ...backup, records: { ...backup.records, sessions: [{ ...restored, replay: { ...restored.replay, questionIds: ['missing'] } }] } };
     assert.equal((await fresh.restoreBackup(invalid)).ok, false);
     assert.deepEqual(valueOf(await fresh.exportBackup()), backup);
+});
+
+await test('学習再挑戦のretry指定と既存調度をbackupで往復し、未保存の指定は拒否する', async (context) => {
+    const { storage, session, command } = await fixture();
+    const fresh = valueOf(await openQuizStorage('retry-replay', new IDBFactory()));
+    context.after(() => { storage.close(); fresh.close(); });
+    valueOf(await storage.commitAnswer(command));
+    const retried: SessionRecord = { ...session, id: sessionIdentity('retry-session'), replay: { ...session.replay,
+        retry: true, completion: { kind: 'questions', count: session.replay.questionIds.length }, schedules: valueOf(await storage.listSchedule()) } };
+    valueOf(await storage.startSession(retried));
+    const expected = replayQuestions(retried);
+    const backup = valueOf(await storage.exportBackup());
+    valueOf(await fresh.restoreBackup(JSON.parse(JSON.stringify(backup))));
+    const restored = valueOf(await fresh.listSessions()).find(record => record.id === retried.id);
+    assert.ok(restored); assert.equal(restored.replay.retry, true);
+    assert.deepEqual(restored.replay.schedules, retried.replay.schedules);
+    assert.deepEqual(replayQuestions(restored), expected);
+    for (const retry of [undefined, null, 'true']) {
+        const invalid = { ...backup, records: { ...backup.records, sessions: backup.records.sessions.map(record =>
+            record.id === retried.id ? { ...record, replay: { ...record.replay, retry } } : record) } };
+        assert.equal((await fresh.restoreBackup(invalid)).ok, false);
+        assert.deepEqual(valueOf(await fresh.exportBackup()), backup);
+    }
 });
 
 await test('新サイトDBのschema1からassets storeを追加しても既存の草稿とユーザーを保持する', async (context) => {
