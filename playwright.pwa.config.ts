@@ -4,7 +4,7 @@ import path from 'node:path';
 
 export default defineConfig({
     testDir: './tests/e2e',
-    testMatch: 'pwa.spec.ts',
+    testMatch: ['pwa.spec.ts', 'published-sharing.spec.ts'],
     outputDir: path.join(os.tmpdir(), 'quiz-pwa-test-results'),
     timeout: 90_000,
     fullyParallel: false,
