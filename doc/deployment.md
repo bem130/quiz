@@ -65,6 +65,44 @@ registration.waiting.postMessage({ type: 'SKIP_WAITING' });
 
 同梱資産と正常に保持できた題庫・草稿を用いた offline 起動、出題、編集、保存、SMILES 表示を検証する。未取得の外部題庫と SVG は利用不可を表示する。Cache Storage の実行環境ごとの容量・退避条件はブラウザで別途検証する。
 
+## 配信元の棚卸しと #70 の確認順
+
+2026-11-09時点の公開entryは同梱3題庫だけを参照する。旧bem130.comのdataを新サイトから取得する設定はない。旧データ移行を追加せず、既定起動と任意の外部entryを区別して次の範囲を検証する。
+
+| 配信物・入力 | 現在の出典と解決規則 | 確認する責務 |
+| --- | --- | --- |
+| 既定entry | アプリと同一originの `/quiz/entry.json` | 配信した同じartifactのJSONを実GETし、一覧・3題庫・5patternを読み込む。 |
+| 同梱題庫 | `/quiz/data/sample/math-v3.json`、`multi-answer-v3.json`、`svg-v3.json` | entryのURL基準で解決する。同一originのため外部CORS許可は不要だが、200、MIME、本文、schemaと実出題を確認する。 |
+| 同梱図 | 題庫基準の `/quiz/data/sample/figures/circle.svg` と題庫内inline SVG | ファイルは実GET後にsanitizeして表示する。inline SVGとXML namespaceのURIは外部データのfetch先ではない。 |
+| 描画・編集依存 | 同じbuildに含めたKaTeX fonts、RDKit WASM、Monaco workers、JS/CSS | CDN実行依存を追加しない。HTTPS上の実読込、worker／WASM初期化、PWA install、offlineを確認する。 |
+| 利用者が追加する外部entry・題庫・SVG | HTTP(S) URLを正規化し、entryの参照は取得後の最終URL、SVGの相対参照は題庫URLを基準に解決する | 配信者がentryだけでなく参照先JSON・SVGとredirect経路も公開し、必要なCORS許可を設定する。アプリはcredentialsを送らず、本文を検証してから保存する。 |
+| ローカル草稿・backup | 新サイトのIndexedDB、利用者が明示して選択したファイル | 外部entryの失敗時も使用可能にする。CORS許可のない配信元からは、配信者側の設定変更または明示的なローカル取り込みを使う。アプリ側でCORSを迂回するproxyやサーバー認証情報を要求しない。 |
+| OGP | `https://bem130.com/quiz/ogp-card.php` の独立した画像サービス | アプリのentry／題庫配信元に数えない。ユーザー主導の配備後に #71 で確認し、アプリ本体の公開を待たせない。 |
+
+外部entryの読込は [network.ts](../src/web/network.ts) の `credentials: 'omit'` を用いる。CORSのoriginはscheme・host・portの組であり、Pages側は `https://bem130.github.io`、preview側はその一時hostである。`/quiz/` はoriginの一部ではない。資格情報なしの公開データは `Access-Control-Allow-Origin: *` または要求originへの明示許可で共有できる。origin別に応答する場合は `Vary: Origin` も必要となる。[CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS)・[Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin)
+
+公開HTTPSアプリから使う外部配信元は、redirect先と参照先もHTTPSで提供する。APIのHTTP(S) URL受理と、HTTPSページから実際にfetchできることを混同しない。HTTPへの混在取得はブラウザで拒否され得るため、CORSヘッダーだけで解決したとは扱わない。[mixed content](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Mixed_content)
+
+### 公開前: #70 の事前確認と #72
+
+1. 候補SHAを固定し、clean install・CI・browser検証済みbuildの `dist` と `app-version.json`、資産hash一覧を保存する。同じ成果物を `/quiz/` のまま隔離HTTPS previewへ配信し、検証中に再buildで置き換えない。
+2. 新規browser profileでpreviewを開き、既定entry・全同梱題庫・circle.svgの実GET、MIME、最終URL、本文と選択画面、出題、保存・再起動を確認する。JS/CSS/fonts/WASM/workers、service workerのscopeとinstall、offlineも同じbuildで確認する。
+3. 任意外部entryの機能は、アプリpreviewとは**別のHTTPS origin**へ置いた非機密の実データで確認する。許可ありのentry→JSON→SVG、実HTTP 200だがCORS許可なしの読込拒否、redirect後の相対参照と題庫IDを含める。許可ありは本文を読んで実出題・図表示まで、拒否時は通信失敗表示と取得済み題庫・草稿の保持まで確認する。
+4. 結果へアプリSHA／version、preview URL、データ配信先、日時、browser、要求・最終URL、実GETのstatus／MIME／CORS設定、UI結果を記録する。ブラウザ側から読めない失敗応答はserver log／network記録と突き合わせる。`route.fulfill`／`route.abort`、curlだけの成功、HEAD、404のCORSヘッダーは、公開HTTPSの正常本文をブラウザで利用できた証拠にしない。
+
+Cloudflare Quick Tunnelを使う場合は、生成された一時URLとその有効期間を検証記録に残す。[公式資料](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/) が示す通りテスト・開発向けであり、恒久的な公開先やrollback先として使用しない。同一origin内のfixtureだけで外部CORSを確認したとは扱わない。
+
+previewでの許可が本番originの許可を保証するわけではない。外部配信者のallowlistがpreview originだけを許可している場合、本番 `https://bem130.github.io` の確認は未実施である。この違いを残したまま、#72は上記事前確認の合格を評価する。#70の「公開前確認」と下記「本番後確認」を分け、#70全体のcloseをPages切替前に要求して実質循環を作らない。
+
+### Pages切替後: #78 の本番確認
+
+1. 上記事前確認と #72 の受け入れを満たした成果物を #78 で配信する。公開SHA、workflow run、最終URL、versionとasset hashの一致を記録する。検査時と異なるbuildを配信した場合は、その成果物を再検証する。
+2. `https://bem130.github.io/quiz/` の新規profileから、既定entry・3題庫・図・WASM／worker、保存・再起動、PWA scope、offline、更新を再確認する。一時previewでの成功をこの実配信確認へ置き換えない。
+3. 外部entryの許可・拒否・redirectを、同じ実データ配信先とPagesの実originから再確認する。公開時に採用する外部データ配信元を追加した場合は、そのentry・JSON・SVGを全て確認する。現時点の既定起動には外部題庫配信元がないことも棚卸し結果として記録する。
+4. 本番だけで失敗した場合は正常な空一覧と区別して記録する。同梱・ローカル機能を維持し、配信設定修正または直前の検証済み新サイト版へのrollbackを判断する。#70の本番後項目と #78 を、実結果が揃ってから完了にする。
+
+これは本番確認の削除や任意外部entry機能の縮小ではなく、切替前に確認可能な条件と切替後にしか確認できない条件の実行順である。iOS Safari／Android Chromeの実機、画面キーボード、OSのIME、読み上げは引き続き未実施項目として保持する。desktopや一時HTTPS配信だけで代替しない。
+
 ## 本番公開
 
 `.github/workflows/check.yml` は検証用であり公開しない。`.github/workflows/pages.yml` は `workflow_dispatch` による手動公開だけを定義する。push や pull request を本番公開の契機にしない。
@@ -73,9 +111,13 @@ registration.waiting.postMessage({ type: 'SKIP_WAITING' });
 
 手動実行時は main を選択し、`confirm_publish` に `publish` と入力する。workflow は clean install、型検査・lint・テスト・build、Chromium／Firefox／WebKit の受け入れ検証を行い、成功した `dist` だけを upload して配信する。公開 action は公式 release の commit SHA に固定する。
 
-本書と workflow を追加したことは、Pages 設定の変更や公開実行を意味しない。公開後は正規 URL、初回起動、保存と再起動、version 更新、offline、外部 source の CORS、OGP を実際の配信先で確認する。
+本書と workflow を追加したことは、Pages 設定の変更や公開実行を意味しない。公開後は正規 URL、初回起動、保存と再起動、version 更新、offline、外部 source の CORS を実際の配信先で確認する。OGPはユーザーによるサーバー更新後の #71 で独立して確認し、未更新を #72／#78 の前提にしない。
 
 問題が発生した場合は、最後に受け入れを確認した SHA の静的成果物を再配信する。保存データは配信成果物とは分けて保持し、キャッシュ削除で IndexedDB を消さない。旧サイトの復旧や旧データ変換を rollback の前提にしない。
+
+rollback時は、まず直前の成功した「Publish Pages (manual)」runと公開SHAを #78 の記録から特定する。再実行可能な期間内であれば、`gh run rerun <成功runのID> --repo bem130/quiz` で同じSHA・refの検査と配信を再実行する。GitHubは再実行に元のSHA/refを使用し、再実行の期間制限があるため、実行前に [公式の再実行条件](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs) を確認する。期間外の場合は該当変更のrevertを新しいPRとして検査し、mainから手動配信する。
+
+配信後は学習・編集の保存を済ませ、待機workerを明示適用して再読み込みし、`app-version.json` と公開資産・主要操作を確認する。初回公開で直前の新サイト版がない場合は、その事実を記録し、未検証の旧サイトへ戻さない。既定の保存領域は保持し、復旧のためにブラウザの「サイトデータをすべて削除」を無条件に案内しない。
 
 ## 現在の検証範囲
 
