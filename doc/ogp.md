@@ -6,6 +6,24 @@
 
 開発側はbem130.comへアップロードせず、サーバーの接続情報や秘密情報を要求しない。OGP未更新でもアプリ本体は動作するため、#71のサーバー更新待ちを #72／#78 のアプリ公開条件にしない。ユーザーが更新した後、下記の公開URL確認を行うまで #71 の実環境項目を未確認として追跡する。
 
+## Pagesの静的共有HTML
+
+題庫別OGPはHTMLのheadへあらかじめ含める。PHP画像を生成しただけでは、query付きの共通indexへ題庫別metadataを返せない。JavaScriptによるdocument.title変更をSNS crawler向けのOGP生成とは扱わない。
+
+`public/entry.json` に登録した同梱題庫は、通常buildで `share/<data相対パス>.html` を生成する。例えば `data/sample/math-v3.json` の共有ページは `/quiz/share/data/sample/math-v3.html` となる。同じappのhashed JS/CSSを使い、baseを `/quiz/` に固定する。公開HTMLには題庫のplainTextのtitle／description、OGP、Twitter画像、個別canonicalを含める。画像URLは維持するPHPへ明示的なtitle／descriptionを渡し、画像パラメーターだけを240／1200コードポイント以内に収める。HTMLはPHPサーバーのmetadata更新を待たず生成する。
+
+| 共有対象 | HTMLとカード | 起動する範囲 |
+| --- | --- | --- |
+| 同梱1題庫の全patternまたはsubset | その題庫の静的共有HTML。カードは題庫単位。 | queryのscopeを保つ。個別HTMLの直接起動はその題庫全体、明示subsetはその題庫内に限定する。 |
+| 複数題庫・複数題庫にまたがるフォルダ | 共通indexのアプリカード。 | 現行のscope／entriesを保ち、別環境で選択範囲を再現する。 |
+| 未登録の外部題庫・ローカル草稿 | 共通indexのアプリカード。題庫名や本文を新しい公開HTMLへ自動配信しない。 | scope／entriesの通常共有を維持する。画像PHPから任意URLを取得しない。 |
+
+外部の内容を個別カード付きで公開する場合は、公開してよいJSONと必要なSVGをrepo内の `data/` へ配置し、`public/entry.json` へ登録して検証・build・通常Pages公開を行う。その同梱sourceを共有する手順であり、元の任意外部URLへ動的metadataを割り当てる機能ではない。旧URL互換や旧データ移行も追加しない。
+
+rootと個別HTMLの共有registryはbuildから生成し、ブラウザではunknownから検証する。同梱1題庫の共有を個別ページへ接続し、未知・混合の範囲は共通ページへ接続する。個別ページから外部entryを手動読込した場合も、共有先と再起動対象を共通ページへ揃える。
+
+公開後はJavaScriptなしのHTML取得でtitle／OGP／canonical／画像URLを確認し、個別ページからの直接起動、subset共有、再共有、worker制御下とofflineの範囲・head保持を別に確認する。これはbem130.comから実際のPNGを取得できた証拠ではない。PHP更新後の実画像確認まで #71 をopenで追跡する。
+
 ## 配信物の準備
 
 Node 24で、空の `tmp/` 配下ディレクトリを指定する。
