@@ -236,8 +236,8 @@ export class QuizApplication {
             }
             if (generation !== this.loadingGeneration) return;
             await this.refreshData();
-            if (this.state.kind === 'ready' && (select || !this.state.selected.length)) this.state = { ...this.state, selected: [...new Set(selected)] };
-            if (select) {
+            if (this.state.kind === 'ready' && (select || !this.state.selected.length) && (selected.length > 0 || errors.length === 0)) this.state = { ...this.state, selected: [...new Set(selected)] };
+            if (select && (selected.length > 0 || errors.length === 0)) {
                 const shared = new URL(location.href); shared.searchParams.set('entry', url.value); shared.searchParams.delete('scope'); history.replaceState(null, '', shared);
             }
             this.inform(errors.length ? `${errors.length}ファイルを取得・検証できなかった。以前の有効版は保持している。` : `${entry.value.label} を読み込んだ。`);
@@ -623,7 +623,7 @@ export class QuizApplication {
         this.state = { ...this.state, screen: { kind: 'editor' } }; this.render();
         let module: typeof import('./editor.ts');
         try { module = await import('./editor.ts'); }
-        catch { this.inform('編集器を読み込めない。オンラインで再度開いて準備できる。'); this.state = { ...this.state, screen: { kind: 'menu' } }; this.render(); return; }
+        catch { this.inform('編集器を読み込めない。保存済み草稿は保持されている。ページを再読み込みして新しい版を開いてから再試行する。'); this.state = { ...this.state, screen: { kind: 'menu' } }; this.render(); return; }
         const host = element('main', '', 'editor-host'); this.view.append(host);
         const controller = await module.mountDraftEditor(host, db.value, {
             onSaved: () => this.run(() => this.refreshData()),
