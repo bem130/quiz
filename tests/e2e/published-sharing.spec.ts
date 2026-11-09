@@ -15,8 +15,8 @@ const externalQuiz = JSON.stringify({ version: 3, title: '外部共有の題庫'
 test.beforeAll(async () => {
     external = createServer((request, response) => {
         response.setHeader('Access-Control-Allow-Origin', '*'); response.setHeader('Content-Type', 'application/json;charset=utf-8');
-        if (request.url === '/entry.json') response.end(JSON.stringify({ version: 3, files: ['./quiz.json'] }));
-        else if (request.url === '/quiz.json') response.end(externalQuiz);
+        if (request.url === '/entry.json') response.end(JSON.stringify({ version: 3, files: ['./nested/quiz.json'] }));
+        else if (request.url === '/nested/quiz.json') response.end(externalQuiz);
         else { response.statusCode = 404; response.end('{}'); }
     });
     await new Promise<void>((resolve, reject) => { external.once('error', reject); external.listen(0, '127.0.0.1', resolve); });
