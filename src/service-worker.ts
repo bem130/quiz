@@ -17,6 +17,25 @@ const MAX_DATA_BYTES = 4 * 1024 * 1024;
 function digestHex(buffer: ArrayBuffer): Promise<string> {
     return crypto.subtle.digest('SHA-256', buffer).then(value => Array.from(new Uint8Array(value), byte => byte.toString(16).padStart(2, '0')).join(''));
 }
+/** buildのhashだけでは、正しい本文を誤MIMEで返す配信設定を検出できない。 */
+function validStaticMime(url: string, contentType: string): boolean {
+    const mime = contentType.split(';').at(0)?.trim().toLowerCase() ?? '';
+    const pathname = new URL(url, scope).pathname.toLowerCase();
+    const extension = pathname.slice(pathname.lastIndexOf('.'));
+    switch (extension) {
+        case '.js': return mime === 'text/javascript' || mime === 'application/javascript';
+        case '.css': return mime === 'text/css';
+        case '.html': return mime === 'text/html';
+        case '.json': return mime === 'application/json';
+        case '.webmanifest': return mime === 'application/manifest+json' || mime === 'application/json';
+        case '.svg': return mime === 'image/svg+xml';
+        case '.wasm': return mime === 'application/wasm';
+        case '.woff2': return mime === 'font/woff2';
+        case '.woff': return mime === 'font/woff';
+        case '.ttf': return mime === 'font/ttf';
+        default: return false;
+    }
+}
 async function install(): Promise<void> {
     const cache = await caches.open(shellName);
     try {
@@ -24,6 +43,7 @@ async function install(): Promise<void> {
             const request = new Request(new URL(asset.url, scope), { cache: 'reload', credentials: 'same-origin' });
             const response = await fetch(request);
             if (!response.ok || response.type === 'opaque') throw new Error(`Precache HTTP error: ${asset.url}`);
+            if (!validStaticMime(asset.url, response.headers.get('Content-Type') ?? '')) throw new Error(`Precache MIME error: ${asset.url}`);
             const body = await response.clone().arrayBuffer();
             if (body.byteLength !== asset.size || await digestHex(body) !== asset.sha256) throw new Error(`Precache integrity error: ${asset.url}`);
             await cache.put(request, response);

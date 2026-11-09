@@ -110,6 +110,10 @@ async function storedRows(page: Page, store: string): Promise<readonly unknown[]
         };
     }), store);
 }
+async function databaseSnapshot(page: Page): Promise<readonly Readonly<{ store: string; rows: readonly unknown[] }>[]> {
+    return Promise.all(['users', 'drafts', 'packages', 'attempts', 'sessions', 'schedule', 'confusion', 'conceptStats', 'settings', 'assets']
+        .map(async store => ({ store, rows: await storedRows(page, store) })));
+}
 
 function versionFrom(value: unknown): string {
     if (typeof value !== 'object' || value === null || !('version' in value) || typeof value.version !== 'string') throw new Error('version metadata missing');
@@ -156,7 +160,7 @@ async function nextVersion(original: string, output: string, version: string): P
         build: { outDir: output, emptyOutDir: false, target: 'es2022', lib: { entry: path.resolve('src/service-worker.ts'), formats: ['iife'], name: 'QuizServiceWorker', fileName: () => 'sw.js' } }
     });
 }
-type VersionServer = Readonly<{ baseURL: string; nextVersion: string; editorAsset: string; requests: readonly string[]; publish(): void; breakInstall(): void; repairInstall(): void; denyAsset(asset: string): void; close(): Promise<void> }>;
+type VersionServer = Readonly<{ baseURL: string; nextVersion: string; editorAsset: string; mimeAsset: string; mimeAssetHash: string; requests: readonly string[]; publish(): void; breakInstall(): void; breakMimeInstall(): void; repairInstall(): void; denyAsset(asset: string): void; close(): Promise<void> }>;
 async function versionServer(): Promise<VersionServer> {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'quiz-pwa-update-'));
     const original = path.resolve('dist'); const next = path.join(directory, 'next');
@@ -167,9 +171,13 @@ async function versionServer(): Promise<VersionServer> {
     if (!editorAsset) throw new Error('Lazy editor chunk missing');
     const fontAsset = (await outputFiles(next)).find(file => file.endsWith('.woff2'));
     if (!fontAsset) throw new Error('Font precache asset missing');
+    const mimeAsset = (await outputFiles(next)).find(file => /^assets\/editor-[^/]+\.js$/u.test(file));
+    if (!mimeAsset) throw new Error('Next editor asset missing');
+    const mimeAssetHash = createHash('sha256').update(await readFile(path.join(next, mimeAsset))).digest('hex');
     const denied = new Set<string>();
     const requests: string[] = [];
     let brokenInstall = false;
+    let brokenMime = false;
     let current = original;
     const server = createServer((request, response) => {
         async function serve(): Promise<void> {
@@ -184,7 +192,7 @@ async function versionServer(): Promise<VersionServer> {
             if (checked.startsWith('..') || path.isAbsolute(checked)) { response.writeHead(400).end(); return; }
             try {
                 const body = await readFile(file);
-                response.writeHead(200, { 'Content-Type': contentType(file), 'Cache-Control': 'no-store', Vary: 'Origin' });
+                response.writeHead(200, { 'Content-Type': brokenMime && relative === mimeAsset ? 'text/html' : contentType(file), 'Cache-Control': 'no-store', Vary: 'Origin' });
                 response.end(body);
             } catch { response.writeHead(404).end(); }
         }
@@ -194,8 +202,9 @@ async function versionServer(): Promise<VersionServer> {
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('server address missing');
     return {
-        baseURL: `http://127.0.0.1:${address.port}/quiz/`, nextVersion: nextId, editorAsset, requests,
-        publish() { current = next; }, breakInstall() { brokenInstall = true; current = next; }, repairInstall() { brokenInstall = false; denied.clear(); }, denyAsset(asset) { denied.add(asset); },
+        baseURL: `http://127.0.0.1:${address.port}/quiz/`, nextVersion: nextId, editorAsset, mimeAsset, mimeAssetHash, requests,
+        publish() { current = next; }, breakInstall() { brokenInstall = true; current = next; }, breakMimeInstall() { brokenMime = true; current = next; },
+        repairInstall() { brokenInstall = false; brokenMime = false; denied.clear(); }, denyAsset(asset) { denied.add(asset); },
         async close() {
             await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
             expect(path.dirname(directory)).toBe(os.tmpdir()); expect(path.basename(directory).startsWith('quiz-pwa-update-')).toBe(true);
@@ -328,16 +337,24 @@ test('未保存の草稿がある間は新版をwaitingに留め、保存と編�
     } finally { await server.close(); }
 });
 
-for (const failure of ['integrity', 'worker404'] as const) {
-    test(`新版の${failure === 'integrity' ? 'install整合性検査' : 'worker取得'}が失敗しても旧版を維持する`, async ({ page, context }) => {
+for (const failure of ['integrity', 'worker404', 'mime'] as const) {
+    test(`新版の${failure === 'integrity' ? 'install整合性検査' : failure === 'mime' ? 'install MIME検査' : 'worker取得'}が失敗しても旧版を維持する`, async ({ page, context }) => {
         const server = await versionServer();
         try {
             await page.goto(server.baseURL); await ready(page);
             await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true })).toHaveCount(0);
             const oldScript = await page.locator('script[type=module][src]').getAttribute('src');
             const before = await storedRows(page, 'users');
-            if (failure === 'integrity') {
-                server.breakInstall();
+            const beforeDatabase = await databaseSnapshot(page);
+            if (failure !== 'worker404') {
+                if (failure === 'integrity') server.breakInstall();
+                else {
+                    server.breakMimeInstall();
+                    // 本文自体は正しいJSである。hash失敗による拒否と取り違えない。
+                    const response = await fetch(`${server.baseURL}${server.mimeAsset}`);
+                    expect(response.status).toBe(200); expect(response.headers.get('content-type')).toBe('text/html');
+                    expect(createHash('sha256').update(new Uint8Array(await response.arrayBuffer())).digest('hex')).toBe(server.mimeAssetHash);
+                }
                 const result = await page.evaluate(async () => {
                     const registration = await navigator.serviceWorker.getRegistration();
                     if (!registration) throw new Error('SW registration missing');
@@ -378,9 +395,11 @@ for (const failure of ['integrity', 'worker404'] as const) {
             expect(state.active).toBe('activated'); expect(state.waiting).toBe('none');
             expect(state.caches.some(name => name.endsWith(server.nextVersion))).toBe(false);
             expect(state.caches.filter(name => name.includes(':static:'))).toHaveLength(1);
+            expect(await databaseSnapshot(page)).toEqual(beforeDatabase);
             server.repairInstall(); await retry.click();
             await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true })).toBeVisible();
             await expect(retry).toHaveCount(0);
+            expect(await databaseSnapshot(page)).toEqual(beforeDatabase);
             await context.setOffline(true); await page.reload(); await ready(page);
             expect(await page.locator('script[type=module][src]').getAttribute('src')).toBe(oldScript);
             expect(await storedRows(page, 'users')).toEqual(before);
