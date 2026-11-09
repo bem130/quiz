@@ -43,6 +43,16 @@ test('安全なpresentation styleを属性へ展開しstyle側を優先する', 
     expect(await page.locator('#fixture rect').getAttribute('style')).toBeNull();
 });
 
+test('図の代替テキストはrubyと複数annoを平文化しSVG内部の作者テキストを維持する', async ({ page }) => {
+    const source = svg('<text x="10" y="30">[作者/さくしゃ] {図/figure}</text>');
+    const alt = '[円/えん]と{[接線/せっせん]/tangent/[直線/ちょくせん]}';
+    expect((await page.evaluate(({ source, alt }) => window.svgTest.mount(source, alt), { source, alt })).ok).toBe(true);
+    await expect(page.getByRole('img', { name: '円と接線 (tangent / 直線)', exact: true })).toBeVisible();
+    await expect(page.locator('#fixture svg')).toHaveAttribute('aria-label', '円と接線 (tangent / 直線)');
+    await expect(page.locator('#fixture text')).toHaveText('[作者/さくしゃ] {図/figure}');
+    await expect(page.locator('#fixture ruby, #fixture .gloss')).toHaveCount(0);
+});
+
 test('危険なXML・要素・属性・外部URL・CSS・namespaceを拒否し外部要求を出さない', async ({ page }) => {
     const requests: string[] = [];
     page.on('request', (request) => { if (!request.url().startsWith('http://127.0.0.1:5173/')) requests.push(request.url()); });

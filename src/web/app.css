@@ -42,11 +42,6 @@ summary { cursor: pointer; min-height: 44px; }
 .token-content { min-width: 0; max-width: 100%; }
 .text-bold { font-weight: bold; } .text-italic { font-style: italic; }
 .text-serif { font-family: 'Yu Mincho', serif; } .text-sans { font-family: system-ui, sans-serif; }
-ruby { ruby-align: center; } rt { font-size: .6em; }
-.gloss { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 .1em .15em; max-width: 100%; }
-.gloss-base { display: block; }
-.gloss-alts { display: flex; flex-wrap: wrap; gap: .1em .6em; justify-content: center; font-size: .65em; color: var(--muted); }
-.gloss-alt { display: inline-block; }
 .math { display: inline-block; max-width: 100%; }
 .katex-display { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
 .diagram { display: inline-block; max-width: 100%; min-width: 0; vertical-align: middle; white-space: normal; }

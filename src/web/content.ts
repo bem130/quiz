@@ -1,9 +1,10 @@
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import './rich-text.css';
 import initRDKit from '@rdkit/rdkit';
 import type { MainModule } from '@rdkit/rdkit';
 import rdkitWasmUrl from '@rdkit/rdkit/RDKit_minimal.wasm?url';
-import { parseContentToSegments } from '../core/content.ts';
+import { parseContentToSegments, plainText } from '../core/content.ts';
 import type { ContentSegment } from '../core/content.ts';
 import { getRowValue } from '../core/model.ts';
 import type { Row, RowValue, SmilesToken, Token, TextSource } from '../core/model.ts';
@@ -54,12 +55,18 @@ function appendSegments(parent: HTMLElement, segments: readonly ContentSegment[]
                 if (segment.glosses.length) {
                     const alternatives = document.createElement('span');
                     alternatives.className = 'gloss-alts';
+                    const notes = document.createElement('span');
+                    notes.className = 'gloss-notes';
+                    const flow = document.createElement('span');
+                    flow.className = 'gloss-note-flow';
                     for (const alternative of segment.glosses) {
                         const item = document.createElement('span');
                         item.className = 'gloss-alt';
                         appendSegments(item, alternative);
-                        alternatives.append(item);
+                        flow.append(item);
                     }
+                    notes.append(flow);
+                    alternatives.append(notes);
                     gloss.append(alternatives);
                 }
                 parent.append(gloss);
@@ -94,7 +101,7 @@ function graphicFailure(target: HTMLElement, alt: string, detail: string): void 
 function svgMarkup(target: HTMLElement, source: string, alt: string, context: RenderContext, limits?: SmilesToken): void {
     if (!context.isCurrent() || !target.isConnected) return;
     const parsed = sanitizeSvg(source, alt);
-    if (!parsed.ok) { graphicFailure(target, alt, parsed.error.detail); return; }
+    if (!parsed.ok) { graphicFailure(target, limits === undefined ? plainText(alt) : alt, parsed.error.detail); return; }
     if (limits) {
         const em = limits.maxHeightEm.kind === 'some' ? Math.min(24, limits.maxHeightEm.value) : 24;
         const padding = limits.zoomPadding.kind === 'some' ? Math.min(1, limits.zoomPadding.value) : 1;
@@ -121,8 +128,9 @@ async function renderSmiles(target: HTMLElement, smiles: string, context: Render
     }
 }
 async function renderFileSvg(target: HTMLElement, src: string, alt: string, context: RenderContext): Promise<void> {
+    const label = plainText(alt);
     const url = resolveHttpUrl(src, context.baseUrl);
-    if (!url.ok) { graphicFailure(target, alt, '画像URLが不正'); return; }
+    if (!url.ok) { graphicFailure(target, label, '画像URLが不正'); return; }
     const requestedAt = Date.now();
     let cached = false;
     if (context.assets) {
@@ -137,13 +145,13 @@ async function renderFileSvg(target: HTMLElement, src: string, alt: string, cont
     }
     const fetched = await fetchText(url.value, 2_000_000);
     if (!fetched.ok) {
-        if (!cached && context.isCurrent() && target.isConnected) graphicFailure(target, alt, '未取得または取得に失敗');
+        if (!cached && context.isCurrent() && target.isConnected) graphicFailure(target, label, '未取得または取得に失敗');
         return;
     }
     // 保存するのは元のSVG文字列。保存済み・復元済みデータも表示のたびに再検証する。
     const parsed = sanitizeSvg(fetched.value.text, alt);
     if (!parsed.ok) {
-        if (!cached && context.isCurrent() && target.isConnected) graphicFailure(target, alt, parsed.error.detail);
+        if (!cached && context.isCurrent() && target.isConnected) graphicFailure(target, label, parsed.error.detail);
         return;
     }
     if (context.isCurrent() && target.isConnected) target.replaceChildren(parsed.value);
@@ -201,17 +209,18 @@ export function renderTokens(tokens: readonly Token[], row: Row = DEFAULT_ROW, c
                 break;
             }
             case 'svg': {
+                const alt = plainText(token.alt);
                 wrapper.classList.add('diagram');
-                wrapper.textContent = `${token.alt}（読込中）`;
+                wrapper.textContent = `${alt}（読込中）`;
                 switch (token.source.kind) {
                     case 'inline': queueMicrotask(() => svgMarkup(wrapper, token.source.kind === 'inline' ? token.source.value : '', token.alt, context)); break;
-                    case 'file': renderFileSvg(wrapper, token.source.src, token.alt, context).catch(() => graphicFailure(wrapper, token.alt, '画像取得に失敗')); break;
+                    case 'file': renderFileSvg(wrapper, token.source.src, token.alt, context).catch(() => graphicFailure(wrapper, alt, '画像取得に失敗')); break;
                     case 'field': {
                         const value = getRowValue(row, token.source.field);
                         const source = value.kind === 'some' && typeof value.value === 'string' ? value.value : '';
                         if (source.trimStart().startsWith('<')) queueMicrotask(() => svgMarkup(wrapper, source, token.alt, context));
                         else renderFileSvg(wrapper, source, token.alt, context).catch(() => {
-                            if (context.isCurrent() && wrapper.isConnected) graphicFailure(wrapper, token.alt, '画像取得に失敗');
+                            if (context.isCurrent() && wrapper.isConnected) graphicFailure(wrapper, alt, '画像取得に失敗');
                         });
                         break;
                     }
