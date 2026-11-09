@@ -1,4 +1,5 @@
-import * as monaco from './monaco.ts';
+import { createInputSurface, defaultInputMode } from './editor-input.ts';
+import type { InputDecoration, InputMode, InputSurface } from './editor-input.ts';
 import { parseContentToSegments, plainText } from '../core/content.ts';
 import type { ContentSegment } from '../core/content.ts';
 import { tokenizeKatex } from '../core/katex-parser.ts';
@@ -142,13 +143,18 @@ export async function mountDraftEditor(
     const openButton = button('開く'); const newButton = button('新規ファイル'); const folderButton = button('新規フォルダ');
     const renameButton = button('名前を変更'); const moveButton = button('移動'); const deleteButton = button('削除');
     const saveButton = button('保存・再試行'); const saveAsButton = button('別名で保存'); const closeButton = button('編集を閉じる');
-    toolbar.append(pathInput, openButton, newButton, folderButton, renameButton, moveButton, deleteButton, saveButton, saveAsButton, closeButton);
+    const modeSelect = document.createElement('select'); modeSelect.setAttribute('aria-label', '入力方式');
+    modeSelect.append(new Option('標準入力（textarea）', 'native'), new Option('高度編集（Monaco・デスクトップ向け）', 'advanced'));
+    const modeNotice = document.createElement('p'); modeNotice.setAttribute('role', 'status');
+    toolbar.append(pathInput, openButton, newButton, folderButton, renameButton, moveButton, deleteButton, saveButton, saveAsButton, closeButton, labelControl('入力方式 ', modeSelect));
     const status = document.createElement('p'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     const diagnostic = document.createElement('p'); diagnostic.className = 'draft-diagnostic'; diagnostic.setAttribute('role', 'status');
     const tree = document.createElement('nav'); tree.setAttribute('aria-label', '草稿一覧'); tree.className = 'draft-tree';
     const main = document.createElement('div'); main.className = 'draft-main';
     const editorHost = document.createElement('div'); editorHost.className = 'draft-code'; editorHost.style.height = 'min(60vh, 620px)';
     editorHost.style.minHeight = '280px';
+    editorHost.style.position = 'relative';
+    let inputHost = document.createElement('div'); inputHost.style.height = '100%'; editorHost.append(inputHost);
     const selectors = document.createElement('div'); selectors.className = 'draft-selectors';
     const rowSelect = document.createElement('select'); rowSelect.setAttribute('aria-label', 'プレビューする行');
     const patternSelect = document.createElement('select'); patternSelect.setAttribute('aria-label', 'プレビューするパターン');
@@ -161,17 +167,20 @@ export async function mountDraftEditor(
     const style = document.createElement('style');
     style.textContent = `.draft-editor .draft-toolbar,.draft-editor .draft-selectors{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.draft-editor .draft-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem}.draft-editor .draft-tree{display:flex;flex-wrap:wrap;gap:.25rem;margin-block:.5rem}.draft-editor .draft-tree button[aria-current=true]{font-weight:bold;outline:2px solid currentColor}.draft-editor .draft-preview,.draft-editor .draft-json-preview{overflow:auto;max-height:65vh;white-space:pre-wrap;overflow-wrap:anywhere}.draft-editor .draft-pattern{padding:.75rem;border:1px solid #8090a0;border-radius:.4rem;margin-block:.5rem}.draft-editor .source-preview{cursor:pointer}.draft-editor .json-current{outline:2px solid #347ed0}.quiz-editor-ruby{background:#d0eaff55}.quiz-editor-gloss{background:#d6f8d655}.quiz-editor-math{background:#f5e7bb66}.quiz-editor-command{color:#7d39ae!important}@media(max-width:760px){.draft-editor .draft-main{grid-template-columns:1fr}}`;
     const right = document.createElement('div'); right.append(selectors, diagnostic, preview, jsonPreview);
-    main.append(editorHost, right); section.append(style, heading, toolbar, status, tree, main); host.replaceChildren(section);
-    let editor: monaco.editor.IStandaloneCodeEditor;
+    main.append(editorHost, right); section.append(style, heading, toolbar, modeNotice, status, tree, main); host.replaceChildren(section);
+    let editor: InputSurface;
     try {
-        editor = monaco.editor.create(editorHost, { value: '', language: 'json', automaticLayout: true,
-            ariaLabel: '問題JSONの編集', minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false,
-            wordWrap: 'on', readOnly: true, theme: editorTheme() });
-    } catch (error) { host.replaceChildren(); return failure('initialization', message(error)); }
-    const decorations = editor.createDecorationsCollection();
-    const subscriptions: monaco.IDisposable[] = [];
+        editor = await createInputSurface(defaultInputMode(), inputHost);
+    } catch (error) {
+        inputHost.replaceChildren();
+        try { editor = await createInputSurface('native', inputHost); }
+        catch (fallbackError) { host.replaceChildren(); return failure('initialization', message(fallbackError)); }
+        modeNotice.textContent = `高度編集を読み込めないため標準入力を使用する。${message(error)}`;
+    }
+    modeSelect.value = editor.mode; editorHost.dataset['inputMode'] = editor.mode;
+    let subscriptions: ReadonlyArray<Readonly<{ dispose(): void }>> = [];
     const isDirty = (): boolean => composing || (active.kind === 'some' && active.value.text !== active.value.savedText);
-    const report = (issue: EditorError): void => { if (!disposed) { status.textContent = `未保存: ${issue.detail}`; status.dataset['state'] = 'error'; } };
+    const report = (issue: EditorError): void => { if (!disposed) { status.textContent = `${issue.kind === 'initialization' ? '入力方式' : '未保存'}: ${issue.detail}`; status.dataset['state'] = 'error'; } };
     const stopTimer = (): void => { if (timer.kind === 'some') window.clearTimeout(timer.value); timer = none; };
     const stopParseTimer = (): void => { if (parseTimer.kind === 'some') window.clearTimeout(parseTimer.value); parseTimer = none; };
     const action = (operation: () => Promise<unknown>): void => {
@@ -182,13 +191,11 @@ export async function mountDraftEditor(
         saveButton.disabled = busy || composing || active.kind === 'none';
         saveAsButton.disabled = busy || composing || active.kind === 'none';
         pathInput.disabled = busy || composing;
-        editor.updateOptions({ readOnly: busy || active.kind === 'none' });
+        modeSelect.disabled = busy || composing;
+        editor.setReadOnly(busy || active.kind === 'none');
     };
     const jump = (range: SourceRange): void => {
-        const model = editor.getModel();
-        if (model === null || disposed) return;
-        const position = model.getPositionAt(range.start);
-        editor.setPosition(position); editor.revealPositionInCenter(position); editor.focus();
+        if (!disposed) editor.jump(range.start);
     };
     const bindSource = (element: HTMLElement, path: string): void => {
         const range = index.ranges.get(path);
@@ -197,14 +204,13 @@ export async function mountDraftEditor(
         element.addEventListener('click', () => jump(range));
     };
     const decorate = (): void => {
-        const model = editor.getModel(); if (model === null) return;
-        const next: monaco.editor.IModelDeltaDecoration[] = [];
+        if (editor.mode === 'native') return;
+        const next: InputDecoration[] = [];
         for (const source of index.strings) {
             const add = (start: number, end: number, className: string): void => {
                 const rawStart = source.offsets.at(start); const rawEnd = source.offsets.at(end);
                 if (rawStart === undefined || rawEnd === undefined || rawStart >= rawEnd) return;
-                const first = model.getPositionAt(rawStart); const last = model.getPositionAt(rawEnd);
-                next.push({ range: new monaco.Range(first.lineNumber, first.column, last.lineNumber, last.column), options: { inlineClassName: className } });
+                next.push({ start: rawStart, end: rawEnd, className });
             };
             const segments = (entries: readonly ContentSegment[]): void => {
                 for (const entry of entries) {
@@ -224,12 +230,11 @@ export async function mountDraftEditor(
             };
             segments(parseContentToSegments(source.value));
         }
-        decorations.set(next);
+        editor.decorate(next);
     };
     const renderJson = (): void => {
         if (active.kind === 'none') { jsonPreview.replaceChildren(); return; }
-        const text = active.value.text; const model = editor.getModel(); const position = editor.getPosition();
-        const cursor = model !== null && position !== null ? model.getOffsetAt(position) : -1;
+        const text = active.value.text; const cursor = editor.getOffset();
         const fragment = document.createDocumentFragment(); let offset = 0;
         for (const source of index.strings) {
             fragment.append(text.slice(offset, source.range.start), '"');
@@ -278,20 +283,14 @@ export async function mountDraftEditor(
         try { const unknown: unknown = JSON.parse(text); void unknown; index = sourceIndex(text); }
         catch { index = { ranges: new Map(), strings: [] }; }
         const result = parseQuizJson(text);
-        const model = editor.getModel();
         if (!result.ok) {
             parsed = none; generation += 1; preview.replaceChildren();
             diagnostic.textContent = `検証エラー: ${result.error.code} ${result.error.path} ${result.error.detail}`;
             const range = index.ranges.get(result.error.path) ?? { start: 0, end: 1 };
-            if (model !== null) {
-                const start = model.getPositionAt(range.start); const end = model.getPositionAt(range.end);
-                monaco.editor.setModelMarkers(model, 'quiz-schema', [{ severity: monaco.MarkerSeverity.Error,
-                    message: diagnostic.textContent, startLineNumber: start.lineNumber, startColumn: start.column,
-                    endLineNumber: end.lineNumber, endColumn: Math.max(start.column + 1, end.column) }]);
-            }
+            editor.diagnose(some({ ...range, message: diagnostic.textContent }));
         } else {
             parsed = some(result.value); diagnostic.textContent = 'JSONと問題定義は有効';
-            if (model !== null) monaco.editor.setModelMarkers(model, 'quiz-schema', []);
+            editor.diagnose(none);
             const oldRow = rowSelect.value; const oldPattern = patternSelect.value;
             rowSelect.replaceChildren(...result.value.table.map((row, rowIndex) => new Option(row.id, String(rowIndex))));
             rowSelect.value = result.value.table.at(Number(oldRow)) === undefined ? '0' : oldRow || '0';
@@ -450,7 +449,7 @@ export async function mountDraftEditor(
         const next = records.find((record) => !record.id.endsWith('/'));
         return next === undefined ? ok(true) : openDraft(next.id);
     };
-    subscriptions.push(editor.onDidChangeModelContent(() => {
+    const changed = (): void => {
         if (loading || active.kind === 'none') return;
         const buffer = { ...active.value, text: editor.getValue() };
         active = some(buffer);
@@ -461,18 +460,12 @@ export async function mountDraftEditor(
             parseTimer = some(window.setTimeout(() => { parseTimer = none; if (!disposed) validate(); }, 140));
             scheduleSave();
         }
-    }));
+    };
     const compositionStarted = (): void => { composing = true; stopTimer(); stopParseTimer(); updateControls(); };
     const compositionEnded = (): void => { composing = false; updateControls(); validate(); scheduleSave(); };
-    subscriptions.push(editor.onDidCompositionStart(compositionStarted));
-    subscriptions.push(editor.onDidCompositionEnd(compositionEnded));
-    // EditContextを使うブラウザと従来のtextarea方式の両方を境界で扱う。
-    editorHost.addEventListener('compositionstart', compositionStarted, true);
-    editorHost.addEventListener('compositionend', compositionEnded, true);
-    subscriptions.push(editor.onDidChangeCursorPosition(() => {
-        const model = editor.getModel(); const position = editor.getPosition();
-        if (model === null || position === null || parsed.kind === 'none') return;
-        const offset = model.getOffsetAt(position);
+    const cursorChanged = (): void => {
+        if (parsed.kind === 'none') return;
+        const offset = editor.getOffset();
         for (let row = 0; row < parsed.value.table.length; row += 1) {
             const range = index.ranges.get(`$.table[${row}]`);
             if (range !== undefined && range.start <= offset && offset < range.end && rowSelect.value !== String(row)) {
@@ -480,7 +473,36 @@ export async function mountDraftEditor(
             }
         }
         if (!jsonPreview.hidden) renderJson();
-    }));
+    };
+    const wireInput = (): void => {
+        subscriptions = [editor.onChange(changed), editor.onCompositionStart(compositionStarted), editor.onCompositionEnd(compositionEnded), editor.onCursor(cursorChanged)];
+    };
+    wireInput();
+    const switchInput = async (mode: InputMode): Promise<Result<true, EditorError>> => {
+        if (mode === editor.mode) return ok(true);
+        const offset = editor.getOffset();
+        const nextHost = document.createElement('div'); nextHost.style.height = '100%';
+        nextHost.style.position = 'absolute'; nextHost.style.inset = '0'; nextHost.style.visibility = 'hidden'; editorHost.append(nextHost);
+        modeNotice.textContent = '入力方式を準備中…';
+        try {
+            const next = await createInputSurface(mode, nextHost);
+            if (disposed) { next.dispose(); nextHost.remove(); return failure('disposed', '編集器は閉じられている。'); }
+            next.setValue(active.kind === 'some' ? active.value.text : '');
+            subscriptions.forEach((subscription) => subscription.dispose()); editor.dispose();
+            inputHost = nextHost; inputHost.style.position = 'relative'; inputHost.style.inset = ''; inputHost.style.visibility = '';
+            editorHost.replaceChildren(inputHost); editor = next; wireInput();
+            modeSelect.value = mode; editorHost.dataset['inputMode'] = mode; modeNotice.textContent = '';
+            validate(); editor.jump(offset); return ok(true);
+        } catch (error) {
+            nextHost.remove(); modeSelect.value = editor.mode; modeNotice.textContent = '';
+            return failure('initialization', `元の入力内容を保持した。${message(error)}`);
+        }
+    };
+    modeSelect.addEventListener('change', () => {
+        const mode = modeSelect.value; modeSelect.value = editor.mode;
+        if (mode !== 'native' && mode !== 'advanced') return;
+        navigate(() => switchInput(mode));
+    });
     rowSelect.addEventListener('change', renderPreview); patternSelect.addEventListener('change', renderPreview);
     renderedTab.addEventListener('click', () => { preview.hidden = false; jsonPreview.hidden = true; renderedTab.setAttribute('aria-pressed', 'true'); jsonTab.setAttribute('aria-pressed', 'false'); renderPreview(); });
     jsonTab.addEventListener('click', () => { preview.hidden = true; jsonPreview.hidden = false; renderedTab.setAttribute('aria-pressed', 'false'); jsonTab.setAttribute('aria-pressed', 'true'); renderJson(); });
@@ -495,17 +517,14 @@ export async function mountDraftEditor(
     closeButton.addEventListener('click', () => navigate(async () => { await options.onClose(); return ok(true); }));
     const beforeUnload = (event: BeforeUnloadEvent): void => { if (isDirty()) event.preventDefault(); };
     window.addEventListener('beforeunload', beforeUnload);
-    const themeObserver = new MutationObserver(() => monaco.editor.setTheme(editorTheme()));
+    const themeObserver = new MutationObserver(() => editor.setTheme(editorTheme()));
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     const controller: EditorController = {
         flush, isDirty,
         dispose(): void {
             disposed = true; generation += 1; stopTimer(); stopParseTimer(); themeObserver.disconnect();
             window.removeEventListener('beforeunload', beforeUnload);
-            editorHost.removeEventListener('compositionstart', compositionStarted, true);
-            editorHost.removeEventListener('compositionend', compositionEnded, true);
-            subscriptions.forEach((subscription) => subscription.dispose()); decorations.clear();
-            const model = editor.getModel(); editor.dispose(); if (model !== null) model.dispose();
+            subscriptions.forEach((subscription) => subscription.dispose()); editor.dispose();
             host.replaceChildren();
         }
     };

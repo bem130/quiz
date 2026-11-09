@@ -1,4 +1,3 @@
-import * as monaco from '../../src/web/monaco.ts';
 import { openQuizStorage } from '../../src/web/storage/database.ts';
 import { mountDraftEditor } from '../../src/web/editor.ts';
 import type { EditorController, EditorStorage } from '../../src/web/editor.ts';
@@ -33,6 +32,7 @@ if (existing.value.length === 0) {
 }
 let fail = false;
 let controller: Option<EditorController> = none;
+let monaco: Option<typeof import('../../src/web/monaco.ts')> = none;
 const adapter: EditorStorage = {
     listDrafts: () => storage.listDrafts(),
     saveDraft: (value) => fail ? Promise.resolve({ ok: false, error: { kind: 'request', message: '保存失敗を再現' } }) : storage.saveDraft(value),
@@ -50,15 +50,18 @@ const mount = async (): Promise<void> => {
     });
     if (!mounted.ok) throw new Error(mounted.error.detail);
     controller = some(mounted.value);
+    if (host.querySelector('.monaco-editor') !== null) monaco = some(await import('../../src/web/monaco.ts'));
 };
 await mount();
 window.editorHarness = {
     ready: true,
     setText(text): void {
-        const model = monaco.editor.getModels().at(0); if (model === undefined) throw new Error('編集modelがない');
+        const input = host.querySelector('textarea[data-draft-input]');
+        if (input instanceof HTMLTextAreaElement) { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); return; }
+        const model = monaco.kind === 'some' ? monaco.value.editor.getModels().at(0) : undefined; if (model === undefined) throw new Error('編集modelがない');
         model.setValue(text);
     },
-    getText(): string { return monaco.editor.getModels().at(0)?.getValue() ?? ''; },
+    getText(): string { const input = host.querySelector('textarea[data-draft-input]'); return input instanceof HTMLTextAreaElement ? input.value : monaco.kind === 'some' ? monaco.value.editor.getModels().at(0)?.getValue() ?? '' : ''; },
     isDirty(): boolean { return controller.kind === 'some' && controller.value.isDirty(); },
     async savedText(id): Promise<string> {
         const entries = await storage.listDrafts(); if (!entries.ok) throw new Error(entries.error.message);

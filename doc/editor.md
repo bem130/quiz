@@ -1,6 +1,16 @@
 # ローカル問題の編集
 
-新しい Web アプリの編集器は `src/web/editor.ts` が提供する。Monaco Editor で JSON を編集し、問題プレビューと JSON プレビューを同じ草稿から導出する。草稿は問題として不正な編集中の JSON も含めて保存する。出題可能な題庫への登録時には、別途 strict JSON と v3 schema の検証が必要である。
+新しい Web アプリの編集器は `src/web/editor.ts` が提供する。標準のtextarea入力と、デスクトップ向けのMonaco高度編集を選べる。どちらも同じ草稿から問題プレビューとJSONプレビューを導出し、問題として不正な編集中のJSONも保存する。出題可能な題庫への登録時には、別途strict JSONとv3 schemaの検証が必要である。
+
+## 入力方式
+
+touch対応またはcoarse pointerの環境では、標準textareaを既定にする。通常のデスクトップではMonacoを既定にし、「入力方式」で標準入力も選択できる。Monaco `0.57.0` の[公式FAQ](https://github.com/microsoft/monaco-editor/blob/v0.57.0/README.md#faq)はmobile browser/frameworkをサポート対象としていないため、mobile編集をMonacoだけへ依存させない。
+
+`src/web/editor-input.ts` は文字列、UTF-16のカーソル位置、IMEイベント、focus/source jump、診断と任意の装飾を入力surfaceへ変換する。buffer、保存キュー、CAS、tree、検証、previewはeditor側の一つの処理を共有する。標準入力には構文装飾を付けず、診断は共通の表示と`aria-invalid`で示す。JSONと問題のプレビュー、行・pattern選択、sourceからの移動は両方式で利用できる。
+
+textareaのAPI valueはCRLFと単独CRをLFへ正規化する。未編集の保存bufferは元の改行形式を保持し、adapterがrawのUTF-16位置と表示側のUTF-16位置を相互変換する。草稿を開く、sourceへ移動する、入力方式を交換する操作だけでは改行を書き換えない。標準入力で実際に編集した場合は、ブラウザが返したLFの値を新しいbufferとして扱う。
+
+切替前はIMEの確定とflushのcommitを待つ。保存が失敗した場合は元の入力方式とbufferを保持する。高度編集の取得・初期化が失敗した場合も元の標準入力を残し、編集・保存を続けられる。初回のデスクトップ高度編集が読み込めなければ標準入力へ退避し、理由を表示する。入力方式の交換時には古いイベント購読、editorとmodelを破棄する。
 
 ## 操作
 
@@ -32,7 +42,7 @@
 
 ## 配信と検証
 
-Monaco `0.57.0` は npm の ESM を使用し、editor worker と JSON worker を Vite の `?worker` import で生成する。CDN の AMD loader や実行時の外部 worker 配信には依存しない。[Monaco 公式の Vite 統合](https://github.com/microsoft/monaco-editor/blob/main/docs/integrate-esm.md#using-vite)と採用版の package exports を確認している。`src/web/monaco.ts` に API、JSON contribution、worker と初期化順を集約し、全言語を含む root entry は読み込まない。検証 harness も同じ adapter を使う。
+Monaco `0.57.0` はnpmのESMを使用し、editor workerとJSON workerをViteの`?worker` importで生成する。高度編集を選んだ時だけdynamic importし、標準入力の初期化からMonaco runtime・workerは読み込まない。Service Workerが配信資産をoffline用にcacheすることと、Monacoを実行することは区別する。CDNのAMD loaderや実行時の外部worker配信には依存しない。[Monaco公式のVite統合](https://github.com/microsoft/monaco-editor/blob/main/docs/integrate-esm.md#using-vite)と採用版のpackage exportsを確認している。`src/web/monaco.ts` にAPI、JSON contribution、workerと初期化順を集約し、全言語を含むroot entryは読み込まない。検証harnessも同じadapterを使い、標準入力を選んだ場合はMonacoを先にimportしない。
 
 採用版の JSON 機能は、遅延読み込みされる `internal/common/workers.js` を通して editor contribution の service を登録する。APIだけを先に初期化すると、その後の登録が初期化済み service collection に入らず、再 open 時に未登録 service のエラーになる。このため adapter は同じ worker module を静的に読み込み、初回 editor 作成前に登録を完了させる。JSON worker は通常どおり動作させる。
 
@@ -41,3 +51,7 @@ Monaco `0.57.0` は npm の ESM を使用し、editor worker と JSON worker を
 `tests/e2e/editor.spec.ts` は実 IndexedDB と Monaco を用い、即時ファイル切替、保存失敗、再 open、不正 JSON、IME の合成イベント、安全な SVG と古い非同期応答、source jump を検証する。検証専用 HTML と harness はテスト側に置き、通常の配信 entry から import しない。
 
 自動化した合成イベントの成功と、実端末での日本語 IME・画面キーボード・読み上げの確認は区別する。Monaco と worker の同梱だけでは、Service Worker によるオフライン編集の検証完了とはしない。オフライン起動と worker 資産のキャッシュは PWA の受け入れ検証で確認する。
+
+`tests/e2e/editor-native.spec.ts` は3ブラウザのtouch emulationと標準textarea入力を使い、Monaco未取得、即時切替・再open、IMEの合成イベント、両previewとsource jump、保存失敗時の方式保持、高度編集の取得失敗後の継続を検証する。これは物理touch、iOS/Androidの画面キーボード、日本語IMEや読み上げを実機で確認した証拠ではない。
+
+追加の改行回帰は、補助文字より後のsourceをCRLFのnative表示へ移動し、CRLF・単独CRの両方でnativeとMonacoを往復して位置と元bufferを維持することを確認する。Firefoxの`fill()`が変換を確定する挙動と、未確定IMEの合成イベントを区別している。
