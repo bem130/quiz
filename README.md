@@ -26,7 +26,9 @@ npm run test:pwa
 - [問題ファイルv3](doc/questionJSON.v3.md)、[ruby・gloss記法](doc/ruby.md)
 - [SVG安全化と図のレイアウト](doc/svg-subset.md)
 - [草稿エディター](doc/editor.md)、[開発補助CLI](doc/cli-usage.md)
+- [草稿取込・Ruby Buffer・共有と出典](doc/web-tools.md)
 - [配信範囲・更新・公開手順](doc/deployment.md)
+- [OGP専用PHP配信と検証](doc/ogp.md)、[要件別の受け入れ状況](doc/acceptance.md)
 - [全体計画と公開前の残件](https://github.com/bem130/quiz/issues/38)
 
 型検査・単体検証・build・Chromium/Firefox/WebKitの検証はそれぞれ独立して実行する。iOS SafariとAndroid Chromeの実機確認、読み上げ、OGPのPHP/GD実環境確認は自動テストとは別に記録する。本番公開は受け入れ条件の完了後、手動workflowで実施する。

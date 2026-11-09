@@ -1,4 +1,5 @@
 import { domainError, err, none, ok, some } from './result.ts';
+import type { Revision } from './identity.ts';
 import type { DomainError, DomainErrorCode, Option, Result } from './result.ts';
 import { getRowValue } from './model.ts';
 import type {
@@ -389,4 +390,17 @@ export function quizToJson(value: QuizFile): JsonObject {
         }))
     };
 }
-export function serializeQuiz(value: QuizFile): string { return JSON.stringify(quizToJson(value), null, 2); }
+function canonicalQuiz(value: QuizFile): string { return JSON.stringify(quizToJson(value), null, 2); }
+export function isRevision(value: unknown): value is Revision {
+    if (typeof value !== 'string') return false;
+    const parsed = parseQuizJson(value);
+    return parsed.ok && canonicalQuiz(parsed.value) === value;
+}
+export function parseRevision(value: unknown): Result<Revision, DomainError> {
+    return isRevision(value) ? ok(value) : err(domainError('invalid-identity', '$.revision', 'revision must be canonical validated v3 JSON', 'identity'));
+}
+export function serializeQuiz(value: QuizFile): Revision {
+    const serialized = canonicalQuiz(value);
+    if (isRevision(serialized)) return serialized;
+    throw new Error('Cannot serialize an invalid domain QuizFile');
+}

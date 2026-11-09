@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { IDBFactory } from 'fake-indexeddb';
-import { conceptId, packageIdentity, patternId, questionId } from '../../src/core/identity.ts';
+import { conceptId, packageIdentity, patternId, questionId, parseUserId, parseSessionId } from '../../src/core/identity.ts';
 import { parseQuizJson, serializeQuiz } from '../../src/core/schema.ts';
 import { none } from '../../src/core/result.ts';
 import type { Result } from '../../src/core/result.ts';
 import type { BackupSnapshot, SessionRecord } from '../../src/web/storage/types.ts';
 import { openQuizStorage } from '../../src/web/storage/database.ts';
 import { isStoreRecord } from '../../src/web/storage/validation.ts';
+
+function userIdentity(value: string) { return valueOf(parseUserId(value)); }
+function sessionIdentity(value: string) { return valueOf(parseSessionId(value)); }
 
 function valueOf<T, E>(result: Result<T, E>): T {
     if (!result.ok) assert.fail(JSON.stringify(result.error));
@@ -23,13 +26,13 @@ function replayFixture(sameAnswers = false) {
     })));
     const revision = serializeQuiz(quiz);
     const session: SessionRecord = {
-        id: 'session', userId: 'user', packageIds: [id], mode: 'test', startedAt: 0, endedAt: none, summary: none,
-        replay: { version: 1, seed: 'seed', completion: { kind: 'questions', count: 1 },
+        id: sessionIdentity('session'), userId: userIdentity('user'), packageIds: [id], mode: 'test', startedAt: 0, endedAt: none, summary: none,
+        replay: { version: 1, seed: 'seed', retry: false, completion: { kind: 'questions', count: 1 },
             allowedPatternIds: [patternId(id, 'p')], questionIds: [questionId(id, 'p', 'a')],
             packages: [{ id, revision }], schedules: [], confusions: [], conceptStats: [] }
     };
     const backup: BackupSnapshot = { format: 'bem130-quiz-backup', version: 2, records: {
-        users: [{ id: 'user', name: '利用者', createdAt: 0 }], drafts: [],
+        users: [{ id: userIdentity('user'), name: '利用者', createdAt: 0 }], drafts: [],
         packages: [{ id, source: 'replay-validation', json: revision, revision, updatedAt: 0 }],
         sessions: [session], attempts: [], schedule: [], confusion: [], conceptStats: [], settings: [], assets: []
     } };
@@ -53,7 +56,7 @@ await test('実在する別questionもsessionの再生範囲外ならbackup復�
     const { id, backup } = replayFixture();
     valueOf(await storage.restoreBackup(backup));
     const before = valueOf(await storage.exportBackup());
-    const attempt = { id: 'outside', sessionId: 'session', userId: 'user', packageId: id,
+    const attempt = { id: 'outside', sessionId: sessionIdentity('session'), userId: userIdentity('user'), packageId: id,
         questionId: questionId(id, 'p', 'b'), patternId: patternId(id, 'p'), conceptId: conceptId(id, 'b'),
         chosenConceptId: none, result: 'timeout', answerMs: 10, answeredAt: 10 };
     const malformed = { ...backup, records: { ...backup.records, attempts: [attempt] } };

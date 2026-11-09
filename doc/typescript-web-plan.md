@@ -12,7 +12,7 @@ Rust 化、WASI、ネイティブアプリ、新しい実行プラットフォ�
 
 `src/main.ts` は `src/web/application.ts` を起動し、旧 `js/main.js` を読み込まない。型検査は `allowJs: false` とし、アプリ・純粋core・workerの3環境を検査する。旧JSの一対一の拡張子変更ではなく、schema/identity/content、出題・学習・session、IndexedDB、DOM・通信・エディター・SVGへ責務をまとめ直した。
 
-以下の「初期開発基盤」「段階移行中の検査範囲」とmodule表の初期状態は、PR #79時点の記録である。現時点では新アプリの実装はTypeScriptへ置換済みだが、旧JS・PHPの重複ファイルと旧テストの撤去、全moduleの最終対応表、公開前の実機・OGP確認は残る。新アプリの検査成功だけで #67・#72 全体を完了扱いにしない。
+以下の「初期開発基盤」「段階移行中の検査範囲」は、PR #79時点の記録である。旧JS・PHPの重複ファイルと旧テストは撤去し、後述の最終対応表に統合先と回帰検証を記録する。監査で見つかった補助機能は新しいWeb境界で実装し、操作と検証を別記する。公開前の実機・OGP確認は別に追跡する。新アプリの検査成功だけで #67・#72 全体を完了扱いにしない。
 
 ## 設計指針の適用
 
@@ -78,7 +78,7 @@ typescript-eslint `8.72.1` の配布 metadata が指定する TypeScript peer �
 
 TypeScript の `strict` に加え、配列・辞書アクセス、任意プロパティ、戻り値、例外の取り扱いを厳しく検査する。型情報を使う lint で unsafe な操作、未処理 Promise、非網羅分岐を検出する。Vite の build と型検査は別の検査である。設定を有効にしただけで全既存コードが検査済みになったとは扱わない。
 
-初期エントリは `src/main.ts` とする。段階移行中は旧 `js/main.js` を読み込むため、このエントリだけの型検査成功をアプリ全体の TypeScript 化完了とはしない。最小の実機能は `src/core/katex-parser.ts` へ移し、`js/katex-parser.js` の一時ブリッジを介して既存利用箇所から呼び出す。
+PR #79の初期エントリ `src/main.ts` は旧 `js/main.js` を読み込んでいたため、その時点の型検査成功はアプリ全体の TypeScript 化完了ではなかった。最小の実機能 `src/core/katex-parser.ts` と旧利用箇所をつないだ `js/katex-parser.js` の一時ブリッジは、最終構成では撤去した。
 
 開発と本番ビルドは Vite を経由する。生の PHP 配信や `server.py` では TypeScript の import を変換できないため、新構成の開発には `npm run dev` を使用する。初期段階で PHP 経路の動作を確認したとは報告しない。
 
@@ -98,49 +98,81 @@ TypeScript の `strict` に加え、配列・辞書アクセス、任意プロ�
 
 M0 は上記の検査、実機能、型誤用検査、最小 CI が実行できる状態を完了条件とする。全旧 JavaScript の移行は要求しない。M3 の [#67](https://github.com/bem130/quiz/issues/67) と M4 の [#72](https://github.com/bem130/quiz/issues/72) で、全手書きアプリ module の変換、ブリッジ撤去、型検査範囲を最終監査する。
 
-## 全 JavaScript module の変換棚卸し
+## 全 JavaScript module の最終対応表
 
-基準は `4453c61ac21bc9e6bb37ce57aa0896aa8defcf7a` の `js/` 配下 35 module とする。各行は変換の主担当 Issue と関連する修正を示す。分割・統合は可能だが、移行先と撤去の確認を残す。表の「未変換」は型検査対象でない既存実装を意味する。TypeScript エントリから読み込まれるだけでは変換済みとしない。
+基準は `4453c61ac21bc9e6bb37ce57aa0896aa8defcf7a` の `js/` 配下35 moduleとする。全35ファイルと一時ブリッジを撤去し、新runtime・CLI・テストは旧moduleをimportしない。旧機能の未移行差分は別途明示する。一対一の拡張子変更や旧DTO互換層は設けない。統合先のcore/webは `src/core/`・`src/web/`、検証先のcore/e2eは `tests/core/`・`tests/e2e/` を指す。
 
-| 基準 module | 主担当・関連 Issue | 初期状態・移行責務 |
+| 撤去したmodule | TypeScriptの統合先・契約 | 主な検証 |
 | --- | --- | --- |
-| `js/answer-state.js` | #74、#75、#39 | 未変換。回答状態と純粋な更新・採点を分離する。 |
-| `js/capacity-manager.js` | #55、#56、#67 | 未変換。容量の派生値と revision 付きキャッシュを扱う。 |
-| `js/chem-renderer.js` | #61、#67 | 未変換。化学描画の Web／ライブラリ境界を扱う。 |
-| `js/config.js` | #57、#76、#67 | 未変換。URL と設定を検証して内部値へ変換する。 |
-| `js/dataset-utils.js` | #55、#58、#75 | 未変換。候補操作と明示的な乱数入力を分離する。 |
-| `js/db.js` | #40、#46、#77 | 未変換。草稿の保存 DTO、commit、失敗を扱う。 |
-| `js/distractor-strategy.js` | #59、#58、#49 | 未変換。候補選択と統計・乱数の入力契約を扱う。 |
-| `js/dom-refs.js` | #75、#67 | 未変換。DOM 参照と欠損を Web 境界に閉じ込める。 |
-| `js/draft-editor.js` | #40、#53、#75、#67 | 未変換。未保存変更の正本と表示状態を分ける。 |
-| `js/entry-model.js` | #44、#45、#66、#76 | 未変換。出典解決、検証済み定義、通信を分離する。 |
-| `js/json-loc-parser.js` | #53、#76 | 未変換。構文の受理条件と位置付き診断を統一する。 |
-| `js/katex-parser.js` | #73 | `src/core/katex-parser.ts` へ変換する最小機能。一時ブリッジは #67 で撤去する。 |
-| `js/local-draft.js` | #40、#46、#76 | 未変換。草稿 DTO と検証済み題庫の変換を扱う。 |
-| `js/main.js` | #39、#75、#77、#67 | 未変換。`src/main.ts` の初期エントリは旧実装を利用する。調整・状態・副作用を段階分離する。 |
-| `js/menu-renderer.js` | #75、#67 | 未変換。派生値の表示と型付き操作入力を扱う。 |
-| `js/question-clone.js` | #51、#75、#67 | 未変換。再挑戦の domain データと DOM のコピーを分離する。 |
-| `js/quiz-engine.js` | #42、#43、#47、#55、#58 | 未変換。出題可能性、許可範囲、候補枯渇を純粋な結果として扱う。 |
-| `js/quiz-model.js` | #54、#76、#44 | 未変換。題庫 schema、識別子、検証済み定義の契約を扱う。 |
-| `js/quiz-renderer.js` | #39、#75、#67 | 未変換。問題本体と DOM 参照を分離する。 |
-| `js/quiz-types.js` | #74 | 未変換。状態・識別子・結果の型契約へ整理する。 |
-| `js/ruby-parser.js` | #67、#72 | 未変換。ruby／gloss 構文と描画入力の契約を維持して変換する。 |
-| `js/session-core.js` | #39、#43、#51、#77 | 未変換。セッションの正本、回答同一性、保存・終了を扱う。 |
-| `js/study-engine.js` | #41、#43、#48、#59 | 未変換。学習状態、候補、時刻、再試行を整理する。 |
-| `js/test-engine.js` | #42、#47、#58 | 未変換。出題範囲・重複禁止・再現性を扱う。 |
-| `js/text-source-registry.js` | #75、#67 | 未変換。DOM の出典参照を表示層で所有する。 |
-| `js/text-utils.js` | #75、#67 | 未変換。文字列表現の純粋な変換を扱う。 |
-| `js/theme.js` | #76、#67 | 未変換。設定の検証と DOM への反映を分ける。 |
-| `js/user-manager.js` | #52、#60、#74 | 未変換。ユーザー ID、設定、保存と画面を分離する。 |
-| `js/storage/concept-stats.js` | #49、#77 | 未変換。概念のスコープと回答更新の整合性を扱う。 |
-| `js/storage/confusion-store.js` | #49、#59、#77 | 未変換。混同統計 DTO と更新を扱う。 |
-| `js/storage/database.js` | #46、#60、#77 | 未変換。新サイトの DB、トランザクション、復元境界を扱う。 |
-| `js/storage/package-store.js` | #44、#45、#50 | 未変換。題庫の識別・revision・検証後の更新確定を扱う。 |
-| `js/storage/question-store.js` | #42、#44、#75 | 未変換。表示状態を含まない問題 DTO を保存する。 |
-| `js/storage/schedule-store.js` | #41、#48、#77 | 未変換。純粋な学習遷移と保存を分離する。 |
-| `js/storage/session-store.js` | #51、#77 | 未変換。回答とセッション集計の原子的・冪等な更新を扱う。 |
+| `js/answer-state.js` | core/sessionの回答・保存待ち・確定状態 | core/session、e2e/application |
+| `js/capacity-manager.js` | core/quiz-engineの実候補数とWebの選択範囲 | core/quiz-engine、e2e/application |
+| `js/chem-renderer.js` | web/contentのRDKit境界、web/svg | e2e/svg |
+| `js/config.js` | web/networkのURL検証、applicationの設定DTO | core/model-identity、e2e/application |
+| `js/dataset-utils.js` | core/quiz-engineの共有索引、core/randomの明示状態 | core/quiz-engine、core/random |
+| `js/db.js` | web/storage/databaseの草稿CASとcommit | core/storage、core/storage-draft-version、e2e/editor |
+| `js/distractor-strategy.js` | core/quiz-engineの全pool混同・coverage抽選 | core/quiz-engine、core/session |
+| `js/dom-refs.js` | web/applicationとeditorが専用DOMを所有 | e2e/application、e2e/editor |
+| `js/draft-editor.js` | web/editor、monaco adapter、直列化保存・preview | e2e/editor |
+| `js/entry-model.js` | core/schema、web/networkの出典・通信境界 | core/model-schema、e2e/application |
+| `js/json-loc-parser.js` | JSON.parseのstrict判定とeditorの型付きsource range | core/model-schema、e2e/editor |
+| `js/katex-parser.js` | core/katex-parser。一時ブリッジ撤去 | core/katex-parser、tests/types/katex-parser.test-d.ts |
+| `js/local-draft.js` | web/editor、draft-importとstorage。旧localStorage互換は対象外 | core/storage、core/web-tools、e2e/editor・app-tools |
+| `js/main.js` | src/main、web/application、core/session、storageとWeb補助helperへ責務分離 | core/session、e2e/application・app-tools |
+| `js/menu-renderer.js` | web/applicationの題庫・範囲・容量とfolder選択、sharingのQR | e2e/application・app-tools |
+| `js/question-clone.js` | core/sessionのreadonly historyと新session再挑戦 | core/session、e2e/application |
+| `js/quiz-engine.js` | core/quiz-engineの全候補・共通容量・全正答除外 | core/quiz-engine |
+| `js/quiz-model.js` | core/model、schema、identityの検証済みv3 | core/model-schema、core/model-identity |
+| `js/quiz-renderer.js` | web/contentとapplication。domainへDOMを後付けしない | e2e/application、e2e/svg |
+| `js/quiz-types.js` | core/model、records、result、sessionの判別union・ID | core/model-identity、scripts/check-types.test.mjs |
+| `js/ruby-parser.js` | core/contentの純粋parserとWeb DOM描画 | core/content、e2e/editor |
+| `js/session-core.js` | core/sessionの状態正本、storageの冪等commitAnswer | core/session、core/storage、e2e/application |
+| `js/study-engine.js` | core/studyとsessionのdue/new/repair/retry | core/study、core/session |
+| `js/test-engine.js` | core/sessionの範囲・既出排除・枯渇終了・replay | core/session、core/storage-replay |
+| `js/text-source-registry.js` | editor内source range、web/source-toolsの出典・session Ruby Buffer | e2e/editor・app-tools |
+| `js/text-utils.js` | core/content.plainText、quiz-engine.tokensToText、Question.row | core/content、core/text-projection |
+| `js/theme.js` | applicationのtheme/font/scale設定、editor theme反映 | e2e/application、e2e/editor |
+| `js/user-manager.js` | applicationとstorageのユーザー生成・切替・cascade削除 | core/storage、e2e/application |
+| `js/storage/concept-stats.js` | core/recordsとcommitAnswer内の原子的EMA更新 | core/storage、core/session |
+| `js/storage/confusion-store.js` | core/recordsとcommitAnswer内の混同更新 | core/storage、core/quiz-engine |
+| `js/storage/database.js` | web/storage/database、validation、generation保護 | core/storage、core/storage-draft-version、core/storage-replay |
+| `js/storage/package-store.js` | storage.replacePackageのrevision CASと削除整合性 | core/storage |
+| `js/storage/question-store.js` | DOM付きcacheを撤去、canonical revision＋questionIdsから再構築 | core/session、core/storage-replay |
+| `js/storage/schedule-store.js` | core/studyの純粋遷移とcommitAnswerのCAS | core/study、core/storage |
+| `js/storage/session-store.js` | core/recordsのsession/replayとstorageの回答・集計commit | core/storage、core/storage-replay、e2e/application |
 
-`sw.js`、`sw.php` は [#67](https://github.com/bem130/quiz/issues/67) で生成元と配信責務を統一する。ビルド後の JavaScript は配信成果物であり、手書きアプリ module の未変換とは区別する。`cli.mjs`、`verify-json-parser.mjs`、既存 `tests/*.mjs` は開発補助・検証コードとして別に扱い、アプリ本体の型検査完了の件数へ含めない。
+### 旧テスト37件の代替監査
+
+旧 `tests/*.mjs` の7ファイル・37件を撤去した。旧moduleを呼ぶテストの成功を新実装の証拠に数えない。
+
+| 旧テスト | 件数 | 新実装で保持する意味と検証先 |
+| --- | ---: | --- |
+| capacity-manager | 3 | 重複patternを二重加算せず出題不能行を数えない。core/quiz-engine・session、e2e/application。旧の空tokensを容量へ数える前提は採用しない。 |
+| local-draft | 3 | 不正JSON保持、空状態、保存・再openはcore/storageとe2e/editor。clipboard新規取込はcore/web-tools・e2e/app-tools。旧localStorage形式は対象外。 |
+| question-clone | 2 | 任意objectからDOM/関数を除去する汎用cloneは廃止。DOMを持たないreadonly Question/historyと新sessionへの再挑戦をcore/sessionとe2e/applicationで検証。 |
+| quiz-engine | 4 | 2〜4択、全正答除外、範囲、容量はcore/quiz-engine・session。全組合せoracleと大規模共有索引も検証。 |
+| quiz-model | 5 | v3、出典ID、重複row、sample、questionFormat/answer.choiceCount拒否はcore/model-schema・model-identity・text-projection。 |
+| ruby-examples | 15 | doc/ruby.mdの各言語・ruby/gloss/math・HTML wrapperの全15例をcore/contentへ移植済み。 |
+| text-utils | 5 | hide/key/br/listkey/glossのplain化をcore/text-projectionへ追加。row探索はQuestion.rowの明示保持とcore/quiz-engineの整合性検証へ置換。 |
+
+`verify-json-parser.mjs` の値・位置検査はstrict構文のcore/model-schemaとeditorのsource jump E2Eへ置換した。新 `scripts/check-types.test.mjs` と `tests/ogp/` は撤去対象に含めない。
+
+### PHP・配信・開発補助の撤去
+
+旧 `index.php`、`entry.php`、`config.php`、`manifest.php`、root `manifest.webmanifest`、`sw.js`、`sw.php`、`.htaccess`、旧 `css/` を撤去した。HTMLはroot `index.html`、manifestは `public/manifest.webmanifest`、CSSは `src/web/app.css`、data配置は `scripts/build-assets.ts`、Service Workerは `src/service-worker.ts` が正本である。生成物だけをdistへ配信する。`ogp-card.php` と別配信資産は維持する。
+
+旧 `cli.mjs` は `scripts/cli.ts` へ、生配信 `server.py` はVite dev/previewへ置換した。`script.py` はソース連結用の旧調査補助で、新アプリ・CI・buildから参照されないため撤去した。data、icons、v1/v2の文書は削除していない。
+
+### 補助機能の差分解消と受け入れの残件
+
+監査でclipboard取込、Ruby Buffer、sourceコピーと任意VS Codeリンク、共有QR、folder単位選択・共有、scope限定cache削除の差分を発見し、新しいWeb実装へ追加した。draft-importはstrict v3検証と新規作成CAS、source-toolsは検証済みlocal filemapと明示操作、sharingは同梱QRと新共有scope、cache-resetはアプリのscopeだけを操作する。詳細は[補助操作の契約](web-tools.md)に記載する。
+
+core/web-toolsの4件とe2e/app-toolsの3ブラウザ15件で、取込拒否時の貼付け・非上書き、右クリックとキーボードでruby収集・新session初期化、出典コピーと検証済みリンク、QR表示・clean環境へのfolder範囲復元、別scope cacheと同一ユーザーIDの保持を確認した。Fullscreen、数字1〜4で回答、Space/Enterで次問も移行済みで、入力欄・IME・保存待ちには割り込まない。旧50%・65%を含む文字サイズ設定も保持する。
+
+その後、遅いclipboard応答が読取待ち中の新入力を上書きしないガードを追加し、同ケースを3ブラウザで追加検証した。保存完了時も、保存要求後に進んだ取込欄の入力を初期化しない。上記15件と追加3件を分けて記録し、全18件を同時に再実行した証拠とはしない。
+
+QRの実機カメラ読取、OSからVS Codeを起動する操作、物理touch・IME・読み上げは、ブラウザ自動化と別の確認事項である。元raw JSONの改行位置を保持していないsourceコピーはJSONPathを使い、偽のline/columnを作らない。新サイトの実装へ旧DB・旧共有URL互換を戻してはいない。
+
+実ブラウザ・実機・OGP維持先の確認と公開切替も後述のゲートで別に判定する。
 
 ## 開発・公開のゲート
 

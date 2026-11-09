@@ -3,7 +3,7 @@ import path from 'node:path';
 import { packageIdentity } from '../src/core/identity.ts';
 import { prepareQuiz, generateQuestion, tokensToText } from '../src/core/quiz-engine.ts';
 import { seedRandom, shuffle } from '../src/core/random.ts';
-import { parseQuizJson } from '../src/core/schema.ts';
+import { parseQuizJson, serializeQuiz } from '../src/core/schema.ts';
 import { err, ok } from '../src/core/result.ts';
 import type { Result } from '../src/core/result.ts';
 
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     if (!quiz.ok) throw new Error(`${quiz.error.path}: ${quiz.error.detail}`);
     const identity = packageIdentity(/^https?:/u.test(source) ? { kind: 'remote', url: source } : { kind: 'draft', id: `cli:${source}` });
     if (!identity.ok) throw new Error(identity.error.detail);
-    const prepared = prepareQuiz(quiz.value, identity.value, text);
+    const prepared = prepareQuiz(quiz.value, identity.value, serializeQuiz(quiz.value));
     const candidates = prepared.candidates.filter((candidate) => candidate.pattern.id === args.value.pattern || candidate.patternId === args.value.pattern);
     if (!candidates.length) throw new Error('指定patternが存在しないか、異なる誤選択肢を生成できない。');
     const ordered = shuffle(candidates, seedRandom(args.value.seed));

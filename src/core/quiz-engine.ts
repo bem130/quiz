@@ -1,6 +1,6 @@
 import { plainText } from './content.ts';
 import { conceptId, patternId, questionId, rowId } from './identity.ts';
-import type { ConceptId, PackageId, PatternId, QuestionId, RowId } from './identity.ts';
+import type { ConceptId, PackageId, PatternId, QuestionId, Revision, RowId } from './identity.ts';
 import { getRowValue as fieldValue } from './model.ts';
 import type { HideToken, Pattern, QuizFile, Row, RowValue, Token } from './model.ts';
 import type { Option } from './result.ts';
@@ -20,18 +20,18 @@ export type AnswerPool = Readonly<{
     groupSizes: ReadonlyMap<string, number>;
 }>;
 export type QuestionCandidate = Readonly<{
-    id: QuestionId; packageId: PackageId; revision: string; patternId: PatternId; conceptId: ConceptId;
+    id: QuestionId; packageId: PackageId; revision: Revision; patternId: PatternId; conceptId: ConceptId;
     rowId: RowId; title: string; row: Row; pattern: Pattern;
     answers: readonly AnswerVariant[]; pool: AnswerPool; distractors: readonly AnswerVariant[];
 }>;
 export type QuestionOption = AnswerVariant & Readonly<{ isCorrect: boolean }>;
 export type Question = Readonly<{
-    id: QuestionId; packageId: PackageId; revision: string; patternId: PatternId; conceptId: ConceptId;
+    id: QuestionId; packageId: PackageId; revision: Revision; patternId: PatternId; conceptId: ConceptId;
     title: string; row: Row; pattern: Pattern; options: readonly QuestionOption[];
     correctOptionId: string;
 }>;
 export type PreparedQuiz = Readonly<{
-    packageId: PackageId; revision: string; title: string; candidates: readonly QuestionCandidate[];
+    packageId: PackageId; revision: Revision; title: string; candidates: readonly QuestionCandidate[];
     capacity: number; unavailable: readonly Readonly<{ patternId: string; rowId: string; reason: 'empty-answer' | 'no-distractor' }>[];
     /** 性能検証用の実処理計数。利用者向け表示には使用しない。 */
     statistics: Readonly<{ sharedPools: number; indexVisits: number; rowChecks: number; capacityKeyChecks: number }>;
@@ -156,7 +156,7 @@ function variantsFor(packageId: PackageId, row: Row, hide: HideToken): readonly 
  * 正答集合と同一の候補、同一行、同一groupは誤選択肢へ含めない。
  * revisionの異なるprepared値を再利用しないことは境界側の契約である。
  */
-export function prepareQuiz(quiz: QuizFile, packageId: PackageId, revision: string): PreparedQuiz {
+export function prepareQuiz(quiz: QuizFile, packageId: PackageId, revision: Revision): PreparedQuiz {
     const candidates: QuestionCandidate[] = [];
     const unavailable: { patternId: string; rowId: string; reason: 'empty-answer' | 'no-distractor' }[] = [];
     let sharedPools = 0; let indexVisits = 0; let rowChecks = 0; let capacityKeyChecks = 0;

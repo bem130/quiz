@@ -1,3 +1,4 @@
+import type { UserId } from './identity.ts';
 import { drawRandom } from './random.ts';
 import type { RandomState } from './random.ts';
 import type { AnswerResult, ScheduleRecord } from './records.ts';
@@ -5,7 +6,7 @@ export type { AnswerResult, ScheduleRecord } from './records.ts';
 
 export type StudyState = 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
 export type ScheduleIdentity = Readonly<{
-    userId: string; packageId: string; questionId: string; patternId: string; conceptId: string;
+    userId: UserId; packageId: string; questionId: string; patternId: string; conceptId: string;
 }>;
 
 /** 保存キーは文字列の分割では復元せず、各IDをレコードの独立した項目に保持する。 */

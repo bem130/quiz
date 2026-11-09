@@ -1,5 +1,5 @@
-import { parseQuizJson, serializeQuiz } from '../../core/schema.ts';
-import { parsePackageId, parseRecordKey, recordKey } from '../../core/identity.ts';
+import { isRevision, parseQuizJson, serializeQuiz } from '../../core/schema.ts';
+import { isSessionId, isUserId, parsePackageId, parseRecordKey, recordKey } from '../../core/identity.ts';
 import { prepareQuiz } from '../../core/quiz-engine.ts';
 import type { Option, Result } from '../../core/result.ts';
 import type {
@@ -48,7 +48,7 @@ function strings(value: unknown): value is ReadonlyArray<string> {
 }
 
 function user(value: unknown): value is UserRecord {
-    return objectValue(value) && id(value['id']) && id(value['name']) && nonnegative(value['createdAt']);
+    return objectValue(value) && isUserId(value['id']) && id(value['name']) && nonnegative(value['createdAt']);
 }
 
 function draft(value: unknown): value is DraftRecord {
@@ -57,7 +57,7 @@ function draft(value: unknown): value is DraftRecord {
 
 function packageRecord(value: unknown): value is PackageRecord {
     if (!objectValue(value) || !id(value['id']) || !id(value['source']) || !text(value['json']) ||
-        !id(value['revision']) || !nonnegative(value['updatedAt']) || !parsePackageId(value['id']).ok) return false;
+        !isRevision(value['revision']) || !nonnegative(value['updatedAt']) || !parsePackageId(value['id']).ok) return false;
     const parsed = parseQuizJson(value['json']);
     const source = parseRecordKey(value['id']);
     return parsed.ok && serializeQuiz(parsed.value) === value['revision'] && source.ok && source.value[1] === value['source'];
@@ -82,9 +82,7 @@ function summary(value: unknown): value is SessionSummary {
 }
 
 function replayPackage(value: unknown): value is ReplayDescriptor['packages'][number] {
-    if (!objectValue(value) || !id(value['id']) || !text(value['revision']) || !parsePackageId(value['id']).ok) return false;
-    const parsed = parseQuizJson(value['revision']);
-    return parsed.ok && serializeQuiz(parsed.value) === value['revision'];
+    return objectValue(value) && id(value['id']) && isRevision(value['revision']) && parsePackageId(value['id']).ok;
 }
 
 function arrayOf<T>(value: unknown, guard: (value: unknown) => value is T): value is ReadonlyArray<T> {
@@ -96,12 +94,13 @@ function replayConfusion(value: unknown): value is ReplayDescriptor['confusions'
 }
 
 function replay(value: unknown, candidateCache: Map<string, ReadonlySet<string>>): value is ReplayDescriptor {
-    if (!objectValue(value) || value['version'] !== 1 || !text(value['seed']) || !strings(value['allowedPatternIds']) || !strings(value['questionIds']) ||
+    if (!objectValue(value) || value['version'] !== 1 || typeof value['retry'] !== 'boolean' || !text(value['seed']) || !strings(value['allowedPatternIds']) || !strings(value['questionIds']) ||
         !arrayOf(value['packages'], replayPackage) || !arrayOf(value['schedules'], schedule) ||
         !arrayOf(value['confusions'], replayConfusion) || !arrayOf(value['conceptStats'], conceptStats) || !objectValue(value['completion'])) return false;
     const completion = value['completion'];
     if (!(completion['kind'] === 'drain' || (completion['kind'] === 'questions' && count(completion['count']) && completion['count'] > 0) ||
         (completion['kind'] === 'time' && nonnegative(completion['durationMs']) && completion['durationMs'] > 0))) return false;
+    if (value['retry'] && (completion['kind'] !== 'questions' || completion['count'] !== value['questionIds'].length)) return false;
     const packageIds = new Set(value['packages'].map((entry) => entry.id));
     if (packageIds.size === 0 || packageIds.size !== value['packages'].length || new Set(value['allowedPatternIds']).size !== value['allowedPatternIds'].length) return false;
     const matchesScope = (key: string, kind: string, size: number): boolean => {
@@ -153,7 +152,7 @@ function session(value: unknown, candidateCache: Map<string, ReadonlySet<string>
     if (!objectValue(value)) return false;
     const replayValue = value['replay'];
     if (!replay(replayValue, candidateCache)) return false;
-    return id(value['id']) && id(value['userId']) && strings(value['packageIds']) &&
+    return isSessionId(value['id']) && isUserId(value['userId']) && strings(value['packageIds']) &&
         value['packageIds'].length > 0 && new Set(value['packageIds']).size === value['packageIds'].length &&
         (value['mode'] === 'study' || value['mode'] === 'test') && nonnegative(value['startedAt']) &&
         option(value['endedAt'], nonnegative) && option(value['summary'], summary) &&
@@ -165,14 +164,14 @@ function session(value: unknown, candidateCache: Map<string, ReadonlySet<string>
 }
 
 function attempt(value: unknown): value is AttemptRecord {
-    return objectValue(value) && ['id', 'sessionId', 'userId', 'packageId', 'questionId', 'patternId', 'conceptId'].every((key) => id(value[key])) &&
+    return objectValue(value) && isSessionId(value['sessionId']) && isUserId(value['userId']) && ['id', 'sessionId', 'userId', 'packageId', 'questionId', 'patternId', 'conceptId'].every((key) => id(value[key])) &&
         option(value['chosenConceptId'], id) &&
         ['strong', 'weak', 'wrong', 'idk', 'timeout'].some((result) => result === value['result']) &&
         nonnegative(value['answerMs']) && nonnegative(value['answeredAt']);
 }
 
 function schedule(value: unknown): value is ScheduleRecord {
-    return objectValue(value) && ['id', 'userId', 'packageId', 'questionId', 'patternId', 'conceptId'].every((key) => id(value[key])) &&
+    return objectValue(value) && isUserId(value['userId']) && ['id', 'userId', 'packageId', 'questionId', 'patternId', 'conceptId'].every((key) => id(value[key])) &&
         ['NEW', 'LEARNING', 'REVIEW', 'RELEARNING'].some((state) => state === value['state']) &&
         nonnegative(value['dueAt']) && nonnegative(value['intervalSec']) && nonnegative(value['ease']) && value['ease'] > 0 &&
         ['stepIndex', 'streak', 'lapses', 'version'].every((key) => count(value[key])) &&
@@ -180,13 +179,13 @@ function schedule(value: unknown): value is ScheduleRecord {
 }
 
 function confusion(value: unknown): value is ConfusionRecord {
-    return objectValue(value) && ['id', 'userId', 'packageId', 'conceptId', 'wrongConceptId'].every((key) => id(value[key])) &&
+    return objectValue(value) && isUserId(value['userId']) && ['id', 'userId', 'packageId', 'conceptId', 'wrongConceptId'].every((key) => id(value[key])) &&
         count(value['shown']) && count(value['chosen']) && count(value['idkNear']) &&
         value['chosen'] + value['idkNear'] <= value['shown'];
 }
 
 function conceptStats(value: unknown): value is ConceptStatsRecord {
-    return objectValue(value) && ['id', 'userId', 'packageId', 'conceptId'].every((key) => id(value[key])) &&
+    return objectValue(value) && isUserId(value['userId']) && ['id', 'userId', 'packageId', 'conceptId'].every((key) => id(value[key])) &&
         nonnegative(value['uncertainty']) && value['uncertainty'] <= 1 && nonnegative(value['recentIdk']);
 }
 

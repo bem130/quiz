@@ -11,11 +11,14 @@
         "preview": "vite preview --host 127.0.0.1",
         "typecheck": "tsc --project tsconfig.json && tsc --project tsconfig.core.json && tsc --project tsconfig.worker.json",
         "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.ts\" vite.config.ts playwright.config.ts playwright.pwa.config.ts --max-warnings 0",
-        "test": "node --test tests/*.mjs tests/core/*.test.ts scripts/check-types.test.mjs",
-        "check": "npm run typecheck && npm run lint && npm test && npm run build",
+        "test": "node --test tests/core/*.test.ts scripts/check-types.test.mjs",
+        "check:sources": "node scripts/check-sources.ts",
+        "check": "npm run check:sources && npm run typecheck && npm run lint && npm test && npm run build",
         "test:e2e": "playwright test",
         "test:pwa": "playwright test --config playwright.pwa.config.ts",
-        "cli": "node scripts/cli.ts"
+        "cli": "node scripts/cli.ts",
+        "prepare:ogp": "node scripts/prepare-ogp.ts",
+        "test:ogp": "node --test tests/ogp/*.test.mjs"
     },
     "overrides": {
         "monaco-editor": {
@@ -35,6 +38,7 @@
         "@eslint/js": "10.0.1",
         "@playwright/test": "1.65.0",
         "@types/node": "24.19.2",
+        "@types/qrcode": "1.5.6",
         "eslint": "10.14.0",
         "fake-indexeddb": "6.2.8",
         "typescript": "6.0.3",
@@ -44,6 +48,7 @@
     "dependencies": {
         "@rdkit/rdkit": "2026.9.2",
         "katex": "0.19.1",
-        "monaco-editor": "0.57.0"
+        "monaco-editor": "0.57.0",
+        "qrcode": "1.5.4"
     }
 }

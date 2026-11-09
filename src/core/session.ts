@@ -1,3 +1,4 @@
+import type { SessionId, UserId } from './identity.ts';
 import { generateQuestion } from './quiz-engine.ts';
 import type { ConfusionPair, Question, QuestionCandidate, QuestionOption } from './quiz-engine.ts';
 import { drawRandom, seedRandom, shuffle } from './random.ts';
@@ -9,12 +10,15 @@ import type { Option, Result } from './result.ts';
 import { initialSchedule, updateSchedule } from './study.ts';
 
 export type SessionConfig = Readonly<{
-    id: string; userId: string; mode: 'study' | 'test'; completion: Completion;
+    id: SessionId; userId: UserId; mode: 'study' | 'test'; completion: Completion;
+    /** 入力境界の省略値はfalse。再挑戦は候補を一巡し、既存の調度を引き継ぐ。 */
+    retry?: boolean;
     candidates: readonly QuestionCandidate[]; allowedPatternIds: readonly string[];
     seed: string; now: number; schedules: readonly ScheduleRecord[];
     confusions: readonly ConfusionPair[];
     conceptStats: readonly ConceptStatsRecord[];
 }>;
+export type NormalizedSessionConfig = Omit<SessionConfig, 'retry'> & Readonly<{ retry: boolean }>;
 export type SessionError = Readonly<{
     kind: 'invalid-config' | 'invalid-phase' | 'invalid-selection' | 'stale-operation' | 'invalid-clock';
 }>;
@@ -28,7 +32,7 @@ export type SessionPhase =
     | Readonly<{ kind: 'waiting'; dueAt: number }>
     | Readonly<{ kind: 'finished'; reason: FinishReason; summary: SessionSummary }>;
 export type SessionState = Readonly<{
-    config: SessionConfig; record: SessionRecord; random: RandomState; phase: SessionPhase;
+    config: NormalizedSessionConfig; record: SessionRecord; random: RandomState; phase: SessionPhase;
     /** 最後に受理した遷移の時刻。回答・待機・中断を通じて逆行させない。 */
     clockAt: number;
     history: readonly Readonly<{ question: Question; attempt: AttemptRecord; stage: QuestionStage; selection: Selection }>[];
@@ -59,6 +63,8 @@ export function createSession(config: SessionConfig): Result<SessionState, Sessi
         (config.mode === 'test' && config.completion.kind === 'drain')) return error('invalid-config');
     const allowed = new Set(config.allowedPatternIds);
     const candidates = config.candidates.filter((candidate) => allowed.has(candidate.patternId));
+    const retry = config.retry === undefined ? false : config.retry;
+    if (typeof retry !== 'boolean' || (retry && (config.completion.kind !== 'questions' || config.completion.count !== candidates.length))) return error('invalid-config');
     if (new Set(candidates.map((candidate) => candidate.id)).size !== candidates.length) return error('invalid-config');
     const packages = [...new Map(candidates.map((candidate) => [candidate.packageId,
         { id: candidate.packageId, revision: candidate.revision }])).values()];
@@ -71,11 +77,11 @@ export function createSession(config: SessionConfig): Result<SessionState, Sessi
         packageIds.has(entry.packageId) && candidateConcepts.has(entry.conceptId));
     const allowedPatternIds = [...new Set(candidates.map((candidate) => candidate.patternId))];
     return ok({
-        config: { ...config, candidates, allowedPatternIds, schedules: filteredSchedules,
+        config: { ...config, retry, candidates, allowedPatternIds, schedules: filteredSchedules,
             confusions: filteredConfusions, conceptStats: filteredStats },
         record: { id: config.id, userId: config.userId, mode: config.mode,
             packageIds: [...packageIds],
-            replay: { version: 1, seed: config.seed, completion: config.completion, allowedPatternIds,
+            replay: { version: 1, seed: config.seed, completion: config.completion, retry, allowedPatternIds,
                 questionIds: candidates.map((candidate) => candidate.id),
                 packages, schedules: filteredSchedules, confusions: filteredConfusions, conceptStats: filteredStats },
             startedAt: config.now, endedAt: none, summary: none },
@@ -135,6 +141,10 @@ export function nextQuestion(state: SessionState, now: number): Result<SessionSt
     let repairPair: Option<ConfusionPair> = none;
     if (state.config.mode === 'test') {
         candidates = state.config.candidates.filter((candidate) => !seen.has(candidate.id));
+    } else if (state.config.retry) {
+        // 明示再挑戦は未来のdueを待たず各候補を一度ずつ出す。保存済みversion・統計は保持する。
+        candidates = state.config.candidates.filter((candidate) => !seen.has(candidate.id));
+        stage = 'retry';
     } else {
         const due = state.config.candidates.filter((candidate) => {
             const entry = scheduleFor(candidate);
