@@ -1,2 +1,10 @@
-// 段階変換中の入口。未変換moduleと担当Issueはdoc/typescript-web-plan.mdで管理する。
-import '../js/main.js';
+import { QuizApplication } from './web/application.ts';
+import './web/app.css';
+
+const host = document.getElementById('app');
+if (host instanceof HTMLElement) {
+    const app = new QuizApplication(host);
+    app.start().catch((error: unknown) => {
+        host.replaceChildren(document.createTextNode(error instanceof Error ? error.message : '起動に失敗した。ページを再読み込みして再試行できる。'));
+    });
+}
