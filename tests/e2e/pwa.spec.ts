@@ -259,8 +259,12 @@ test('旧版から新版を通知し、明示適用後も他tabの学習と旧ha
         const apply = menu.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true });
         await expect(apply).toBeAttached();
         await expect(apply).toBeVisible();
+        let reloads = 0;
+        menu.on('framenavigated', frame => { if (frame === menu.mainFrame()) reloads += 1; });
         await Promise.all([menu.waitForEvent('load'), apply.click()]); await ready(menu);
-        expect(await menu.locator('script[type=module][src]').getAttribute('src')).not.toBe(oldScript);
+        const newScript = await menu.locator('script[type=module][src]').getAttribute('src');
+        expect(newScript).not.toBe(oldScript);
+        expect(reloads).toBe(1);
         const cacheNames = await menu.evaluate(() => caches.keys());
         expect(cacheNames.filter(name => name.includes(':static:')).length).toBeGreaterThanOrEqual(2);
         await expect(playing.getByRole('button', { name: '分からない', exact: true })).toBeVisible();
@@ -272,6 +276,22 @@ test('旧版から新版を通知し、明示適用後も他tabの学習と旧ha
         expect(oldAsset.status).toBe(200); expect(oldAsset.size).toBeGreaterThan(1000);
         await playing.locator('.choices button').first().click();
         await expect(playing.getByRole('button', { name: '次の問題', exact: true })).toBeEnabled();
+        // 新版menuと旧版の学習tabが共存していても、適用によるreloadは一回だけ。
+        expect(await playing.locator('script[type=module][src]').getAttribute('src')).toBe(oldScript);
+        expect(reloads).toBe(1);
+        await context.setOffline(false);
+        await menu.bringToFront();
+        for (let check = 0; check < 2; check += 1) {
+            const response = menu.waitForResponse(value => value.url() === `${server.baseURL}app-version.json` && value.status() === 200);
+            await menu.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+            const version = await response;
+            expect(versionFrom(await version.json())).toBe(server.nextVersion);
+            await version.finished();
+            // version応答の解析と描画を待つ。固定sleepでreloadの不在を推測しない。
+            await menu.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+            expect(await menu.locator('script[type=module][src]').getAttribute('src')).toBe(newScript);
+            expect(reloads).toBe(1);
+        }
     } finally { await context?.close(); await server.close(); }
 });
 
