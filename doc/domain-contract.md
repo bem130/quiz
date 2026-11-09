@@ -125,6 +125,8 @@ ease は 1.3〜2.8、復習間隔は 20 秒〜6 時間に制限する。10 分�
 
 再挑戦は独立した新セッションとして開始し、元セッションへ回答を追加しない。統計は実際に保存した回答数を分母とし、IDK と未回答・未出題を混同しない。
 
+間違い再挑戦は通常学習の復習待ちと区別する。作成境界でretryを省略した場合はfalseへ正規化し、内部configとreplayには必須booleanとして保持する。明示的な再挑戦は選択した候補数と同じ題数指定を用い、未出題候補を即時に一巡する。元のschedule・統計・versionは入力に保持し、同じ保存CAS規則で学習状態を更新する。再挑戦のために学習記録を削除しない。
+
 各セッションが受理する遷移時刻は単調非減少とする。質問開始・待機・回答・終了を通して過去の時刻を拒否する。最後に受理した論理時刻は実行中の状態に持ち、保存DTOやreplayの初期入力へ混入させない。
 
 ## 保存とバックアップ
@@ -144,3 +146,53 @@ schema の単体テストは v3 の両サンプル、全 token 種、正規化�
 identity の単体テストは完全出典、draft namespace、役割別キー、区切り文字を含む ID の往復、無効な tuple の拒否を確認する。実装の型検査、純粋 core の検査、回帰テスト、実ブラウザ、実機、PHP/GD は別々に記録する。
 
 本書の規範に対する未実装・未検証があれば、規範を既存の不具合へ合わせて緩めず、対応 Issue と検証結果を追記する。JSON 構文を受理できること、schema を受理できること、出題可能な容量があることは別の段階である。
+
+## 7. validator の選定比較（#76）
+
+2026-11-09 の独立監査で、現行の手実装と Zod、Valibot を比較した。これは実装後に不足していた選定根拠を補い、現時点の継続判断を記録するものである。候補の機能不足を仮定して手実装を正当化しない。両ライブラリとも今回の入力境界を実装できる。
+
+### 比較する固定版とサイズの意味
+
+比較対象は調査時の npm registry metadata から版を固定した。候補を package.json や lockfile に追加していない。
+
+| 候補 | 固定版・配布 metadata | 依存とサイズの解釈 |
+| --- | --- | --- |
+| 現行手実装 | [schema.ts](../src/core/schema.ts)、[model.ts](../src/core/model.ts)、[identity.ts](../src/core/identity.ts) | validator 用の追加 runtime package はない。ただし手実装自体の配信コードと保守費用は存在する。 |
+| Zod | [zod 4.6.7](https://registry.npmjs.org/zod/4.6.7)、dist.unpackedSize = **6,148,944 bytes** | この版の dependencies／optionalDependencies／peerDependencies の宣言はない。配布物には複数形式・型宣言等も含まれ、この数を browser の転送量と扱わない。 |
+| Valibot | [valibot 1.5.0](https://registry.npmjs.org/valibot/1.5.0)、dist.unpackedSize = **1,865,457 bytes** | runtime dependencies／optionalDependencies の宣言はない。TypeScript >=5 は optional peer であり、本repoの6.0.3は範囲を満たす。これもbrowser転送量ではない。 |
+
+metadata の再確認コマンドは `npm view zod@4.6.7 version dist.unpackedSize dependencies peerDependencies optionalDependencies --json` と `npm view valibot@1.5.0 version dist.unpackedSize dependencies peerDependencies peerDependenciesMeta optionalDependencies --json` とする。これは依存の追加や候補 schema の統合試験ではない。
+
+本アプリの全 v3 schema を移植した場合の minify／gzip／brotli 後の browser 差分、起動時間、型検査時間は**未測定**である。上記 unpacked bytes だけで大きさや速度の優劣を決めない。[Valibot のモジュール設計](https://valibot.dev/guides/comparison/) は未使用機能の除去を意図しており、[Zod Mini](https://zod.dev/packages/mini) も同じ機能を tree shaking しやすい API で提供する。公式の小さな例の bundle 数値を、この v3 題庫の実測値として転記しない。
+
+### 型・外部入力・失敗の比較
+
+| 観点 | 現行手実装 | Zod 4.6.7 | Valibot 1.5.0 |
+| --- | --- | --- | --- |
+| 型の正本と推論 | domain 型を明示し、unknown から新しい domain 値を構築する。型と validator の対応は自動推論されないため、両方を保守する必要がある。 | schema から `z.infer`、`z.input`、`z.output` で型を推論できる。変換前後を分けられる。[公式基本API](https://zod.dev/basics) | `InferInput`／`InferOutput` で入出力型を推論できる。再帰型には `GenericSchema` 等の明示注釈が必要になる。[型推論](https://valibot.dev/guides/infer-types/)・[lazy](https://valibot.dev/api/lazy/) |
+| readonly と brand | 各 domain の readonly 宣言と、実行時検証する独自 brand constructor／guard を使用する。readonly は実行時の deep freeze ではない。 | `.brand()` で出力を区別し、`.readonly()` で readonly 型と `Object.freeze()` を適用できる。freeze は自動的な全階層 deep freeze ではなく、必要な入れ子にも契約を適用する。[公式API](https://zod.dev/api#branded-types) | `brand` と `readonly` をパイプへ追加できる。1.5.0 の readonly は型変換であり、runtime freeze は行わない。[brand](https://valibot.dev/api/brand/)・[固定版 readonly 実装](https://github.com/open-circle/valibot/blob/v1.5.0/library/src/actions/readonly/readonly.ts) |
+| unknown と失敗 | `parseQuiz`／`parseEntry` は unknown を受け、想定内の失敗を `Result` と `DomainError` の kind／code／path／detail へ変換する。JSON 構文は先に JSON.parse で確認する。 | `safeParse` は成功データと ZodError を判別する結果を返す。throw する `parse` を必須にする必要はない。issues の path／code を domain エラーへ変換できる。[公式基本API](https://zod.dev/basics) | `safeParse` は unknown を受け、success／output／issues で結果を分岐できる。domain エラーへ変換可能。[公式 safeParse](https://valibot.dev/api/safeParse/) |
+| 未知フィールドと正規化 | 定義済みレコードは keys で拒否し、行の任意フィールドは専用の RowValue へ検証する。省略値と外部 v3／内部 Option の変換もここで扱う。 | 通常の object の未知キー除去に頼らず、`strictObject` 等を選ぶ。transform／default で正規化できる。[公式API](https://zod.dev/api#objects) | `strictObject` が未知キーを拒否する。pipe／transform 等で正規化できる。strictObject は未知キーごとに大量の issue を作らず、一つを返す設計である。[公式 strictObject](https://valibot.dev/api/strictObject/) |
+
+両ライブラリの brand はそれぞれの型表現であり、既存の unique symbol による ID 型へ自動的に一致するわけではない。採用するなら domain 型を schema の出力から導くか、既存 constructor へ明示的に接続する。型断言だけで接続しない。readonly／brand を持つライブラリでも、意味的に未検証の入力を安全にする条件は schema と custom check の内容に依存する。
+
+### v3 固有の意味検証
+
+Zod の [refinement／check](https://zod.dev/api#refinements)、Valibot の [rawCheck](https://valibot.dev/api/rawCheck/) は独自検査を実装できる。したがって、次の規則は両候補でも実装可能であり、手実装だけが扱える機能ではない。
+
+- 行・pattern・tip ID の一意性、一問一 hide、参照した field の存在、key／listkey の参照先の型、文字列 source の型。
+- フィールド名で表す key の連鎖について、実際の行を文脈として辿った直接・間接循環の拒否。token の再帰的な形を定義するだけでは、この名前による参照グラフを検証したことにならない。
+- 最大64段の入れ子と参照展開、listkey の和と複数 listkey の積を合わせた最大1024通りの計数。単一 Token または Token[] を指す key の両経路を含め、実展開する前に超過を拒否する。
+- 完全出典にスコープした ID、canonical v3 JSON である Revision、保存 DTO の相互参照と replay 範囲。SVG の XML 安全化は別の Web 境界であり、token 構造の受理で代替しない。
+
+再帰 schema は token の形の再帰を表す手段であり、入力の JS オブジェクトが循環している場合の許容方針とも別である。ライブラリ側の循環対応の有無に依存せず、このプロジェクトでは JSON として扱う入力・深さ制限・意味的参照循環を明示的に検証する。どの候補を選んでも、上記の文脈を持つ traversal／集合検査／計数と、その回帰テストは必要になる。通常の string／array／object schema だけで自動的に満たされるとは判断しない。
+
+現行の対応箇所は schema.ts の keys／depth／references／answerVariantCount と parseQuiz、identity.ts、保存境界の validation.ts である。[schema テスト](../tests/core/model-schema.test.ts) の重複・欠損・循環・深さ・1024上限、[出題テスト](../tests/core/quiz-engine.test.ts) の正答集合、[型誤用検査](../tests/types/domain-contract.test-d.ts)、[保存テスト](../tests/core/storage.test.ts) を受理条件の証拠として維持する。候補を切り替える場合もこの外部契約と回帰を引き継ぐ。
+
+### 現時点の判断と再評価条件
+
+現時点では手実装を継続し、追加ライブラリを導入しない。理由は、既存 v3 の外部表現と内部の readonly／Option／ID を分けた境界が実装され、参照・直積上限等の custom traversal と回帰テストを既に共有できること、今回ライブラリへ置換してもそれらの意味検証と domain エラーへの接続は残ることである。これは bundle や性能で手実装が優れているという測定結果ではない。
+
+手実装には、型と検証の二重管理、未知フィールドの定義漏れ、正規化と直列化のずれ、境界処理の保守を自分たちが負う欠点がある。実際に単一 Token を経由する listkey の検査漏れを監査で発見しており、自作だから正しいとは扱わない。これに対し、Zod／Valibot の型推論・共通検査・独自 issue API は保守負担を減らす利点がある。
+
+v3 の構造変更や入力形式が増え、型と validator のずれが繰り返される場合は再評価する。その際は、同じ fixture の受理／拒否・path付き診断・正規化往復・意味検証上限・型誤用を比較し、実際の Vite build の圧縮後差分と型検査コストを測る。既存実装の置換費用だけを永久的な不採用理由にせず、検査を弱めるためにも新依存を導入しない。

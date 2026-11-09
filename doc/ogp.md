@@ -2,6 +2,8 @@
 
 アプリ本体は `https://bem130.github.io/quiz/`、画像生成は `https://bem130.com/quiz/ogp-card.php` で配信する。PHP bundleはPagesの `dist/` とは独立して準備する。PHP 8.2以上、GDのPNG・FreeType対応、mbstringが必要である。Imagickや実行時の外部ネットワーク接続は不要である。
 
+2026-11-09のユーザー指示により、bem130.comの更新はユーザー主導で行う。開発側は検証済みbundle、配置手順、配信後の確認項目を用意する。ローカルPHP/GDの成功と、ユーザーによるサーバー更新後の実環境確認を分けて記録する。
+
 ## 配信物の準備
 
 Node 24で、空の `tmp/` 配下ディレクトリを指定する。
@@ -28,6 +30,8 @@ node scripts/prepare-ogp.ts tmp/ogp-dist
 生成したディレクトリの内容を、上記の相対配置のままbem130.comの `/quiz/` へアップロードする。既存PHPだけを先に置き換えず、フォント・索引を含む同じbundleを配信する。ホスティングの公開ディレクトリ名とアップロード方法は環境に合わせて確認する。サーバーのPHP設定で警告の画面出力を無効にする。フォントの再配布には同梱OFLを維持する。
 
 ## 入力とメタデータの契約
+
+配信後は既定URLと `?quiz=math-v3` が200・`Content-Type: image/png`・1280×720となること、日本語・長文・改行・空値の画像を確認する。不正配列入力は400、未知のquizは404、エラーはtext/plain・no-storeであることも確認する。更新前の500が解消した証拠は、公開URLの確認日時と配信元コミットに結び付けて #71 へ記録する。
 
 `GET` または `HEAD` を受け付け、成功時に1280×720のPNGと `Cache-Control: public, max-age=86400` を返す。エラーはtext/plainと `no-store` を返す。
 

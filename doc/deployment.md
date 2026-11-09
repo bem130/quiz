@@ -4,6 +4,8 @@
 
 アプリ本体の配信先は `https://bem130.github.io/quiz/` である。ビルドの base path は `/quiz/` に固定する。OGP 画像生成の `https://bem130.com/quiz/ogp-card.php` は別配信として維持し、`dist` へ PHP をコピーしない。
 
+bem130.comの更新はユーザー主導で行う。開発側が用意するOGP専用bundle、配置手順、配信後の確認項目は [ogp.md](ogp.md) に記載する。
+
 旧サイトの ID、保存データ、バックアップ、共有 URL の移行・互換維持は行わない。新サイトは新規データで開始する。新サイト自身の保存、バックアップ、復元はアプリ側の契約で検証する。
 
 公開物は `dist` だけである。リポジトリ全体や作業ディレクトリを公開しない。公開用に `index.php`、`entry.php`、`manifest.php`、`sw.php` を実行するサーバーは不要である。
