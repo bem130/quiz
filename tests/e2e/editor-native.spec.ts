@@ -90,6 +90,29 @@ test.describe('touchを模した標準入力', () => {
 
 test.describe('desktopの明示切替', () => {
     test.use({ hasTouch: false });
+    test('Monaco取得中は操作を無効にし、準備直後の新規ファイル操作を失わない', async ({ page }) => {
+        let markRequested = (): void => undefined; let resume = (): void => undefined;
+        const requested = new Promise<void>((resolve) => { markRequested = resolve; });
+        const resumed = new Promise<void>((resolve) => { resume = resolve; });
+        await page.route('**/src/web/monaco.ts*', async (route) => {
+            markRequested(); await resumed; await route.continue();
+        });
+        await page.goto('/quiz/tests/e2e/editor.html', { waitUntil: 'domcontentloaded' });
+        await requested;
+        const path = page.getByLabel('草稿のパス', { exact: true });
+        const create = page.getByRole('button', { name: '新規ファイル', exact: true });
+        try {
+            await expect(path).toBeDisabled(); await expect(create).toBeDisabled();
+            await expect(page.getByLabel('入力方式', { exact: true })).toBeDisabled();
+            await expect(page.getByRole('status').filter({ hasText: '編集器を準備中…' })).toBeVisible();
+        } finally { resume(); }
+        // fill/clickの自動待機は、listenerと初期草稿復元が揃った時点で進む。
+        await path.fill('after-initialization.json'); await create.click();
+        await expect(page.locator('[data-state="saved"]')).toHaveText('after-initialization.json 保存済み');
+        await page.waitForFunction(() => window.editorHarness?.ready === true);
+        expect(await page.evaluate(() => window.editorHarness.savedText('after-initialization.json'))).toContain('after-initialization');
+    });
+
     test('入力方式の切替はflushを待ち、失敗時はbufferを残して再試行できる', async ({ page }) => {
         await open(page); await expect(page.getByLabel('入力方式', { exact: true })).toHaveValue('advanced');
         await page.getByLabel('入力方式', { exact: true }).selectOption('native');

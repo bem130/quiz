@@ -127,7 +127,7 @@ export async function mountDraftEditor(
     let disposed = false;
     let loading = false;
     let composing = false;
-    let busy = false;
+    let busy = true;
     let generation = 0;
     let timer: Option<number> = none;
     let parseTimer: Option<number> = none;
@@ -167,6 +167,11 @@ export async function mountDraftEditor(
     const style = document.createElement('style');
     style.textContent = `.draft-editor .draft-toolbar,.draft-editor .draft-selectors{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.draft-editor .draft-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem}.draft-editor .draft-tree{display:flex;flex-wrap:wrap;gap:.25rem;margin-block:.5rem}.draft-editor .draft-tree button[aria-current=true]{font-weight:bold;outline:2px solid currentColor}.draft-editor .draft-preview,.draft-editor .draft-json-preview{overflow:auto;max-height:65vh;white-space:pre-wrap;overflow-wrap:anywhere}.draft-editor .draft-pattern{padding:.75rem;border:1px solid #8090a0;border-radius:.4rem;margin-block:.5rem}.draft-editor .source-preview{cursor:pointer}.draft-editor .json-current{outline:2px solid #347ed0}.quiz-editor-ruby{background:#d0eaff55}.quiz-editor-gloss{background:#d6f8d655}.quiz-editor-math{background:#f5e7bb66}.quiz-editor-command{color:#7d39ae!important}@media(max-width:760px){.draft-editor .draft-main{grid-template-columns:1fr}}`;
     const right = document.createElement('div'); right.append(selectors, diagnostic, preview, jsonPreview);
+    // 入力surfaceと初期草稿の準備が終わる前に操作を公開しない。
+    // dynamic import中にもtoolbar自体は描画されるため、listener登録前のclickを防ぐ。
+    for (const control of [pathInput, openButton, newButton, folderButton, renameButton, moveButton, deleteButton,
+        saveButton, saveAsButton, closeButton, modeSelect, rowSelect, patternSelect, renderedTab, jsonTab]) control.disabled = true;
+    status.textContent = '編集器を準備中…'; status.dataset['state'] = 'loading';
     main.append(editorHost, right); section.append(style, heading, toolbar, modeNotice, status, tree, main); host.replaceChildren(section);
     let editor: InputSurface;
     try {
@@ -192,6 +197,7 @@ export async function mountDraftEditor(
         saveAsButton.disabled = busy || composing || active.kind === 'none';
         pathInput.disabled = busy || composing;
         modeSelect.disabled = busy || composing;
+        for (const control of [rowSelect, patternSelect, renderedTab, jsonTab]) control.disabled = busy;
         editor.setReadOnly(busy || active.kind === 'none');
     };
     const jump = (range: SourceRange): void => {
@@ -533,7 +539,8 @@ export async function mountDraftEditor(
     const previous = savedPath.ok && savedPath.value.kind === 'some' ? savedPath.value.value : '';
     const first = records.find((record) => record.id === previous && !record.id.endsWith('/')) ?? records.find((record) => !record.id.endsWith('/'));
     if (first !== undefined) { const opened = await openDraft(first.id); if (!opened.ok) report(opened.error); }
-    else validate();
+    else { validate(); status.textContent = 'ファイル未選択'; status.dataset['state'] = 'saved'; }
+    busy = false;
     updateControls();
     return ok(controller);
 }
