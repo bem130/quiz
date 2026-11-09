@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { build } from 'vite';
+import productionConfig from '../../vite.config.ts';
 import { appAssetsPlugin, applicationVersion, emitStaticData, entryPath, inspectOutput, precacheAssets } from '../../scripts/build-assets.ts';
 
 async function fixture(run: (directory: string) => Promise<void>): Promise<void> {
@@ -73,6 +74,17 @@ await test('PHPや開発sourceを公開成果物として受理しない', async
     });
 });
 
+await test('Pages artifactで落ちる隠しfileを含む出力からprecacheを生成しない', async () => {
+    for (const hidden of ['.vite/manifest.json', 'assets/.internal/runtime.js', '.env']) {
+        await fixture(async root => {
+            await shell(root);
+            await file(root, hidden, '{}');
+            await assert.rejects(inspectOutput(root), /Hidden file excluded by Pages artifact/u);
+            await assert.rejects(precacheAssets(root, '/quiz/'), /Hidden file excluded by Pages artifact/u);
+        });
+    }
+});
+
 await test('静的HTMLにPHPや外部CDNの実行依存を残さない', async () => {
     await fixture(async root => {
         await shell(root);
@@ -115,7 +127,7 @@ await test('実際のVite buildが同一versionのpage・worker・更新metadata
         await build({
             configFile: false, root, base: '/quiz/', logLevel: 'silent', publicDir: 'public',
             define: { __APP_VERSION__: JSON.stringify(version) }, plugins: [appAssetsPlugin(version)],
-            build: { outDir: 'dist', target: 'es2022', manifest: true }
+            build: { ...productionConfig.build, outDir: 'dist' }
         });
         const output = path.join(root, 'dist');
         const files = await inspectOutput(output);
@@ -128,6 +140,15 @@ await test('実際のVite buildが同一versionのpage・worker・更新metadata
         assert.ok((await readFile(path.join(output, main), 'utf8')).includes(version));
         assert.ok(files.includes('data/sample/math-v3.json'));
         assert.equal(files.some(name => name.endsWith('.php')), false);
+        assert.equal(files.includes('.vite/manifest.json'), false);
+        // 固定upload-pages-artifactの既定値と同じdot-path除外でも全配信物が残る。
+        const artifactFiles = files.filter(name => name.split('/').every(part => !part.startsWith('.')));
+        assert.deepEqual(artifactFiles, files);
+        const assets = await precacheAssets(output, '/quiz/');
+        const requestedFiles = assets.map(asset => decodeURIComponent(asset.url.slice('/quiz/'.length)));
+        assert.deepEqual(requestedFiles, artifactFiles.filter(name => !['sw.js', 'app-version.json', 'precache-manifest.json'].includes(name)));
+        assert.deepEqual(JSON.parse(await readFile(path.join(output, 'precache-manifest.json'), 'utf8')), { version, assets });
+        assert.doesNotMatch(await readFile(path.join(output, 'sw.js'), 'utf8'), /\/quiz\/\.vite\//u);
     });
 });
 

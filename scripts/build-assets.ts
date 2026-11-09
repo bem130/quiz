@@ -131,6 +131,9 @@ export async function outputFiles(directory: string, prefix = ''): Promise<reado
 export async function inspectOutput(directory: string): Promise<readonly string[]> {
     const files = await outputFiles(directory);
     for (const file of files) {
+        // upload-pages-artifact v5の既定tarはdot-file/directoryを除外する。
+        // runtimeが取得する集合と実配信artifactを食い違わせない。
+        if (file.split('/').some(part => part.startsWith('.'))) throw new Error(`Hidden file excluded by Pages artifact: ${file}`);
         if (/\.(?:php|ts|tsx|mjs|py|map)$/iu.test(file) || /(?:^|\/)(?:src|js|tests|scripts|node_modules|\.git|doc)(?:\/|$)/u.test(file) || file.includes('ogp-card')) throw new Error(`Development/server file in public output: ${file}`);
     }
     if (!files.includes('index.html') || !files.includes('entry.json') || !files.includes('manifest.webmanifest')) throw new Error('Static shell is incomplete');
