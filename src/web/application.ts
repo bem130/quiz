@@ -3,6 +3,8 @@ import type { PatternId } from '../core/identity.ts';
 import type { QuizFile } from '../core/model.ts';
 import { prepareQuiz } from '../core/quiz-engine.ts';
 import type { PreparedQuiz, QuestionCandidate } from '../core/quiz-engine.ts';
+import type { Question } from '../core/quiz-engine.ts';
+import type { Row } from '../core/model.ts';
 import { parseEntryJson, parseQuizJson, serializeQuiz } from '../core/schema.ts';
 import { answerSession, confirmAnswer, createSession, finishSession, nextQuestion, retryCandidates, sessionSummary } from '../core/session.ts';
 import type { Completion, Selection, SessionState } from '../core/session.ts';
@@ -14,10 +16,15 @@ import type { QuizStorage } from './storage/database.ts';
 import { renderTokens, richText } from './content.ts';
 import { fetchText, resolveHttpUrl } from './network.ts';
 import type { EditorController } from './editor.ts';
+import { importDraft } from './draft-import.ts';
+import { addRubyItem, editorFilesFromEntry, editorFilesFromSetting, folderKeys, sourceControls } from './source-tools.ts';
+import type { EditorFile, RubyBufferItem, SourceInfo, SourceRegion } from './source-tools.ts';
+import { shareQr, shareUrl, sharedEntries } from './sharing.ts';
+import { clearAppCache } from './cache-reset.ts';
 
 type LoadedPackage = Readonly<{ record: PackageRecord; quiz: QuizFile; prepared: PreparedQuiz }>;
 type Preferences = Readonly<{ theme: 'light' | 'dark' | 'black'; font: 'sans' | 'serif'; scale: number; mode: 'study' | 'test'; completion: 'questions' | 'time' | 'drain'; count: number; minutes: number }>;
-type Data = Readonly<{ users: readonly UserRecord[]; userId: UserRecord['id']; packages: readonly LoadedPackage[]; drafts: readonly DraftRecord[]; attempts: readonly AttemptRecord[]; entries: readonly string[] }>;
+type Data = Readonly<{ users: readonly UserRecord[]; userId: UserRecord['id']; packages: readonly LoadedPackage[]; drafts: readonly DraftRecord[]; attempts: readonly AttemptRecord[]; entries: readonly string[]; editorFiles: readonly EditorFile[] }>;
 type Screen = Readonly<{ kind: 'menu' }> | Readonly<{ kind: 'editor' }> | Readonly<{ kind: 'starting'; requestId: string }> |
     Readonly<{ kind: 'playing'; session: SessionState; idkPrompt: boolean }> |
     Readonly<{ kind: 'result'; session: SessionState }>;
@@ -40,7 +47,7 @@ function preferencesFrom(value: string): Preferences {
         return {
             theme: parsed['theme'] === 'dark' || parsed['theme'] === 'black' ? parsed['theme'] : 'light',
             font: parsed['font'] === 'serif' ? 'serif' : 'sans',
-            scale: typeof parsed['scale'] === 'number' && parsed['scale'] >= 0.8 && parsed['scale'] <= 1.7 ? parsed['scale'] : 1,
+            scale: typeof parsed['scale'] === 'number' && parsed['scale'] >= 0.5 && parsed['scale'] <= 1.7 ? parsed['scale'] : 1,
             mode: parsed['mode'] === 'test' ? 'test' : 'study',
             completion: parsed['completion'] === 'time' || parsed['completion'] === 'drain' ? parsed['completion'] : 'questions',
             count: typeof parsed['count'] === 'number' && Number.isInteger(parsed['count']) && parsed['count'] > 0 && parsed['count'] <= 1000 ? parsed['count'] : 10,
@@ -63,6 +70,9 @@ export class QuizApplication {
     private readonly message: HTMLElement;
     private readonly view: HTMLElement;
     private updateRegistration: Option<ServiceWorkerRegistration> = none;
+    private rubyState: Readonly<{ sessionId: string; items: readonly RubyBufferItem[] }> = { sessionId: '', items: [] };
+    private draftImportText = '';
+    private draftImportPath = `imports/quiz-${crypto.randomUUID()}.json`;
 
     constructor(host: HTMLElement) {
         this.host = host;
@@ -115,6 +125,7 @@ export class QuizApplication {
         }
         const requested = new URLSearchParams(location.search).get('entry');
         if (requested) await this.loadEntry(requested, true);
+        for (const entry of sharedEntries(new URLSearchParams(location.search), document.baseURI)) await this.loadEntry(entry, false);
         const selection = new URLSearchParams(location.search).get('scope');
         if (selection && this.state.kind === 'ready') {
             try {
@@ -183,7 +194,9 @@ export class QuizApplication {
                 }
             } catch { this.inform('保存した問題一覧URLが不正なため、再追加が必要である。題庫は保持している。'); }
         }
-        return ok({ users: userList, userId: user.id, packages: loaded, drafts: drafts.value, attempts: attempts.value, entries });
+        const editorSetting = await db.value.getSetting('editorFiles'); if (!editorSetting.ok) return err(editorSetting.error.message);
+        const editorFiles = editorSetting.value.kind === 'some' ? editorFilesFromSetting(editorSetting.value.value) : [];
+        return ok({ users: userList, userId: user.id, packages: loaded, drafts: drafts.value, attempts: attempts.value, entries, editorFiles });
     }
 
     private async refreshDataNow(): Promise<void> {
@@ -217,6 +230,8 @@ export class QuizApplication {
             if (!fetched.ok) { this.inform('問題一覧を取得できない。保存済み題庫と草稿は引き続き利用できる。'); return; }
             const entry = parseEntryJson(fetched.value.text);
             if (!entry.ok) { this.inform(`entryの形式が不正: ${entry.error.path} ${entry.error.detail}`); return; }
+            const editorMapping = editorFilesFromEntry(fetched.value.text, fetched.value.url, entry.value.files);
+            const newEditorFiles: EditorFile[] = [];
             const selected: PatternId[] = [];
             const errors: string[] = [];
             for (const path of entry.value.files) {
@@ -229,6 +244,8 @@ export class QuizApplication {
                 const quiz = parseQuizJson(text.value.text);
                 const identity = packageIdentity({ kind: 'remote', url: text.value.url });
                 if (!quiz.ok || !identity.ok) { errors.push(path); continue; }
+                const editorFile = editorMapping.ok ? editorMapping.value.find((item) => item.source === resolved.value) : undefined;
+                if (editorFile) newEditorFiles.push({ source: text.value.url, localPath: editorFile.localPath });
                 const existing = before.value.find((item) => item.id === identity.value);
                 const json = serializeQuiz(quiz.value);
                 const saved = await db.value.replacePackage({ id: identity.value, source: text.value.url, json, revision: json, updatedAt: Date.now() }, existing ? some(existing.revision) : none);
@@ -236,6 +253,9 @@ export class QuizApplication {
                 selected.push(...prepareQuiz(quiz.value, identity.value, json).candidates.map((candidate) => candidate.patternId));
             }
             if (generation !== this.loadingGeneration) return;
+            const entrySources = entry.value.files.flatMap((path) => { const resolved = resolveHttpUrl(path, fetched.value.url); return resolved.ok ? [resolved.value] : []; });
+            const savedEditorFiles = await db.value.setSetting({ id: 'editorFiles', value: JSON.stringify([...this.state.data.editorFiles.filter((item) => !entrySources.includes(item.source)), ...newEditorFiles]) });
+            if (!savedEditorFiles.ok) { this.inform(savedEditorFiles.error.message); return; }
             await this.refreshData();
             if (this.state.kind === 'ready' && (select || !this.state.selected.length) && (selected.length > 0 || errors.length === 0)) this.state = { ...this.state, selected: [...new Set(selected)] };
             if (select && (selected.length > 0 || errors.length === 0)) {
@@ -285,6 +305,63 @@ export class QuizApplication {
         }
     }
 
+    private async showShare(selected: readonly PatternId[]): Promise<void> {
+        if (this.state.kind !== 'ready') return;
+        const text = shareUrl(location.href, selected, this.state.data.entries);
+        const dialog = element('dialog'); dialog.setAttribute('aria-label', '出題範囲を共有');
+        const url = element('textarea'); url.readOnly = true; url.value = text; url.setAttribute('aria-label', '共有URL');
+        const image = element('img'); image.alt = '共有URLのQRコード'; image.style.maxWidth = '100%';
+        const status = element('p', 'QRを生成中…'); status.setAttribute('role', 'status');
+        dialog.append(element('h2', '出題範囲を共有'), url, this.button('URLをコピー', async () => { await navigator.clipboard.writeText(text); status.textContent = '共有URLをコピーした。'; }), image, status, this.button('共有を閉じる', () => dialog.close()));
+        dialog.addEventListener('close', () => dialog.remove(), { once: true });
+        document.body.append(dialog); dialog.showModal();
+        const qr = await shareQr(text);
+        if (!dialog.isConnected) return;
+        if (qr.ok) { image.src = qr.value; status.textContent = 'QRまたはURLで同じ出題範囲を開ける。ローカル草稿そのものは共有しない。'; }
+        else { image.remove(); status.textContent = qr.error; }
+    }
+
+    private renderDraftImport(parent: HTMLElement): void {
+        const section = element('details'); section.append(element('summary', 'JSONを新規草稿へ取り込む'));
+        const path = element('input'); path.value = this.draftImportPath; path.setAttribute('aria-label', '取込先の新規草稿パス');
+        path.addEventListener('input', () => { this.draftImportPath = path.value; });
+        const input = element('textarea'); input.value = this.draftImportText; input.rows = 6; input.setAttribute('aria-label', '取り込むv3問題JSON');
+        input.addEventListener('input', () => { this.draftImportText = input.value; });
+        section.append(path, input, this.button('クリップボードを読み込む', async () => {
+            const previous = input.value;
+            try {
+                const text = await navigator.clipboard.readText();
+                if (!input.isConnected || input.value !== previous) { this.inform('読取待ちの間に入力が進んだため、入力内容を保持した。'); return; }
+                input.value = text; this.draftImportText = text; this.inform('内容を確認して新規草稿へ保存できる。');
+            }
+            catch { section.open = true; input.focus(); this.inform('クリップボードを読み込めない。この欄へ貼り付けて保存できる。'); }
+        }), this.button('新規草稿として保存', async () => {
+            const db = this.database(); if (db.kind === 'none') return;
+            const savedPath = path.value; const savedText = input.value;
+            const imported = await importDraft(db.value, savedPath, savedText, Date.now());
+            if (!imported.ok) { this.inform(imported.error); return; }
+            if (this.draftImportText === savedText && this.draftImportPath === savedPath) { this.draftImportText = ''; this.draftImportPath = `imports/quiz-${crypto.randomUUID()}.json`; }
+            await this.refreshData(); this.inform(`${imported.value.id} を新規草稿として保存した。`);
+        })); parent.append(section);
+    }
+
+    private sourceInfo(question: Question, row: Row): SourceInfo {
+        const loaded = this.state.kind === 'ready' ? this.state.data.packages.find((entry) => entry.record.id === question.packageId) : undefined;
+        const rowIndex = loaded?.quiz.table.findIndex((entry) => entry.id === row.id) ?? -1;
+        return { source: loaded?.record.source ?? question.packageId, packageId: question.packageId, questionId: question.id,
+            rowId: row.id, patternId: question.pattern.id, jsonPath: rowIndex >= 0 ? `$.table[${rowIndex}]` : '$.table' };
+    }
+
+    private textTools(regions: readonly SourceRegion[], sessionId: string): HTMLElement {
+        return sourceControls(regions, this.state.kind === 'ready' ? this.state.data.editorFiles : [], (item) => {
+            if (this.rubyState.sessionId !== sessionId) return;
+            this.rubyState = { sessionId, items: addRubyItem(this.rubyState.items, item) };
+            const buffer = this.view.querySelector('textarea[data-ruby-buffer]');
+            if (buffer instanceof HTMLTextAreaElement) buffer.value = JSON.stringify(this.rubyState.items, null, 2);
+            this.inform(`${item.base} (${item.reading}) を収集した。Ruby Buffer: ${this.rubyState.items.length}件`);
+        }, async (source) => { await navigator.clipboard.writeText(JSON.stringify(source, null, 2)); this.inform('出典情報をコピーした。'); });
+    }
+
     private renderMenu(state: ReadyState): void {
         const layout = element('main', '', 'menu-layout');
         const scope = element('section', '', 'panel'); scope.append(element('h2', '出題範囲'));
@@ -292,6 +369,16 @@ export class QuizApplication {
             if (this.state.kind === 'ready') { this.state = { ...this.state, selected: [...new Set(this.state.data.packages.flatMap((item) => item.prepared.candidates.map((candidate) => candidate.patternId)))] }; this.render(); }
         }, this.busy));
         scope.append(this.button('選択を解除', () => { if (this.state.kind === 'ready') { this.state = { ...this.state, selected: [] }; this.render(); } }, this.busy));
+        const folders = new Map<string, PatternId[]>();
+        for (const loaded of state.data.packages) for (const folder of folderKeys(loaded.record.source)) folders.set(folder, [...new Set([...(folders.get(folder) ?? []), ...loaded.prepared.candidates.map((candidate) => candidate.patternId)])]);
+        if (folders.size) {
+            const groups = element('details'); groups.append(element('summary', 'フォルダから範囲を選択'));
+            for (const [folder, ids] of folders) {
+                const item = element('p', folder);
+                item.append(this.button('このフォルダを選択', () => { if (this.state.kind === 'ready') { this.state = { ...this.state, selected: ids }; this.render(); } }, this.busy), this.button('このフォルダを共有', () => this.showShare(ids), this.busy || ids.length === 0)); groups.append(item);
+            }
+            scope.append(groups);
+        }
         for (const loaded of state.data.packages) {
             const card = element('fieldset', '', 'quiz-card');
             const legend = element('legend'); legend.append(richText(loaded.quiz.title)); card.append(legend);
@@ -354,10 +441,11 @@ export class QuizApplication {
             await this.begin();
         }, this.busy || capacity === 0));
         controls.append(this.button('共有URLをコピー', async () => {
-            const url = new URL(location.href); url.searchParams.set('scope', JSON.stringify(state.selected));
-            await navigator.clipboard.writeText(url.href); this.inform('共有URLをコピーした。');
+            await navigator.clipboard.writeText(shareUrl(location.href, state.selected, state.data.entries)); this.inform('共有URLをコピーした。');
         }, capacity === 0));
+        controls.append(this.button('共有URL・QRを表示', () => this.showShare(state.selected), capacity === 0));
         controls.append(this.button('草稿を編集', () => this.openEditor(), this.busy));
+        this.renderDraftImport(controls);
         this.renderPreferences(controls, state);
         this.renderStorage(controls, state);
         layout.append(scope, controls); this.view.append(layout);
@@ -396,7 +484,7 @@ export class QuizApplication {
             if (this.state.kind !== 'ready') return;
             return this.savePreferences({ ...this.state.preferences, font: this.state.preferences.font === 'sans' ? 'serif' : 'sans' });
         }));
-        for (const scale of [0.8, 1, 1.2, 1.4, 1.7]) settings.append(this.button(`文字 ${Math.round(scale * 100)}%`, () => {
+        for (const scale of [0.5, 0.65, 0.8, 1, 1.2, 1.4, 1.7]) settings.append(this.button(`文字 ${Math.round(scale * 100)}%`, () => {
             if (this.state.kind !== 'ready') return;
             return this.savePreferences({ ...this.state.preferences, scale });
         }));
@@ -414,6 +502,14 @@ export class QuizApplication {
             settings.append(item);
         }
         settings.append(this.button('サンプルを再読込', () => this.loadEntry(new URL('entry.json', document.baseURI).href, false), this.busy));
+        settings.append(this.button('offline cacheを削除して再起動', async () => {
+            if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.busy) return;
+            if (!confirm('このアプリのoffline cacheを削除して再起動する。IndexedDBの草稿・ユーザー・学習記録は保持する。再取得には通信が必要である。よいか。')) return;
+            if (!('caches' in globalThis) || !('serviceWorker' in navigator)) { this.inform('この環境ではoffline cache操作を利用できない。'); return; }
+            const result = await clearAppCache(new URL(import.meta.env.BASE_URL, location.origin).href, caches, navigator.serviceWorker);
+            if (!result.ok) { this.inform(result.error); return; }
+            location.reload();
+        }, this.busy));
         parent.append(settings);
     }
 
@@ -470,6 +566,7 @@ export class QuizApplication {
         if (!created.ok) { this.inform(`出題設定が不正: ${created.error.kind}`); return; }
         const started = await db.value.startSession(created.value.record); if (!started.ok) { this.inform(started.error.message); return; }
         if (this.state.kind !== 'ready' || this.state.screen.kind !== 'starting' || this.state.screen.requestId !== requestId) return;
+        this.rubyState = { sessionId: created.value.record.id, items: [] };
         this.state = { ...this.state, screen: { kind: 'playing', session: created.value, idkPrompt: false } };
         published = true;
         await this.advance();
@@ -544,6 +641,7 @@ export class QuizApplication {
                 panel.append(element('p', phase.stage), element('h2', phase.question.title));
                 const context = this.context(session, this.renderGeneration, phase.kind === 'answered');
                 const stem = element('div', '', 'question-text'); stem.append(renderTokens(phase.question.pattern.tokens, phase.question.row, context)); panel.append(stem);
+                const regions: SourceRegion[] = [{ root: stem, source: this.sourceInfo(phase.question, phase.question.row) }];
                 const choices = element('div', '', 'choices');
                 for (const [index, option] of phase.question.options.entries()) {
                     const choice = this.button('', async () => {
@@ -552,6 +650,7 @@ export class QuizApplication {
                         else await this.select({ kind: 'option', optionId: option.id });
                     }, phase.kind === 'saving');
                     choice.append(element('span', `${index + 1}. `), renderTokens(option.tokens, option.row, { ...context, answer: none }));
+                    regions.push({ root: choice, source: this.sourceInfo(phase.question, option.row) });
                     choice.className = 'choice';
                     if (phase.kind === 'answered') { choice.classList.add(option.isCorrect ? 'correct' : 'review'); choice.setAttribute('aria-label', `${index + 1}. ${option.text} ${option.isCorrect ? '正答' : ''}`); }
                     choices.append(choice);
@@ -566,10 +665,14 @@ export class QuizApplication {
                     panel.append(element('p', phase.attempt.result === 'strong' || phase.attempt.result === 'weak' ? '正解' : phase.attempt.result === 'idk' ? '分からないとして記録した' : phase.attempt.result === 'timeout' ? '時間切れ' : '不正解', 'feedback'));
                     for (const tip of phase.question.pattern.tips) {
                         const correct = phase.attempt.result === 'strong' || phase.attempt.result === 'weak';
-                        if (tip.when === 'after_answer' || (tip.when === 'after_correct' && correct) || (tip.when === 'after_incorrect' && !correct)) panel.append(renderTokens(tip.tokens, phase.question.row, context));
+                        if (tip.when === 'after_answer' || (tip.when === 'after_correct' && correct) || (tip.when === 'after_incorrect' && !correct)) {
+                            const tipRoot = renderTokens(tip.tokens, phase.question.row, context); panel.append(tipRoot);
+                            regions.push({ root: tipRoot, source: this.sourceInfo(phase.question, phase.question.row) });
+                        }
                     }
                     panel.append(this.button('次の問題', () => this.advance()));
                 }
+                panel.append(this.textTools(regions, session.record.id));
                 break;
             }
             case 'waiting': panel.append(element('h2', '次の復習を待っている'), element('p', `${new Date(phase.dueAt).toLocaleTimeString()} に再開する。`), this.button('確認', () => this.advance())); break;
@@ -598,7 +701,7 @@ export class QuizApplication {
                 void _revision; // revision原文はreplayに一度だけ格納する。
                 return { ...entry, question };
             });
-            await navigator.clipboard.writeText(JSON.stringify({ summary, seed: session.config.seed, replay: session.record.replay, history }, null, 2)); this.inform('結果をコピーした。');
+            await navigator.clipboard.writeText(JSON.stringify({ summary, seed: session.config.seed, replay: session.record.replay, history, rubyBuffer: this.rubyState.sessionId === session.record.id ? this.rubyState.items : [] }, null, 2)); this.inform('結果をコピーした。');
         }));
         panel.append(this.button('メニューへ', async () => { if (this.state.kind === 'ready') this.state = { ...this.state, screen: { kind: 'menu' } }; await this.refreshData(); }));
         const list = element('ol');
@@ -609,15 +712,23 @@ export class QuizApplication {
             const correct = entry.question.options.find((option) => option.id === entry.question.correctOptionId);
             const generation = this.renderGeneration;
             const context = { baseUrl: /^https?:/i.test(source) ? source : document.baseURI, ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}), answer: correct ? some({ tokens: correct.tokens, row: correct.row }) : none, isCurrent: () => generation === this.renderGeneration };
-            item.append(renderTokens(entry.question.pattern.tokens, entry.question.row, context));
+            const stem = renderTokens(entry.question.pattern.tokens, entry.question.row, context); item.append(stem);
+            const regions: SourceRegion[] = [{ root: stem, source: this.sourceInfo(entry.question, entry.question.row) }];
             if (entry.selection.kind === 'option') {
                 const id = entry.selection.optionId;
                 const selected = entry.question.options.find((option) => option.id === id);
-                if (selected) { item.append(element('p', '選んだ解答:')); item.append(renderTokens(selected.tokens, selected.row, { ...context, answer: none })); }
+                if (selected) { item.append(element('p', '選んだ解答:')); const root = renderTokens(selected.tokens, selected.row, { ...context, answer: none }); item.append(root); regions.push({ root, source: this.sourceInfo(entry.question, selected.row) }); }
             }
+            item.append(this.textTools(regions, session.record.id));
             list.append(item);
         }
-        panel.append(list); this.view.append(panel);
+        panel.append(list);
+        const buffer = element('details'); buffer.append(element('summary', '収集したRuby Buffer'));
+        const json = element('textarea'); json.readOnly = true; json.rows = 6; json.setAttribute('aria-label', 'Ruby Buffer JSON');
+        json.dataset['rubyBuffer'] = 'true';
+        json.value = JSON.stringify(this.rubyState.sessionId === session.record.id ? this.rubyState.items : [], null, 2);
+        buffer.append(json, this.button('Ruby Bufferをコピー', async () => { await navigator.clipboard.writeText(JSON.stringify(this.rubyState.sessionId === session.record.id ? this.rubyState.items : [], null, 2)); this.inform('Ruby Bufferをコピーした。'); }));
+        panel.append(buffer); this.view.append(panel);
     }
 
     private async openEditor(): Promise<void> {
