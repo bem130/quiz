@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint';
 export default defineConfig(
     { ignores: ['node_modules/**', 'dist/**', 'src/core/quality-rules-*/**'] },
     {
-        files: ['src/**/*.ts', 'tests/core/**/*.ts', 'tests/types/**/*.ts', 'vite.config.ts'],
+        files: ['src/**/*.ts', 'tests/**/*.ts', 'scripts/**/*.ts', 'vite.config.ts', 'playwright.config.ts', 'playwright.pwa.config.ts'],
         extends: [js.configs.recommended, tseslint.configs.recommendedTypeChecked],
         languageOptions: {
             parserOptions: {
@@ -18,6 +18,15 @@ export default defineConfig(
             '@typescript-eslint/no-non-null-assertion': 'error',
             '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
             '@typescript-eslint/switch-exhaustiveness-check': 'error'
+        }
+    },
+    {
+        files: ['src/service-worker.ts'],
+        languageOptions: {
+            parserOptions: {
+                projectService: false,
+                project: './tsconfig.worker.json'
+            }
         }
     },
     {
