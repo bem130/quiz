@@ -1,3 +1,7 @@
 /tmp
 /node_modules/
 /dist/
+/test-results/
+/playwright-report/
+/dist-monaco-check/
+/test-results-editor-monaco/
