@@ -1,0 +1,140 @@
+import type { ContentSegment } from '../../src/core/content.ts';
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { parseContentToSegments, rubyLineToHtml } from '../../src/core/content.ts';
+
+function countSegments(segments: readonly ContentSegment[], kind: ContentSegment['kind']) {
+    return (segments || []).filter((segment) => segment.kind === kind).length;
+}
+
+function getGlossSegments(segments: readonly ContentSegment[]) {
+    return (segments || []).filter((segment) => segment.kind === 'Gloss');
+}
+
+function glossAltHasRuby(gloss: Extract<ContentSegment, { kind: 'Gloss' }>) {
+    return (gloss.glosses || []).some((alt) =>
+        (alt || []).some((segment) => segment.kind === 'Annotated')
+    );
+}
+
+await test('ruby.md: basic ruby example parses ruby blocks', () => {
+    const input = '[私/わたし]は[漢字/かんじ][仮名/かな][交/ま]じりの[文/ぶん]を[書/か]く';
+    const segments = parseContentToSegments(input);
+    assert.equal(countSegments(segments, 'Gloss'), 0);
+    assert.equal(countSegments(segments, 'Annotated'), 6);
+});
+
+await test('ruby.md: gloss examples parse gloss blocks and ruby outside', () => {
+    const input = '{[微分/びぶん][係数/けいすう]/derivative}は{[接線/せっせん]/tangent}の[傾/かたむ]きを[表/あらわ]す';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 2);
+    assert.equal(countSegments(segments, 'Annotated'), 2);
+});
+
+await test('ruby.md: gloss example with mixed base text parses multiple glosses', () => {
+    const input = '{カルボン[酸/さん]/carboxylic acid}は{[弱酸/じゃくさん]/weak acid}として{[水溶液/すいようえき]/aqueous solution}で{[電離/でんり]/ionize}しやすい。';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 4);
+    glosses.forEach((gloss) => {
+        assert.ok(gloss.base && gloss.base.length > 0);
+        assert.ok(gloss.glosses && gloss.glosses.length >= 1);
+    });
+});
+
+await test('ruby.md: gloss with ruby in alt parses alternate ruby', () => {
+    const input = '{[台湾/たいわん]/[台灣/Táiwān]}に[行/い]く';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 1);
+    const first = glosses.at(0);
+    assert.ok(first);
+    assert.ok(glossAltHasRuby(first));
+    assert.equal(countSegments(segments, 'Annotated'), 1);
+});
+
+await test('ruby.md: gloss with non-ruby alternates parses correctly', () => {
+    const input = '[来年/らいねん]、{アテネ/Αθήνα}を[訪/おとず]れる[予定/よてい]だ';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 1);
+    assert.equal(countSegments(segments, 'Annotated'), 3);
+});
+
+await test('ruby.md: gloss with long alt text parses correctly', () => {
+    const input = '{トルストイ/Лев Николаевич Толстой}の[小説/しょうせつ]を[読/よ]む';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 1);
+    assert.equal(countSegments(segments, 'Annotated'), 2);
+});
+
+await test('ruby.md: english sentence with two gloss blocks parses', () => {
+    const input = 'Next spring, I want to visit {Firenze/Florence} and {Athens/Αθήνα}.';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 2);
+    assert.equal(countSegments(segments, 'Annotated'), 0);
+});
+
+await test('ruby.md: english sentence with ruby alternates parses', () => {
+    const input = 'I would like to visit {Nara/[奈良/なら]} and {Kyoto/[京都/きょうと]}.';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 2);
+    glosses.forEach((gloss) => assert.ok(glossAltHasRuby(gloss)));
+});
+
+await test('ruby.md: chinese sentence with multiple alternates parses', () => {
+    const input = '[我/wǒ][明/míng][年/nián][想/xiǎng][去/qù]{[佛/fó][罗/luó][伦/lún][萨/sà]/Firenze/Florence}[和/hé]{[雅/yǎ][典/diǎn]/Αθήνα/Athens}[旅/lǚ][行/xíng]。';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 2);
+    for (const gloss of glosses) assert.equal(gloss.glosses.length, 2);
+});
+
+await test('ruby.md: chinese sentence with single alternate parses', () => {
+    const input = '[我/wǒ][最/zuì][近/jìn][在/zài][读/dú]{[维/wéi][特/tè][根/gēn][斯/sī][坦/tǎn]/Wittgenstein}[的/de][书/shū]。';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 1);
+    const first = glosses.at(0);
+    assert.ok(first);
+    assert.equal(first.glosses.length, 1);
+});
+
+await test('ruby.md: chinese ruby example parses multiple ruby blocks', () => {
+    const input = '[我/wǒ][在/zài][学/xué][校/xiào][学/xué][习/xí][汉/hàn][语/yǔ]。';
+    const segments = parseContentToSegments(input);
+    assert.equal(countSegments(segments, 'Gloss'), 0);
+    assert.equal(countSegments(segments, 'Annotated'), 8);
+});
+
+await test('ruby.md: chinese ruby example with more blocks parses', () => {
+    const input = '[明/míng][年/nián][我/wǒ][想/xiǎng][去/qù][台/tái][湾/wān][旅/lǚ][行/xíng]。';
+    const segments = parseContentToSegments(input);
+    assert.equal(countSegments(segments, 'Gloss'), 0);
+    assert.equal(countSegments(segments, 'Annotated'), 9);
+});
+
+await test('ruby.md: greek sentence with gloss parses', () => {
+    const input = 'Μελετάμε {Βιτγκενστάιν/Wittgenstein} στη φιλοσοφία';
+    const segments = parseContentToSegments(input);
+    const glosses = getGlossSegments(segments);
+    assert.equal(glosses.length, 1);
+});
+
+await test('ruby.md: math example keeps math segments intact', () => {
+    const input = '[地表/ちひょう][付近/ふきん]に[多/おお]く[含/ふく]まれる{[元素/げんそ]/element}に{[酸素/さんそ]/oxygen}$\\mathrm{O_2}$・{[珪素/けいそ]/silicon}$\\mathrm{Si}$・{アルミニウム/aluminum}$\\mathrm{Al}$・{[鉄/てつ]/iron}$\\mathrm{Fe}$がある';
+    const segments = parseContentToSegments(input);
+    assert.equal(countSegments(segments, 'Gloss'), 5);
+    assert.equal(countSegments(segments, 'Math'), 4);
+    assert.ok(countSegments(segments, 'Annotated') > 0);
+});
+
+await test('ruby.md: gloss alternates render in one wrapper line', () => {
+    const html = rubyLineToHtml('{インド/भारत/Bhārat/India}');
+    assert.ok(html.includes('class="gloss-alts"'));
+    assert.equal((html.match(/class="gloss-alt"/g) || []).length, 3);
+});
