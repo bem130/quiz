@@ -683,7 +683,13 @@ export class QuizApplication {
         const details = element('details'); details.append(element('summary', 'バックアップ・復元'));
         details.append(this.button('完全バックアップをダウンロード', async () => {
             const db = this.database(); if (db.kind === 'none') return;
-            const snapshot = await db.value.exportBackup(); if (!snapshot.ok) { this.inform(snapshot.error.message); return; }
+            const generation = this.startGeneration;
+            const current = (): boolean => generation === this.startGeneration && this.storage.kind === 'some' && this.storage.value === db.value;
+            await this.preferencesQueue;
+            if (!current()) return;
+            const snapshot = await db.value.exportBackup();
+            if (!current()) return;
+            if (!snapshot.ok) { this.inform(snapshot.error.message); return; }
             const text = JSON.stringify(snapshot.value, null, 2);
             if (new TextEncoder().encode(text).byteLength > BACKUP_MAX_BYTES) { this.inform('完全バックアップが50MBの上限を超える。データを省略せずに出力するため、保存内容を整理して再試行する。'); return; }
             this.download(text, 'quiz-backup.json'); this.inform('草稿・ユーザー・履歴・設定・取得済みSVGを含むバックアップを作成した。');

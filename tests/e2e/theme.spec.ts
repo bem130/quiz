@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { validateBackup } from '../../src/web/storage/validation.ts';
 
 declare global { interface Window { themeTest: { release: () => void; fail: boolean; held: boolean } } }
 const quiz = JSON.stringify({ version: 3, title: '[学習/がくしゅう]{題庫/quiz}', description: '色と保存状態の検証',
@@ -163,6 +164,34 @@ QuizStorage.prototype.setSetting = function(value) {
     await page.getByRole('button', { name: 'ダークテーマ', exact: true }).click(); await savedTheme(page, 'dark');
     await expect(page.locator('.app-message')).toHaveText('配色を保存した。');
     await page.getByRole('button', { name: 'ダークテーマ', exact: true }).click(); await savedTheme(page, 'light');
+});
+
+test('完全backupは遅い設定保存と連続切替の完了を待ち、画面で選んだ配色を出力する', async ({ page }) => {
+    await intercept(page, `
+const themeOriginalExportSetting = QuizStorage.prototype.setSetting;
+let themeExportHeldOnce = false;
+QuizStorage.prototype.setSetting = async function(value) {
+    if (value.id === 'preferences' && window.themeTest.fail && !themeExportHeldOnce) {
+        themeExportHeldOnce = true; window.themeTest.held = true;
+        await new Promise(resolve => { window.themeTest.release = resolve; });
+    }
+    return themeOriginalExportSetting.call(this,value);
+};`);
+    await open(page); const toggle = page.getByRole('button', { name: 'ダークテーマ', exact: true });
+    await toggle.click(); await savedTheme(page, 'dark'); await page.evaluate(() => { window.themeTest.fail = true; });
+    await toggle.click(); await page.waitForFunction(() => window.themeTest.held); await toggle.click(); await toggle.click(); await theme(page, 'light');
+    await details(page, 'バックアップ・復元');
+    let downloads = 0; page.on('download', () => { downloads += 1; }); const downloaded = page.waitForEvent('download');
+    await page.getByRole('button', { name: '完全バックアップをダウンロード', exact: true }).click();
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    expect(downloads).toBe(0); await savedTheme(page, 'dark');
+    await page.evaluate(() => window.themeTest.release());
+    const file = await (await downloaded).path(); if (!file) throw new Error('backup取得失敗');
+    const raw: unknown = JSON.parse(await readFile(file, 'utf8')); const backup = validateBackup(raw); if (!backup.ok) throw new Error(backup.error.message);
+    const setting = backup.value.records.settings.find(value => value.id === 'preferences'); if (!setting) throw new Error('backupに設定がない');
+    const preferences: unknown = JSON.parse(setting.value);
+    expect(typeof preferences === 'object' && preferences !== null && 'theme' in preferences ? preferences.theme : null).toBe('light');
+    await savedTheme(page, 'light'); expect(downloads).toBe(1);
 });
 
 for (const action of ['restore', 'reset'] as const) {
