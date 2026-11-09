@@ -5,7 +5,8 @@ import { openQuizStorage } from '../../src/web/storage/database.ts';
 import { importDraft } from '../../src/web/draft-import.ts';
 import { cachePrefix, clearAppCache } from '../../src/web/cache-reset.ts';
 import { editorFilesFromEntry, editorFilesFromSetting, folderKeys, vscodeLink } from '../../src/web/source-tools.ts';
-import { shareUrl, sharedEntries } from '../../src/web/sharing.ts';
+import { shareUrl, sharedEntries, sharedScope } from '../../src/web/sharing.ts';
+import { packageIdentity, patternId } from '../../src/core/identity.ts';
 
 await test('clipboard相当のv3取込は不正値と既存path上書きを拒否する', async (context) => {
     const result = await openQuizStorage('import-tools', new IDBFactory());
@@ -35,8 +36,23 @@ await test('folder範囲と共有の新規URLは完全出典とpercentを保持�
     assert.deepEqual(folderKeys('drafts/folder/a.json'), ['draft:/drafts/', 'draft:/drafts/folder/']);
     const entries = ['https://example.com/entry%20file.json'];
     const url = new URL(shareUrl('https://bem130.github.io/quiz/', ['pattern'], entries));
-    assert.deepEqual(sharedEntries(url.searchParams, url.href), entries);
-    assert.deepEqual(sharedEntries(new URLSearchParams('entries=["javascript:alert(1)"]'), url.href), []);
+    assert.deepEqual(sharedEntries(url.searchParams, url.href), { ok: true, value: entries });
+    assert.equal(sharedEntries(new URLSearchParams('entries=["javascript:alert(1)"]'), url.href).ok, false);
+});
+
+await test('共有scopeは不正な部分だけを黙って捨てず、全入力の形式と利用可能性を確認する', () => {
+    const source = packageIdentity({ kind: 'remote', url: 'https://example.com/quiz.json' }); if (!source.ok) assert.fail(source.error.detail);
+    const known = patternId(source.value, 'known'); const missing = patternId(source.value, 'missing');
+    const available = new Set([known]);
+    assert.deepEqual(sharedScope(null, available), { ok: true, value: { kind: 'none' } });
+    assert.deepEqual(sharedScope(JSON.stringify([known, known]), available), { ok: true, value: { kind: 'some', value: [known] } });
+    for (const input of ['{', '{}', 'null', '[1]', JSON.stringify([known, missing]), JSON.stringify([known, 'bad'])]) {
+        const result = sharedScope(input, available); assert.equal(result.ok, false);
+        if (!result.ok) assert.match(result.error, /現在の出題範囲は保持した/u);
+    }
+    for (const input of ['{', '{}', '[1]', '["javascript:alert(1)"]']) assert.equal(sharedEntries(new URLSearchParams({ entries: input }), 'https://example.com/').ok, false);
+    const entries = Array.from({ length: 50 }, (_, index) => `https://example.com/${index}.json`);
+    assert.equal(sharedEntries(new URLSearchParams({ entries: JSON.stringify(entries), entry: 'https://example.com/extra.json' }), 'https://example.com/').ok, false);
 });
 
 await test('cache削除は完全一致scopeのworkerとprefixだけを扱い、失敗を成功扱いしない', async () => {
