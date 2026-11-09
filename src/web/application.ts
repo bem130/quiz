@@ -31,6 +31,9 @@ type Screen = Readonly<{ kind: 'menu' }> | Readonly<{ kind: 'editor' }> | Readon
 type ReadyState = Readonly<{ kind: 'ready'; data: Data; screen: Screen; selected: readonly PatternId[]; preferences: Preferences }>;
 type AppState = Readonly<{ kind: 'loading' }> | Readonly<{ kind: 'error'; message: string }> | ReadyState;
 type EntryLoadIntent = 'refresh' | 'manual' | 'shared';
+type UpdateState = Readonly<{ kind: 'idle' | 'preparing' | 'reload' }> |
+    Readonly<{ kind: 'ready'; registration: ServiceWorkerRegistration; worker: ServiceWorker }> |
+    Readonly<{ kind: 'failed'; initial: boolean }>;
 const DEFAULTS: Preferences = { theme: 'light', font: 'sans', scale: 1, mode: 'study', completion: 'questions', count: 10, minutes: 10 };
 const BACKUP_MAX_BYTES = 50_000_000;
 
@@ -71,7 +74,9 @@ export class QuizApplication {
     private readonly host: HTMLElement;
     private readonly message: HTMLElement;
     private readonly view: HTMLElement;
-    private updateRegistration: Option<ServiceWorkerRegistration> = none;
+    private updateState: UpdateState = { kind: 'idle' };
+    private readonly observedRegistrations = new WeakSet<ServiceWorkerRegistration>();
+    private readonly observedWorkers = new WeakSet<ServiceWorker>();
     private rubyState: Readonly<{ sessionId: string; items: readonly RubyBufferItem[] }> = { sessionId: '', items: [] };
     private draftImportText = '';
     private draftImportPath = `imports/quiz-${crypto.randomUUID()}.json`;
@@ -607,7 +612,9 @@ export class QuizApplication {
             const cleared = await db.value.clearAll(); if (!cleared.ok) { this.inform(cleared.error.message); return; }
             this.state = { ...state, preferences: DEFAULTS, selected: [] }; await this.refreshData(); this.inform('新サイトの全保存データを削除した。');
         }));
-        if (this.updateRegistration.kind === 'some') parent.append(this.button('新しいアプリ版を適用', () => this.applyUpdate()));
+        if (this.updateState.kind === 'ready' && this.updateState.registration.waiting === this.updateState.worker) parent.append(this.button('新しいアプリ版を適用', () => this.applyUpdate()));
+        else if (this.updateState.kind === 'failed') parent.append(this.button('オフライン・更新の準備を再試行', () => this.retryWorker()));
+        else if (this.updateState.kind === 'reload') parent.append(this.button('新しい版でページを開き直す', () => this.applyUpdate()));
         parent.append(details);
     }
 
@@ -844,14 +851,59 @@ export class QuizApplication {
         const link = element('a'); link.href = url; link.download = name; document.body.append(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+    private setUpdateState(next: UpdateState, message = ''): void {
+        const previous = this.updateState;
+        const changed = previous.kind !== next.kind ||
+            (previous.kind === 'ready' && next.kind === 'ready' && previous.worker !== next.worker);
+        this.updateState = next;
+        if (message) this.inform(message);
+        if (changed && this.state.kind === 'ready' && this.state.screen.kind === 'menu') this.render();
+    }
+    private workerFailed(initial: boolean): void {
+        this.setUpdateState({ kind: 'failed', initial }, initial ?
+            'オフライン用の準備を完了できない。オンラインで利用できる。接続を確認して再試行できる。' :
+            '新しい版の準備を完了できない。現在の版と保存データを保持している。接続を確認して再試行できる。');
+    }
+    private refreshWorkerState(registration: ServiceWorkerRegistration): void {
+        const waiting = registration.waiting;
+        // 初回installのinstalled→自動activateは、旧activeを持つ更新のwaitingと区別する。
+        if (waiting && registration.active && waiting !== registration.active && waiting.state === 'installed') {
+            const changed = this.updateState.kind !== 'ready' || this.updateState.worker !== waiting;
+            this.setUpdateState({ kind: 'ready', registration, worker: waiting }, changed ? '新しい版の準備が完了した。学習・編集終了後に適用できる。' : '');
+        } else if (registration.installing || (waiting && !registration.active) || registration.active?.state === 'activating') {
+            this.setUpdateState({ kind: 'preparing' });
+        } else if (this.updateState.kind === 'ready' || this.updateState.kind === 'preparing') {
+            this.setUpdateState({ kind: 'idle' });
+        }
+    }
+    private observeWorker(registration: ServiceWorkerRegistration): void {
+        if (!this.observedRegistrations.has(registration)) {
+            this.observedRegistrations.add(registration);
+            registration.addEventListener('updatefound', () => this.observeWorker(registration));
+        }
+        const worker = registration.installing ?? registration.waiting;
+        if (worker && !this.observedWorkers.has(worker)) {
+            this.observedWorkers.add(worker);
+            const initial = registration.active === null;
+            let prepared = worker.state === 'installed' || worker.state === 'activating' || worker.state === 'activated';
+            worker.addEventListener('statechange', () => {
+                if (worker.state === 'installed' || worker.state === 'activating' || worker.state === 'activated') prepared = true;
+                // redundantは候補の置換でも起きる。原因を断定せず、install完了前の不成立として伝える。
+                if (worker.state === 'redundant' && !prepared && (!registration.installing || registration.installing === worker) && !registration.waiting) this.workerFailed(initial);
+                else {
+                    this.refreshWorkerState(registration);
+                    if (worker.state === 'activated' && initial) this.inform('オフライン用の準備が完了した。');
+                }
+            });
+        }
+        this.refreshWorkerState(registration);
+    }
     private async registerWorker(): Promise<void> {
         if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
         try {
             const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
-            const waiting = (): void => { if (registration.waiting) { this.updateRegistration = some(registration); this.inform('新しい版がある。学習・編集終了後に適用できる。'); if (this.state.kind === 'ready' && this.state.screen.kind === 'menu') this.render(); } };
-            waiting();
-            registration.addEventListener('updatefound', () => registration.installing?.addEventListener('statechange', waiting));
-        } catch { this.inform('オフライン用の準備に失敗した。オンラインでは利用できる。'); }
+            this.observeWorker(registration);
+        } catch { this.workerFailed(navigator.serviceWorker.controller === null); }
     }
     private async checkUpdate(): Promise<void> {
         if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || import.meta.env.DEV) return;
@@ -860,19 +912,41 @@ export class QuizApplication {
             const value: unknown = await response.json();
             if (isObject(value) && typeof value['version'] === 'string' && value['version'] !== __APP_VERSION__) {
                 const registration = await navigator.serviceWorker.getRegistration();
-                if (registration) { await registration.update(); if (registration.waiting) this.updateRegistration = some(registration); }
-                this.inform('新しい版がある。設定のバックアップを保存し、メニューから適用できる。'); this.render();
+                if (!registration) { this.workerFailed(true); return; }
+                this.observeWorker(registration);
+                try { await registration.update(); }
+                catch { this.workerFailed(registration.active === null); return; }
+                this.observeWorker(registration);
+                if (this.updateState.kind === 'idle') this.setUpdateState({ kind: 'reload' }, '配信された版とこのページの版が異なる。学習・編集を終了し、ページを開き直せる。');
             }
         } catch { /* offlineは通常動作。既存データを変更しない。 */ }
     }
-    private async applyUpdate(): Promise<void> {
+    private async retryWorker(): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.isSaving() || (this.editor.kind === 'some' && this.editor.value.isDirty())) { this.inform('学習・編集を終了してから準備を再試行する。'); return; }
+        const initial = this.updateState.kind === 'failed' ? this.updateState.initial : navigator.serviceWorker.controller === null;
+        this.setUpdateState({ kind: 'preparing' }, 'オフライン・更新の準備を再試行している。');
+        try {
+            const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
+            this.observeWorker(registration);
+            if (!registration.installing && !registration.waiting) { await registration.update(); this.observeWorker(registration); }
+            if (this.updateState.kind === 'idle') this.inform('オフライン・更新の準備を確認した。現在の版を引き続き利用できる。');
+        } catch { this.workerFailed(initial); }
+    }
+    private applyUpdate(): void {
         if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.isSaving() || (this.editor.kind === 'some' && this.editor.value.isDirty())) { this.inform('学習・編集を終了してから更新する。'); return; }
-        if (this.updateRegistration.kind === 'none') return;
-        const registration = this.updateRegistration.value;
-        await registration.update();
-        if (registration.waiting) {
-            navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
-            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
+        if (this.updateState.kind === 'reload') { location.reload(); return; }
+        if (this.updateState.kind !== 'ready') return;
+        const { registration, worker } = this.updateState;
+        if (registration.waiting !== worker || worker.state !== 'installed') { this.refreshWorkerState(registration); return; }
+        this.setUpdateState({ kind: 'preparing' });
+        const reload = (): void => {
+            // apply待ちの短い間に別の操作を始めた場合も、保存中・編集中の画面は破棄しない。
+            if (this.state.kind === 'ready' && this.state.screen.kind === 'menu' && !this.isSaving() &&
+                (this.editor.kind === 'none' || !this.editor.value.isDirty())) location.reload();
+            else this.setUpdateState({ kind: 'reload' }, '新しい版が有効になった。学習・編集を終了してからページを開き直せる。');
+        };
+        navigator.serviceWorker.addEventListener('controllerchange', reload, { once: true });
+        try { worker.postMessage({ type: 'SKIP_WAITING' }); }
+        catch { navigator.serviceWorker.removeEventListener('controllerchange', reload); this.workerFailed(false); }
     }
 }

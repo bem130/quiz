@@ -156,7 +156,7 @@ async function nextVersion(original: string, output: string, version: string): P
         build: { outDir: output, emptyOutDir: false, target: 'es2022', lib: { entry: path.resolve('src/service-worker.ts'), formats: ['iife'], name: 'QuizServiceWorker', fileName: () => 'sw.js' } }
     });
 }
-type VersionServer = Readonly<{ baseURL: string; nextVersion: string; editorAsset: string; requests: readonly string[]; publish(): void; breakInstall(): void; denyAsset(asset: string): void; close(): Promise<void> }>;
+type VersionServer = Readonly<{ baseURL: string; nextVersion: string; editorAsset: string; requests: readonly string[]; publish(): void; breakInstall(): void; repairInstall(): void; denyAsset(asset: string): void; close(): Promise<void> }>;
 async function versionServer(): Promise<VersionServer> {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'quiz-pwa-update-'));
     const original = path.resolve('dist'); const next = path.join(directory, 'next');
@@ -195,7 +195,7 @@ async function versionServer(): Promise<VersionServer> {
     if (!address || typeof address === 'string') throw new Error('server address missing');
     return {
         baseURL: `http://127.0.0.1:${address.port}/quiz/`, nextVersion: nextId, editorAsset, requests,
-        publish() { current = next; }, breakInstall() { brokenInstall = true; current = next; }, denyAsset(asset) { denied.add(asset); },
+        publish() { current = next; }, breakInstall() { brokenInstall = true; current = next; }, repairInstall() { brokenInstall = false; denied.clear(); }, denyAsset(asset) { denied.add(asset); },
         async close() {
             await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
             expect(path.dirname(directory)).toBe(os.tmpdir()); expect(path.basename(directory).startsWith('quiz-pwa-update-')).toBe(true);
@@ -333,6 +333,7 @@ for (const failure of ['integrity', 'worker404'] as const) {
         const server = await versionServer();
         try {
             await page.goto(server.baseURL); await ready(page);
+            await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true })).toHaveCount(0);
             const oldScript = await page.locator('script[type=module][src]').getAttribute('src');
             const before = await storedRows(page, 'users');
             if (failure === 'integrity') {
@@ -352,12 +353,24 @@ for (const failure of ['integrity', 'worker404'] as const) {
                 expect(result).toBe('redundant');
             } else {
                 server.publish(); server.denyAsset('sw.js');
-                const failed = await page.evaluate(async () => {
-                    try { await (await navigator.serviceWorker.getRegistration())?.update(); return false; }
-                    catch { return true; }
-                });
-                expect(failed).toBe(true);
+                const requestedBefore = server.requests.length;
+                await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+                await expect(page.getByRole('status')).toContainText('新しい版の準備を完了できない');
+                expect(server.requests.slice(requestedBefore)).toContain('sw.js');
             }
+            await expect(page.getByRole('status')).toContainText('新しい版の準備を完了できない');
+            await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true })).toHaveCount(0);
+            const retry = page.getByRole('button', { name: 'オフライン・更新の準備を再試行', exact: true });
+            await expect(retry).toBeVisible();
+            const version = page.waitForResponse(response => response.url() === `${server.baseURL}app-version.json` && response.status() === 200);
+            await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+            await (await version).finished();
+            await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+            await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.installing?.state ?? 'none')).toBe('none');
+            await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+            await expect(page.getByRole('status')).toContainText('新しい版の準備を完了できない');
+            await expect(retry).toBeVisible();
+            await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true })).toHaveCount(0);
             const state = await page.evaluate(async () => {
                 const registration = await navigator.serviceWorker.getRegistration();
                 return { active: registration?.active?.state, waiting: registration?.waiting?.state ?? 'none', caches: await caches.keys() };
@@ -365,6 +378,9 @@ for (const failure of ['integrity', 'worker404'] as const) {
             expect(state.active).toBe('activated'); expect(state.waiting).toBe('none');
             expect(state.caches.some(name => name.endsWith(server.nextVersion))).toBe(false);
             expect(state.caches.filter(name => name.includes(':static:'))).toHaveLength(1);
+            server.repairInstall(); await retry.click();
+            await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true })).toBeVisible();
+            await expect(retry).toHaveCount(0);
             await context.setOffline(true); await page.reload(); await ready(page);
             expect(await page.locator('script[type=module][src]').getAttribute('src')).toBe(oldScript);
             expect(await storedRows(page, 'users')).toEqual(before);
@@ -372,6 +388,38 @@ for (const failure of ['integrity', 'worker404'] as const) {
             await expect(page.getByRole('button', { name: '分からない', exact: true })).toBeVisible();
         } finally { await server.close(); }
     });
+}
+
+for (const failure of ['integrity', 'worker404'] as const) {
+test(`初回の${failure === 'integrity' ? 'install整合性検査' : 'register取得'}失敗を表示し、オンライン利用と保存データを保持して再試行できる`, async ({ page }) => {
+    const server = await versionServer();
+    try {
+        if (failure === 'integrity') server.breakInstall();
+        else { server.publish(); server.denyAsset('sw.js'); }
+        await page.goto(server.baseURL);
+        await expect(page.getByRole('button', { name: 'クイズを開始', exact: true })).toBeEnabled();
+        await expect(page.getByRole('status')).toContainText('オフライン用の準備を完了できない');
+        await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true })).toHaveCount(0);
+        const before = await storedRows(page, 'users');
+        const failed = await page.evaluate(async () => {
+            const registration = await navigator.serviceWorker.getRegistration();
+            return { active: registration?.active?.state ?? 'none', waiting: registration?.waiting?.state ?? 'none', caches: await caches.keys() };
+        });
+        expect(failed.active).toBe('none'); expect(failed.waiting).toBe('none');
+        expect(failed.caches.some(name => name.endsWith(server.nextVersion))).toBe(false);
+        await page.getByRole('button', { name: 'クイズを開始', exact: true }).click();
+        await expect(page.getByRole('button', { name: '分からない', exact: true })).toBeVisible();
+        await page.getByRole('button', { name: '中断して結果を見る', exact: true }).click();
+        await page.getByRole('button', { name: 'メニューへ', exact: true }).click();
+        server.repairInstall();
+        await page.getByRole('button', { name: 'オフライン・更新の準備を再試行', exact: true }).click();
+        await ready(page);
+        await expect(page.getByRole('status')).toContainText('オフライン用の準備が完了した');
+        await expect(page.getByRole('button', { name: 'オフライン・更新の準備を再試行', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true })).toHaveCount(0);
+        expect(await storedRows(page, 'users')).toEqual(before);
+    } finally { await server.close(); }
+});
 }
 
 test('旧hashed editor資産がcacheにも配信元にも無ければ理由を表示してメニューを使い続ける', async ({ page }) => {
