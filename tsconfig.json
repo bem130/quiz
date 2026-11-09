@@ -5,8 +5,7 @@
         "module": "ESNext",
         "moduleResolution": "Bundler",
         "types": ["node"],
-        "allowJs": true,
-        "checkJs": false,
+        "allowJs": false,
         "allowImportingTsExtensions": true,
         "noEmit": true,
         "strict": true,
@@ -21,6 +20,6 @@
         "isolatedModules": true,
         "skipLibCheck": false
     },
-    "include": ["src/**/*.ts", "tests/core/**/*.ts", "tests/types/**/*.ts", "vite.config.ts"],
-    "exclude": ["src/core/quality-rules-*/**"]
+    "include": ["src/**/*.ts", "tests/core/**/*.ts", "tests/types/**/*.ts", "tests/e2e/**/*.ts", "scripts/**/*.ts", "vite.config.ts", "playwright.config.ts", "playwright.pwa.config.ts"],
+    "exclude": ["src/core/quality-rules-*/**", "src/service-worker.ts"]
 }

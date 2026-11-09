@@ -1,0 +1,698 @@
+import { isPatternId, packageIdentity, parsePackageId } from '../core/identity.ts';
+import type { PatternId } from '../core/identity.ts';
+import type { QuizFile } from '../core/model.ts';
+import { prepareQuiz } from '../core/quiz-engine.ts';
+import type { PreparedQuiz, QuestionCandidate } from '../core/quiz-engine.ts';
+import { parseEntryJson, parseQuizJson, serializeQuiz } from '../core/schema.ts';
+import { answerSession, confirmAnswer, createSession, finishSession, nextQuestion, retryCandidates, sessionSummary } from '../core/session.ts';
+import type { Completion, Selection, SessionState } from '../core/session.ts';
+import { err, none, ok, some } from '../core/result.ts';
+import type { Option, Result } from '../core/result.ts';
+import type { AttemptRecord, DraftRecord, PackageRecord, UserRecord } from '../core/records.ts';
+import { openQuizStorage } from './storage/database.ts';
+import type { QuizStorage } from './storage/database.ts';
+import { renderTokens, richText } from './content.ts';
+import { fetchText, resolveHttpUrl } from './network.ts';
+import type { EditorController } from './editor.ts';
+
+type LoadedPackage = Readonly<{ record: PackageRecord; quiz: QuizFile; prepared: PreparedQuiz }>;
+type Preferences = Readonly<{ theme: 'light' | 'dark' | 'black'; font: 'sans' | 'serif'; scale: number; mode: 'study' | 'test'; completion: 'questions' | 'time' | 'drain'; count: number; minutes: number }>;
+type Data = Readonly<{ users: readonly UserRecord[]; userId: string; packages: readonly LoadedPackage[]; drafts: readonly DraftRecord[]; attempts: readonly AttemptRecord[]; entries: readonly string[] }>;
+type Screen = Readonly<{ kind: 'menu' }> | Readonly<{ kind: 'editor' }> | Readonly<{ kind: 'starting'; requestId: string }> |
+    Readonly<{ kind: 'playing'; session: SessionState; idkPrompt: boolean }> |
+    Readonly<{ kind: 'result'; session: SessionState }>;
+type ReadyState = Readonly<{ kind: 'ready'; data: Data; screen: Screen; selected: readonly PatternId[]; preferences: Preferences }>;
+type AppState = Readonly<{ kind: 'loading' }> | Readonly<{ kind: 'error'; message: string }> | ReadyState;
+const DEFAULTS: Preferences = { theme: 'light', font: 'sans', scale: 1, mode: 'study', completion: 'questions', count: 10, minutes: 10 };
+const BACKUP_MAX_BYTES = 50_000_000;
+
+function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = ''): HTMLElementTagNameMap[K] {
+    const value = document.createElement(tag);
+    value.textContent = text;
+    value.className = className;
+    return value;
+}
+function isObject(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
+function preferencesFrom(value: string): Preferences {
+    try {
+        const parsed: unknown = JSON.parse(value);
+        if (!isObject(parsed)) return DEFAULTS;
+        return {
+            theme: parsed['theme'] === 'dark' || parsed['theme'] === 'black' ? parsed['theme'] : 'light',
+            font: parsed['font'] === 'serif' ? 'serif' : 'sans',
+            scale: typeof parsed['scale'] === 'number' && parsed['scale'] >= 0.8 && parsed['scale'] <= 1.7 ? parsed['scale'] : 1,
+            mode: parsed['mode'] === 'test' ? 'test' : 'study',
+            completion: parsed['completion'] === 'time' || parsed['completion'] === 'drain' ? parsed['completion'] : 'questions',
+            count: typeof parsed['count'] === 'number' && Number.isInteger(parsed['count']) && parsed['count'] > 0 && parsed['count'] <= 1000 ? parsed['count'] : 10,
+            minutes: typeof parsed['minutes'] === 'number' && parsed['minutes'] > 0 && parsed['minutes'] <= 180 ? parsed['minutes'] : 10
+        };
+    } catch { return DEFAULTS; }
+}
+
+/** Webの副作用を調整する。問題・回答・保存待ちの正本は純粋なSessionStateに置く。 */
+export class QuizApplication {
+    private state: AppState = { kind: 'loading' };
+    private storage: Option<QuizStorage> = none;
+    private editor: Option<EditorController> = none;
+    private renderGeneration = 0;
+    private loadingGeneration = 0;
+    private notice = '';
+    private busy = false;
+    private refreshQueue: Promise<void> = Promise.resolve();
+    private readonly host: HTMLElement;
+    private readonly message: HTMLElement;
+    private readonly view: HTMLElement;
+    private updateRegistration: Option<ServiceWorkerRegistration> = none;
+
+    constructor(host: HTMLElement) {
+        this.host = host;
+        this.message = element('p', '', 'app-message');
+        this.message.setAttribute('role', 'status');
+        this.message.setAttribute('aria-live', 'polite');
+        this.view = element('div', '', 'app-view');
+        host.replaceChildren(this.message, this.view);
+        window.addEventListener('beforeunload', (event) => {
+            if ((this.editor.kind === 'some' && this.editor.value.isDirty()) || this.isSaving()) { event.preventDefault(); event.returnValue = ''; }
+        });
+        document.addEventListener('keydown', (event) => this.keyboard(event));
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') this.run(() => this.checkUpdate()); });
+        window.setInterval(() => this.run(() => this.tick()), 1000);
+    }
+
+    private run(action: () => Promise<void> | void): void {
+        Promise.resolve().then(action).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '処理に失敗した。再試行できる。';
+            if (this.state.kind === 'loading') { this.state = { kind: 'error', message }; this.render(); }
+            this.inform(message);
+        });
+    }
+    private inform(text: string): void { this.notice = text; this.message.textContent = text; }
+    private button(text: string, action: () => Promise<void> | void, disabled = false): HTMLButtonElement {
+        const button = element('button', text);
+        button.type = 'button'; button.disabled = disabled;
+        button.addEventListener('click', () => this.run(action));
+        return button;
+    }
+    private database(): Option<QuizStorage> { return this.storage; }
+    private isSaving(): boolean { return this.state.kind === 'ready' && this.state.screen.kind === 'playing' && this.state.screen.session.phase.kind === 'saving'; }
+
+    async start(): Promise<void> {
+        this.state = { kind: 'loading' }; this.render();
+        const opened = await openQuizStorage();
+        if (!opened.ok) { this.state = { kind: 'error', message: opened.error.message }; this.render(); return; }
+        this.storage = some(opened.value);
+        const settings = await opened.value.getSetting('preferences');
+        if (!settings.ok) { this.state = { kind: 'error', message: settings.error.message }; this.render(); return; }
+        const preferences = settings.value.kind === 'some' ? preferencesFrom(settings.value.value) : DEFAULTS;
+        const loaded = await this.readData();
+        if (!loaded.ok) { this.state = { kind: 'error', message: loaded.error }; this.render(); return; }
+        this.state = { kind: 'ready', data: loaded.value, screen: { kind: 'menu' }, selected: [], preferences };
+        this.render();
+        await this.loadEntry(new URL('entry.json', document.baseURI).href, false);
+        if (this.state.kind === 'ready') {
+            const entries = this.state.data.entries;
+            for (const entry of entries) if (entry !== new URL('entry.json', document.baseURI).href) await this.loadEntry(entry, false);
+        }
+        const requested = new URLSearchParams(location.search).get('entry');
+        if (requested) await this.loadEntry(requested, true);
+        const selection = new URLSearchParams(location.search).get('scope');
+        if (selection && this.state.kind === 'ready') {
+            try {
+                const parsed: unknown = JSON.parse(selection);
+                if (Array.isArray(parsed)) {
+                    const valid = new Set(this.state.data.packages.flatMap((item) => item.prepared.candidates.map((candidate) => candidate.patternId)));
+                    const selected: PatternId[] = [];
+                    for (const id of parsed) if (typeof id === 'string' && isPatternId(id) && valid.has(id)) selected.push(id);
+                    this.state = { ...this.state, selected }; this.render();
+                }
+            } catch { this.inform('共有URLの出題範囲を解釈できない。範囲を選び直せる。'); }
+        }
+        await this.registerWorker();
+    }
+
+    private async readData(): Promise<Result<Data, string>> {
+        const db = this.database(); if (db.kind === 'none') return err('保存領域に接続できていない。');
+        const users = await db.value.listUsers(); if (!users.ok) return err(users.error.message);
+        let userList = users.value;
+        if (!userList.length) {
+            const user = await db.value.createUser({ id: crypto.randomUUID(), name: 'Guest', createdAt: Date.now() });
+            if (!user.ok) return err(user.error.message);
+            userList = [user.value];
+        }
+        const drafts = await db.value.listDrafts(); if (!drafts.ok) return err(drafts.error.message);
+        let packages = await db.value.listPackages(); if (!packages.ok) return err(packages.error.message);
+        // 不正JSONも編集中の草稿として保持し、検証済み版だけを題庫へ確定する。
+        for (const draft of drafts.value.filter((item) => !item.id.endsWith('/'))) {
+            const quiz = parseQuizJson(draft.text); if (!quiz.ok) continue;
+            const id = packageIdentity({ kind: 'draft', id: draft.id }); if (!id.ok) continue;
+            const json = serializeQuiz(quiz.value);
+            const existing = packages.value.find((item) => item.id === id.value);
+            if (existing?.revision === json) continue;
+            const saved = await db.value.replacePackage({ id: id.value, source: draft.id, json, revision: json, updatedAt: Date.now() }, existing ? some(existing.revision) : none);
+            if (!saved.ok) return err(saved.error.message);
+        }
+        // 削除・名前変更された草稿の旧題庫を出題対象へ残さない。
+        for (const record of packages.value) {
+            const source: unknown = JSON.parse(record.id);
+            if (Array.isArray(source) && source.at(0) === 'draft' && !drafts.value.some((draft) => draft.id === record.source)) {
+                const deleted = await db.value.deletePackage(record.id, Date.now()); if (!deleted.ok) return err(deleted.error.message);
+            }
+        }
+        packages = await db.value.listPackages(); if (!packages.ok) return err(packages.error.message);
+        const loaded: LoadedPackage[] = [];
+        for (const record of packages.value) {
+            const quiz = parseQuizJson(record.json); const id = parsePackageId(record.id);
+            if (!quiz.ok || !id.ok) return err('保存済み題庫の検証に失敗した。バックアップから復元できる。');
+            loaded.push({ record, quiz: quiz.value, prepared: prepareQuiz(quiz.value, id.value, record.revision) });
+        }
+        const active = await db.value.getSetting('activeUserId'); if (!active.ok) return err(active.error.message);
+        const storedId = active.value.kind === 'some' ? active.value.value : '';
+        const user = userList.find((item) => item.id === storedId) ?? userList.at(0);
+        if (!user) return err('利用するユーザーを作成できない。');
+        const attempts = await db.value.listAttempts(); if (!attempts.ok) return err(attempts.error.message);
+        const entrySetting = await db.value.getSetting('entrySources'); if (!entrySetting.ok) return err(entrySetting.error.message);
+        const entries: string[] = [];
+        if (entrySetting.value.kind === 'some') {
+            try {
+                const value: unknown = JSON.parse(entrySetting.value.value);
+                if (Array.isArray(value)) for (const item of value) {
+                    if (typeof item !== 'string' || entries.length >= 50) continue;
+                    const resolved = resolveHttpUrl(item, document.baseURI);
+                    if (resolved.ok && !entries.includes(resolved.value)) entries.push(resolved.value);
+                }
+            } catch { this.inform('保存した問題一覧URLが不正なため、再追加が必要である。題庫は保持している。'); }
+        }
+        return ok({ users: userList, userId: user.id, packages: loaded, drafts: drafts.value, attempts: attempts.value, entries });
+    }
+
+    private async refreshDataNow(): Promise<void> {
+        const result = await this.readData();
+        if (!result.ok) { this.inform(result.error); return; }
+        if (this.state.kind !== 'ready') return;
+        const valid = new Set(result.value.packages.flatMap((item) => item.prepared.candidates.map((candidate) => candidate.patternId)));
+        this.state = { ...this.state, data: result.value, selected: this.state.selected.filter((id) => valid.has(id)) };
+        if (this.state.screen.kind !== 'editor') this.render();
+    }
+
+    private refreshData(): Promise<void> {
+        const pending = this.refreshQueue.then(() => this.refreshDataNow());
+        this.refreshQueue = pending.catch((error: unknown) => this.inform(error instanceof Error ? error.message : '一覧を更新できない。'));
+        return pending;
+    }
+
+    private async loadEntry(rawUrl: string, select: boolean): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.busy) return;
+        const db = this.database(); if (db.kind === 'none') return;
+        const url = resolveHttpUrl(rawUrl, document.baseURI);
+        if (!url.ok) { this.inform('entry URLはHTTP(S)で指定する。'); return; }
+        const generation = ++this.loadingGeneration;
+        this.busy = true; this.inform('問題一覧を取得中…'); this.render();
+        try {
+        if (select && !this.state.data.entries.includes(url.value)) {
+            const saved = await db.value.setSetting({ id: 'entrySources', value: JSON.stringify([...this.state.data.entries, url.value].slice(-50)) });
+            if (!saved.ok) { this.inform(saved.error.message); return; }
+        }
+            const fetched = await fetchText(url.value);
+            if (!fetched.ok) { this.inform('問題一覧を取得できない。保存済み題庫と草稿は引き続き利用できる。'); return; }
+            const entry = parseEntryJson(fetched.value.text);
+            if (!entry.ok) { this.inform(`entryの形式が不正: ${entry.error.path} ${entry.error.detail}`); return; }
+            const selected: PatternId[] = [];
+            const errors: string[] = [];
+            for (const path of entry.value.files) {
+                const resolved = resolveHttpUrl(path, fetched.value.url);
+                if (!resolved.ok) { errors.push(path); continue; }
+                const before = await db.value.listPackages(); if (!before.ok) { errors.push(path); continue; }
+                const text = await fetchText(resolved.value);
+                if (generation !== this.loadingGeneration) return;
+                if (!text.ok) { errors.push(path); continue; }
+                const quiz = parseQuizJson(text.value.text);
+                const identity = packageIdentity({ kind: 'remote', url: text.value.url });
+                if (!quiz.ok || !identity.ok) { errors.push(path); continue; }
+                const existing = before.value.find((item) => item.id === identity.value);
+                const json = serializeQuiz(quiz.value);
+                const saved = await db.value.replacePackage({ id: identity.value, source: text.value.url, json, revision: json, updatedAt: Date.now() }, existing ? some(existing.revision) : none);
+                if (!saved.ok) { errors.push(path); continue; }
+                selected.push(...prepareQuiz(quiz.value, identity.value, json).candidates.map((candidate) => candidate.patternId));
+            }
+            if (generation !== this.loadingGeneration) return;
+            await this.refreshData();
+            if (this.state.kind === 'ready' && (select || !this.state.selected.length) && (selected.length > 0 || errors.length === 0)) this.state = { ...this.state, selected: [...new Set(selected)] };
+            if (select && (selected.length > 0 || errors.length === 0)) {
+                const shared = new URL(location.href); shared.searchParams.set('entry', url.value); shared.searchParams.delete('scope'); history.replaceState(null, '', shared);
+            }
+            this.inform(errors.length ? `${errors.length}ファイルを取得・検証できなかった。以前の有効版は保持している。` : `${entry.value.label} を読み込んだ。`);
+        } finally { if (generation === this.loadingGeneration) { this.busy = false; this.render(); } }
+    }
+
+    private async savePreferences(preferences: Preferences): Promise<void> {
+        if (this.state.kind !== 'ready') return;
+        this.state = { ...this.state, preferences }; this.render();
+        const db = this.database(); if (db.kind === 'none') return;
+        const saved = await db.value.setSetting({ id: 'preferences', value: JSON.stringify(preferences) });
+        if (!saved.ok) this.inform(saved.error.message);
+    }
+
+    private render(): void {
+        this.message.textContent = this.notice;
+        if (this.state.kind === 'loading') { this.view.replaceChildren(element('p', '保存領域を準備中…')); return; }
+        if (this.state.kind === 'error') {
+            this.view.replaceChildren(element('h1', '起動できない'), element('p', this.state.message), this.button('再試行', () => this.start())); return;
+        }
+        const state = this.state;
+        document.documentElement.dataset['theme'] = state.preferences.theme;
+        document.documentElement.dataset['font'] = state.preferences.font;
+        document.documentElement.style.setProperty('--text-scale', String(state.preferences.scale));
+        if (state.screen.kind === 'editor' && this.editor.kind === 'some') return;
+        const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset['focusKey'] : '';
+        this.renderGeneration += 1;
+        const header = element('header', '', 'app-header');
+        header.append(element('h1', '4択クイズ'), element('span', state.data.users.find((user) => user.id === state.data.userId)?.name ?? 'Guest'));
+        header.append(this.button('全画面', async () => {
+            if (document.fullscreenElement) await document.exitFullscreen(); else await this.host.requestFullscreen();
+        }));
+        this.view.replaceChildren(header);
+        switch (state.screen.kind) {
+            case 'menu': this.renderMenu(state); break;
+            case 'playing': this.renderSession(state.screen.session, state.screen.idkPrompt); break;
+            case 'result': this.renderResult(state.screen.session); break;
+            case 'editor': break;
+            case 'starting': this.view.append(element('p', 'クイズを準備中…')); break;
+        }
+        if (focused) {
+            const target = this.view.querySelector(`[data-focus-key="${CSS.escape(focused)}"]`);
+            if (target instanceof HTMLElement) target.focus({ preventScroll: true });
+        }
+    }
+
+    private renderMenu(state: ReadyState): void {
+        const layout = element('main', '', 'menu-layout');
+        const scope = element('section', '', 'panel'); scope.append(element('h2', '出題範囲'));
+        scope.append(this.button('すべて選択', () => {
+            if (this.state.kind === 'ready') { this.state = { ...this.state, selected: [...new Set(this.state.data.packages.flatMap((item) => item.prepared.candidates.map((candidate) => candidate.patternId)))] }; this.render(); }
+        }, this.busy));
+        scope.append(this.button('選択を解除', () => { if (this.state.kind === 'ready') { this.state = { ...this.state, selected: [] }; this.render(); } }, this.busy));
+        for (const loaded of state.data.packages) {
+            const card = element('fieldset', '', 'quiz-card');
+            const legend = element('legend'); legend.append(richText(loaded.quiz.title)); card.append(legend);
+            const description = element('p'); description.append(richText(loaded.quiz.description)); card.append(description);
+            card.append(element('small', `${loaded.prepared.capacity}問 / ${loaded.record.source}`));
+            card.append(this.button('この題庫を選択', () => { if (this.state.kind === 'ready') { this.state = { ...this.state, selected: [...new Set(loaded.prepared.candidates.map((candidate) => candidate.patternId))] }; this.render(); } }, this.busy));
+            for (const pattern of loaded.quiz.patterns) {
+                const candidates = loaded.prepared.candidates.filter((candidate) => candidate.pattern.id === pattern.id);
+                const identity = candidates.at(0)?.patternId;
+                const label = element('label', '', 'pattern-choice');
+                const input = element('input'); input.type = 'checkbox'; input.checked = identity !== undefined && state.selected.includes(identity); input.disabled = this.busy || !identity;
+                input.dataset['focusKey'] = `${loaded.record.id}:${pattern.id}`;
+                input.addEventListener('change', () => {
+                    if (this.state.kind !== 'ready' || !identity) return;
+                    this.state = { ...this.state, selected: input.checked ? [...new Set([...this.state.selected, identity])] : this.state.selected.filter((id) => id !== identity) };
+                    this.render();
+                });
+                label.append(input, richText(pattern.label), element('span', ` ${candidates.length}問`)); card.append(label);
+            }
+            if (loaded.prepared.unavailable.length) card.append(element('p', `${loaded.prepared.unavailable.length}件は正答または誤選択肢が不足している。`, 'warning'));
+            scope.append(card);
+        }
+        if (!state.data.packages.length) scope.append(element('p', '題庫がない。entryを追加するか、草稿を作成できる。'));
+        const controls = element('section', '', 'panel'); controls.append(element('h2', '出題設定'));
+        const mode = element('select'); mode.setAttribute('aria-label', '学習・テスト');
+        for (const [value, label] of [['study', '学習'], ['test', 'テスト']]) { const option = element('option', label); option.value = value ?? ''; option.selected = state.preferences.mode === value; mode.append(option); }
+        mode.addEventListener('change', () => this.run(() => {
+            if (this.state.kind !== 'ready') return;
+            const preferences = this.state.preferences;
+            return this.savePreferences({ ...preferences, mode: mode.value === 'test' ? 'test' : 'study', completion: mode.value === 'test' && preferences.completion === 'drain' ? 'questions' : preferences.completion });
+        }));
+        const completion = element('select'); completion.setAttribute('aria-label', '終了条件');
+        for (const [value, text] of [['questions', '問題数指定'], ['time', '時間指定'], ['drain', '復習ゼロまで']]) {
+            if (value === 'drain' && state.preferences.mode === 'test') continue;
+            const option = element('option', text); option.value = value ?? ''; option.selected = state.preferences.completion === value; completion.append(option);
+        }
+        completion.addEventListener('change', () => this.run(() => {
+            if (this.state.kind !== 'ready') return;
+            return this.savePreferences({ ...this.state.preferences, completion: completion.value === 'time' ? 'time' : completion.value === 'drain' ? 'drain' : 'questions' });
+        }));
+        const count = element('input'); count.type = 'number'; count.min = '1'; count.max = '1000'; count.value = String(state.preferences.count); count.setAttribute('aria-label', '問題数'); count.disabled = state.preferences.completion !== 'questions';
+        const minutes = element('input'); minutes.type = 'number'; minutes.min = '1'; minutes.max = '180'; minutes.value = String(state.preferences.minutes); minutes.setAttribute('aria-label', '制限時間（分）'); minutes.disabled = state.preferences.completion !== 'time';
+        count.addEventListener('input', () => {
+            const value = Number(count.value);
+            if (this.state.kind === 'ready' && Number.isInteger(value) && value > 0 && value <= 1000) this.state = { ...this.state, preferences: { ...this.state.preferences, count: value } };
+        });
+        minutes.addEventListener('input', () => {
+            const value = Number(minutes.value);
+            if (this.state.kind === 'ready' && Number.isFinite(value) && value >= 1 && value <= 180) this.state = { ...this.state, preferences: { ...this.state.preferences, minutes: value } };
+        });
+        controls.append(mode, completion, element('label', '問題数'), count, element('label', '制限時間（分）'), minutes);
+        const capacity = state.data.packages.flatMap((item) => item.prepared.candidates).filter((candidate) => state.selected.includes(candidate.patternId)).length;
+        controls.append(element('p', `選択範囲: ${capacity}問`));
+        controls.append(this.button('クイズを開始', async () => {
+            const questions = Number(count.value); const duration = Number(minutes.value);
+            if (!Number.isInteger(questions) || questions < 1 || questions > 1000 || !Number.isFinite(duration) || duration < 1 || duration > 180) { this.inform('問題数と時間を有効な範囲で指定する。'); return; }
+            if (this.state.kind !== 'ready') return;
+            const preferences = { ...this.state.preferences, count: questions, minutes: duration };
+            await this.savePreferences(preferences);
+            await this.begin();
+        }, this.busy || capacity === 0));
+        controls.append(this.button('共有URLをコピー', async () => {
+            const url = new URL(location.href); url.searchParams.set('scope', JSON.stringify(state.selected));
+            await navigator.clipboard.writeText(url.href); this.inform('共有URLをコピーした。');
+        }, capacity === 0));
+        controls.append(this.button('草稿を編集', () => this.openEditor(), this.busy));
+        this.renderPreferences(controls, state);
+        this.renderStorage(controls, state);
+        layout.append(scope, controls); this.view.append(layout);
+    }
+
+    private renderPreferences(parent: HTMLElement, state: ReadyState): void {
+        const settings = element('details'); settings.append(element('summary', 'ユーザー・表示・問題一覧'));
+        const users = element('select'); users.setAttribute('aria-label', 'ユーザー');
+        for (const user of state.data.users) { const option = element('option', user.name); option.value = user.id; option.selected = user.id === state.data.userId; users.append(option); }
+        users.addEventListener('change', () => this.run(async () => {
+            const db = this.database(); if (db.kind === 'none') return;
+            const saved = await db.value.setSetting({ id: 'activeUserId', value: users.value }); if (!saved.ok) { this.inform(saved.error.message); return; }
+            await this.refreshData();
+        }));
+        const name = element('input'); name.placeholder = '新しいユーザー名'; name.setAttribute('aria-label', '新しいユーザー名');
+        settings.append(users, name, this.button('ユーザーを追加', async () => {
+            const db = this.database(); if (db.kind === 'none' || !name.value.trim()) return;
+            const user = await db.value.createUser({ id: crypto.randomUUID(), name: name.value.trim(), createdAt: Date.now() });
+            if (!user.ok) { this.inform(user.error.message); return; }
+            await db.value.setSetting({ id: 'activeUserId', value: user.value.id }); await this.refreshData();
+        }));
+        settings.append(this.button('選択ユーザーを削除', async () => {
+            const db = this.database(); if (db.kind === 'none' || !confirm('選択したユーザーと学習履歴を削除する。よいか。')) return;
+            const deleted = await db.value.deleteUser(state.data.userId); if (!deleted.ok) { this.inform(deleted.error.message); return; }
+            await this.refreshData();
+        }, state.data.users.length <= 1));
+        const mine = state.data.attempts.filter((attempt) => attempt.userId === state.data.userId);
+        settings.append(element('p', `回答履歴: ${mine.length}件 / 正答: ${mine.filter((attempt) => attempt.result === 'strong' || attempt.result === 'weak').length}件`));
+        settings.append(this.button('配色を切替', () => {
+            if (this.state.kind !== 'ready') return;
+            const current = this.state.preferences;
+            return this.savePreferences({ ...current, theme: current.theme === 'light' ? 'dark' : current.theme === 'dark' ? 'black' : 'light' });
+        }));
+        settings.append(this.button('書体を切替', () => {
+            if (this.state.kind !== 'ready') return;
+            return this.savePreferences({ ...this.state.preferences, font: this.state.preferences.font === 'sans' ? 'serif' : 'sans' });
+        }));
+        for (const scale of [0.8, 1, 1.2, 1.4, 1.7]) settings.append(this.button(`文字 ${Math.round(scale * 100)}%`, () => {
+            if (this.state.kind !== 'ready') return;
+            return this.savePreferences({ ...this.state.preferences, scale });
+        }));
+        const url = element('input'); url.type = 'url'; url.placeholder = 'https://example.com/entry.json'; url.setAttribute('aria-label', '問題一覧のURL');
+        settings.append(url, this.button('問題一覧を読み込む', () => this.loadEntry(url.value, true), this.busy));
+        for (const entry of state.data.entries) {
+            const item = element('div'); item.append(element('small', entry));
+            item.append(this.button('更新', () => this.loadEntry(entry, false), this.busy));
+            item.append(this.button('登録解除', async () => {
+                const db = this.database(); if (db.kind === 'none' || this.state.kind !== 'ready') return;
+                const saved = await db.value.setSetting({ id: 'entrySources', value: JSON.stringify(this.state.data.entries.filter((value) => value !== entry)) });
+                if (!saved.ok) { this.inform(saved.error.message); return; }
+                await this.refreshData(); this.inform('問題一覧URLの登録を解除した。取得済み題庫は残している。');
+            }, this.busy));
+            settings.append(item);
+        }
+        settings.append(this.button('サンプルを再読込', () => this.loadEntry(new URL('entry.json', document.baseURI).href, false), this.busy));
+        parent.append(settings);
+    }
+
+    private renderStorage(parent: HTMLElement, state: ReadyState): void {
+        const details = element('details'); details.append(element('summary', 'バックアップ・復元'));
+        details.append(this.button('完全バックアップをダウンロード', async () => {
+            const db = this.database(); if (db.kind === 'none') return;
+            const snapshot = await db.value.exportBackup(); if (!snapshot.ok) { this.inform(snapshot.error.message); return; }
+            const text = JSON.stringify(snapshot.value, null, 2);
+            if (new TextEncoder().encode(text).byteLength > BACKUP_MAX_BYTES) { this.inform('完全バックアップが50MBの上限を超える。データを省略せずに出力するため、保存内容を整理して再試行する。'); return; }
+            this.download(text, 'quiz-backup.json'); this.inform('草稿・ユーザー・履歴・設定・取得済みSVGを含むバックアップを作成した。');
+        }));
+        const file = element('input'); file.type = 'file'; file.accept = 'application/json,.json'; file.setAttribute('aria-label', '復元するバックアップ');
+        file.addEventListener('change', () => this.run(async () => {
+            const selected = file.files?.item(0); const db = this.database();
+            if (!selected || db.kind === 'none') return;
+            if (selected.size > BACKUP_MAX_BYTES) { this.inform('バックアップの上限は50MBである。'); return; }
+            let value: unknown;
+            try { value = JSON.parse(await selected.text()); } catch { this.inform('バックアップJSONを解釈できない。'); return; }
+            if (!confirm('現在の新サイトの全保存データを、選択したバックアップで置き換える。よいか。')) return;
+            const restored = await db.value.restoreBackup(value); if (!restored.ok) { this.inform(restored.error.message); return; }
+            const preferences = await db.value.getSetting('preferences');
+            if (this.state.kind === 'ready' && preferences.ok) this.state = { ...this.state, preferences: preferences.value.kind === 'some' ? preferencesFrom(preferences.value.value) : DEFAULTS };
+            await this.refreshData(); this.inform('バックアップを復元した。別のタブは再読み込みが必要である。');
+        }));
+        details.append(file, this.button('新サイトの全データを削除', async () => {
+            if (!confirm('草稿・ユーザー・履歴・設定をすべて削除する。よいか。')) return;
+            const db = this.database(); if (db.kind === 'none') return;
+            const cleared = await db.value.clearAll(); if (!cleared.ok) { this.inform(cleared.error.message); return; }
+            this.state = { ...state, preferences: DEFAULTS, selected: [] }; await this.refreshData(); this.inform('新サイトの全保存データを削除した。');
+        }));
+        if (this.updateRegistration.kind === 'some') parent.append(this.button('新しいアプリ版を適用', () => this.applyUpdate()));
+        parent.append(details);
+    }
+
+    private async begin(override: Option<readonly QuestionCandidate[]> = none): Promise<void> {
+        if (this.state.kind !== 'ready' || (this.state.screen.kind !== 'menu' && this.state.screen.kind !== 'result')) return;
+        const state = this.state; const db = this.database(); if (db.kind === 'none') return;
+        const requestId = crypto.randomUUID();
+        this.state = { ...state, screen: { kind: 'starting', requestId } }; this.render();
+        let published = false;
+        try {
+        const candidates = override.kind === 'some' ? override.value : state.data.packages.flatMap((item) => item.prepared.candidates);
+        const schedules = await db.value.listSchedule(); if (!schedules.ok) { this.inform(schedules.error.message); return; }
+        const confusion = await db.value.listConfusion(); if (!confusion.ok) { this.inform(confusion.error.message); return; }
+        const stats = await db.value.listConceptStats(); if (!stats.ok) { this.inform(stats.error.message); return; }
+        const preferences = state.preferences;
+        const completion: Completion = override.kind === 'some' ? { kind: 'questions', count: candidates.length } : preferences.completion === 'questions' ? { kind: 'questions', count: preferences.count } : preferences.completion === 'time' ? { kind: 'time', durationMs: preferences.minutes * 60_000 } : { kind: 'drain' };
+        const created = createSession({ id: crypto.randomUUID(), userId: state.data.userId, mode: preferences.mode,
+            completion, candidates, allowedPatternIds: override.kind === 'some' ? [...new Set(candidates.map((candidate) => candidate.patternId))] : state.selected,
+            seed: crypto.randomUUID(), now: Date.now(), schedules: schedules.value,
+            confusions: confusion.value.filter((item) => item.userId === state.data.userId).map((item) => ({ conceptId: item.conceptId, wrongConceptId: item.wrongConceptId, score: (item.chosen + item.idkNear * 0.25 + 1) / (item.shown + 4) })), conceptStats: stats.value });
+        if (!created.ok) { this.inform(`出題設定が不正: ${created.error.kind}`); return; }
+        const started = await db.value.startSession(created.value.record); if (!started.ok) { this.inform(started.error.message); return; }
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'starting' || this.state.screen.requestId !== requestId) return;
+        this.state = { ...this.state, screen: { kind: 'playing', session: created.value, idkPrompt: false } };
+        published = true;
+        await this.advance();
+        } finally {
+            if (!published && this.state.kind === 'ready' && this.state.screen.kind === 'starting' && this.state.screen.requestId === requestId) {
+                this.state = { ...this.state, screen: { kind: 'menu' } }; this.render();
+            }
+        }
+    }
+
+    private async advance(): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing') return;
+        const session = nextQuestion(this.state.screen.session, Date.now());
+        if (!session.ok) { this.inform(`次の問題へ進めない: ${session.error.kind}`); return; }
+        this.state = { ...this.state, screen: { kind: 'playing', session: session.value, idkPrompt: false } };
+        if (session.value.phase.kind === 'finished') await this.complete(session.value);
+        else this.render();
+    }
+
+    private async select(selection: Selection): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing') return;
+        const previous = this.state.screen.session;
+        const answered = answerSession(previous, { operationId: crypto.randomUUID(), selection, now: Date.now() });
+        if (!answered.ok) return;
+        this.state = { ...this.state, screen: { kind: 'playing', session: answered.value, idkPrompt: false } }; this.render();
+        await this.commit();
+    }
+
+    private async commit(): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing' || this.state.screen.session.phase.kind !== 'saving') return;
+        const session = this.state.screen.session; if (session.phase.kind !== 'saving') return;
+        const db = this.database(); if (db.kind === 'none') return;
+        const operation = session.phase.commit;
+        const saved = await db.value.commitAnswer(operation);
+        if (!saved.ok) { this.inform(`回答をまだ保存できていない: ${saved.error.message} 同じ回答を再送できる。`); this.render(); return; }
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing' || this.state.screen.session.config.id !== session.config.id) return;
+        const confirmed = confirmAnswer(this.state.screen.session, operation.attempt.id); if (!confirmed.ok) return;
+        this.state = { ...this.state, screen: { kind: 'playing', session: confirmed.value, idkPrompt: false } };
+        this.inform('回答を保存した。'); this.render();
+    }
+
+    private async complete(session: SessionState): Promise<void> {
+        const db = this.database(); if (db.kind === 'none' || session.phase.kind !== 'finished') return;
+        if (this.state.kind === 'ready' && this.state.screen.kind === 'playing' && this.state.screen.session.config.id === session.config.id) {
+            this.state = { ...this.state, screen: { kind: 'playing', session, idkPrompt: false } }; this.render();
+        }
+        const saved = await db.value.finishSession(session.record.id, session.phase.summary, session.record.endedAt.kind === 'some' ? session.record.endedAt.value : Date.now());
+        if (!saved.ok) { this.inform(saved.error.message); return; }
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing' || this.state.screen.session.config.id !== session.config.id || this.state.screen.session.phase.kind !== 'finished') return;
+        this.state = { ...this.state, screen: { kind: 'result', session } };
+        this.render();
+    }
+
+    private context(session: SessionState, generation: number, answer = false) {
+        const question = session.phase.kind === 'question' || session.phase.kind === 'saving' || session.phase.kind === 'answered' ? some(session.phase.question) : none;
+        const baseUrl = question.kind === 'some' && this.state.kind === 'ready' ? this.state.data.packages.find((item) => item.record.id === question.value.packageId)?.record.source ?? document.baseURI : document.baseURI;
+        const correct = question.kind === 'some' ? question.value.options.find((option) => option.id === question.value.correctOptionId) : undefined;
+        return { baseUrl: /^https?:/i.test(baseUrl) ? baseUrl : document.baseURI,
+            ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}),
+            answer: answer && correct ? some({ tokens: correct.tokens, row: correct.row }) : none,
+            isCurrent: () => generation === this.renderGeneration };
+    }
+
+    private renderSession(session: SessionState, idkPrompt: boolean): void {
+        const panel = element('main', '', 'panel quiz-panel');
+        const summary = sessionSummary(session, Date.now());
+        panel.append(element('p', `${summary.answered}問回答 / ${summary.correct}問正答`));
+        const timer = element('p', '', 'timer'); timer.dataset['timer'] = 'session'; panel.append(timer);
+        const phase = session.phase;
+        switch (phase.kind) {
+            case 'question': case 'saving': case 'answered': {
+                panel.append(element('p', phase.stage), element('h2', phase.question.title));
+                const context = this.context(session, this.renderGeneration, phase.kind === 'answered');
+                const stem = element('div', '', 'question-text'); stem.append(renderTokens(phase.question.pattern.tokens, phase.question.row, context)); panel.append(stem);
+                const choices = element('div', '', 'choices');
+                for (const [index, option] of phase.question.options.entries()) {
+                    const choice = this.button('', async () => {
+                        if (phase.kind === 'answered' && option.isCorrect) await this.advance();
+                        else if (idkPrompt) await this.select({ kind: 'idk', nearestOptionId: some(option.id) });
+                        else await this.select({ kind: 'option', optionId: option.id });
+                    }, phase.kind === 'saving');
+                    choice.append(element('span', `${index + 1}. `), renderTokens(option.tokens, option.row, { ...context, answer: none }));
+                    choice.className = 'choice';
+                    if (phase.kind === 'answered') { choice.classList.add(option.isCorrect ? 'correct' : 'review'); choice.setAttribute('aria-label', `${index + 1}. ${option.text} ${option.isCorrect ? '正答' : ''}`); }
+                    choices.append(choice);
+                }
+                panel.append(choices);
+                if (phase.kind === 'question') {
+                    if (idkPrompt) { panel.append(element('p', '最も近いと思う選択肢を任意で選べる。正誤判定には影響しない。'), this.button('近い選択肢を選ばずスキップ', () => this.select({ kind: 'idk', nearestOptionId: none }))); }
+                    else panel.append(this.button('分からない', () => { if (this.state.kind === 'ready' && this.state.screen.kind === 'playing') { this.state = { ...this.state, screen: { ...this.state.screen, idkPrompt: true } }; this.render(); } }));
+                }
+                if (phase.kind === 'saving') panel.append(element('p', '回答を保存中…'), this.button('保存を再試行', () => this.commit()));
+                if (phase.kind === 'answered') {
+                    panel.append(element('p', phase.attempt.result === 'strong' || phase.attempt.result === 'weak' ? '正解' : phase.attempt.result === 'idk' ? '分からないとして記録した' : phase.attempt.result === 'timeout' ? '時間切れ' : '不正解', 'feedback'));
+                    for (const tip of phase.question.pattern.tips) {
+                        const correct = phase.attempt.result === 'strong' || phase.attempt.result === 'weak';
+                        if (tip.when === 'after_answer' || (tip.when === 'after_correct' && correct) || (tip.when === 'after_incorrect' && !correct)) panel.append(renderTokens(tip.tokens, phase.question.row, context));
+                    }
+                    panel.append(this.button('次の問題', () => this.advance()));
+                }
+                break;
+            }
+            case 'waiting': panel.append(element('h2', '次の復習を待っている'), element('p', `${new Date(phase.dueAt).toLocaleTimeString()} に再開する。`), this.button('確認', () => this.advance())); break;
+            case 'ready': panel.append(this.button('次の問題', () => this.advance())); break;
+            case 'finished': panel.append(element('p', '結果を保存中…'), this.button('結果の保存を再試行', () => this.complete(session))); break;
+        }
+        panel.append(this.button('中断して結果を見る', async () => {
+            if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing') return;
+            const ended = finishSession(this.state.screen.session, Date.now());
+            if (!ended.ok) return;
+            await this.complete(ended.value);
+        }, phase.kind === 'saving'));
+        this.view.append(panel);
+    }
+
+    private renderResult(session: SessionState): void {
+        const summary = sessionSummary(session, session.record.endedAt.kind === 'some' ? session.record.endedAt.value : Date.now());
+        const panel = element('main', '', 'panel'); panel.append(element('h2', '結果'));
+        const known = summary.answered - summary.idk;
+        panel.append(element('p', `正答 ${summary.correct} / 回答 ${summary.answered}、全体正答率 ${summary.answered ? Math.round(summary.correct / summary.answered * 100) : 0}%、既知正答率 ${known ? Math.round(summary.correct / known * 100) : 0}%、IDK ${summary.idk}件`));
+        if (session.phase.kind === 'finished') panel.append(element('p', `終了理由: ${session.phase.reason}`));
+        panel.append(this.button('同じ設定で再挑戦', () => this.begin()), this.button('間違えた問題を再挑戦', () => this.begin(some(retryCandidates(session))), retryCandidates(session).length === 0));
+        panel.append(this.button('結果JSONをコピー', async () => {
+            const history = session.history.map((entry) => {
+                const { revision: _revision, ...question } = entry.question;
+                void _revision; // revision原文はreplayに一度だけ格納する。
+                return { ...entry, question };
+            });
+            await navigator.clipboard.writeText(JSON.stringify({ summary, seed: session.config.seed, replay: session.record.replay, history }, null, 2)); this.inform('結果をコピーした。');
+        }));
+        panel.append(this.button('メニューへ', async () => { if (this.state.kind === 'ready') this.state = { ...this.state, screen: { kind: 'menu' } }; await this.refreshData(); }));
+        const list = element('ol');
+        for (const entry of session.history) {
+            const item = element('li', '', 'result-item');
+            item.append(element('p', entry.attempt.result));
+            const source = this.state.kind === 'ready' ? this.state.data.packages.find((loaded) => loaded.record.id === entry.question.packageId)?.record.source ?? document.baseURI : document.baseURI;
+            const correct = entry.question.options.find((option) => option.id === entry.question.correctOptionId);
+            const generation = this.renderGeneration;
+            const context = { baseUrl: /^https?:/i.test(source) ? source : document.baseURI, ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}), answer: correct ? some({ tokens: correct.tokens, row: correct.row }) : none, isCurrent: () => generation === this.renderGeneration };
+            item.append(renderTokens(entry.question.pattern.tokens, entry.question.row, context));
+            if (entry.selection.kind === 'option') {
+                const id = entry.selection.optionId;
+                const selected = entry.question.options.find((option) => option.id === id);
+                if (selected) { item.append(element('p', '選んだ解答:')); item.append(renderTokens(selected.tokens, selected.row, { ...context, answer: none })); }
+            }
+            list.append(item);
+        }
+        panel.append(list); this.view.append(panel);
+    }
+
+    private async openEditor(): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu') return;
+        const db = this.database(); if (db.kind === 'none') return;
+        this.state = { ...this.state, screen: { kind: 'editor' } }; this.render();
+        let module: typeof import('./editor.ts');
+        try { module = await import('./editor.ts'); }
+        catch { this.inform('編集器を読み込めない。保存済み草稿は保持されている。ページを再読み込みして新しい版を開いてから再試行する。'); this.state = { ...this.state, screen: { kind: 'menu' } }; this.render(); return; }
+        const host = element('main', '', 'editor-host'); this.view.append(host);
+        const controller = await module.mountDraftEditor(host, db.value, {
+            onSaved: () => this.run(() => this.refreshData()),
+            onClose: async () => {
+                if (this.editor.kind === 'some') this.editor.value.dispose(); this.editor = none;
+                if (this.state.kind === 'ready') this.state = { ...this.state, screen: { kind: 'menu' } };
+                await this.refreshData();
+            }
+        });
+        if (!controller.ok) { this.inform(controller.error.detail); if (this.state.kind === 'ready') this.state = { ...this.state, screen: { kind: 'menu' } }; this.render(); return; }
+        this.editor = some(controller.value);
+    }
+
+    private async tick(): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing') return;
+        const session = this.state.screen.session; const now = Date.now();
+        const timer = this.view.querySelector('[data-timer="session"]');
+        if (timer) timer.textContent = `${Math.floor((now - session.record.startedAt) / 1000)}秒`;
+        const limit = session.config.completion;
+        if (limit.kind === 'time' && now >= session.record.startedAt + limit.durationMs) {
+            if (session.phase.kind === 'question') await this.select({ kind: 'timeout' });
+            else if (session.phase.kind !== 'saving' && session.phase.kind !== 'finished') await this.advance();
+        } else if (session.phase.kind === 'waiting' && now >= session.phase.dueAt) await this.advance();
+    }
+
+    private keyboard(event: KeyboardEvent): void {
+        if (event.isComposing || event.repeat || event.ctrlKey || event.altKey || event.metaKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing') return;
+        const phase = this.state.screen.session.phase;
+        if (phase.kind === 'question' && /^[1-4]$/.test(event.key)) {
+            const option = phase.question.options.at(Number(event.key) - 1);
+            if (option) { event.preventDefault(); this.run(() => this.select({ kind: 'option', optionId: option.id })); }
+        } else if (phase.kind === 'answered' && (event.key === ' ' || event.key === 'Enter')) { event.preventDefault(); this.run(() => this.advance()); }
+    }
+
+    private download(text: string, name: string): void {
+        const url = URL.createObjectURL(new Blob([text], { type: 'application/json;charset=utf-8' }));
+        const link = element('a'); link.href = url; link.download = name; document.body.append(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    private async registerWorker(): Promise<void> {
+        if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
+        try {
+            const registration = await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
+            const waiting = (): void => { if (registration.waiting) { this.updateRegistration = some(registration); this.inform('新しい版がある。学習・編集終了後に適用できる。'); if (this.state.kind === 'ready' && this.state.screen.kind === 'menu') this.render(); } };
+            waiting();
+            registration.addEventListener('updatefound', () => registration.installing?.addEventListener('statechange', waiting));
+        } catch { this.inform('オフライン用の準備に失敗した。オンラインでは利用できる。'); }
+    }
+    private async checkUpdate(): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || import.meta.env.DEV) return;
+        try {
+            const response = await fetch(`${import.meta.env.BASE_URL}app-version.json`, { cache: 'no-store' });
+            const value: unknown = await response.json();
+            if (isObject(value) && typeof value['version'] === 'string' && value['version'] !== __APP_VERSION__) {
+                const registration = await navigator.serviceWorker.getRegistration();
+                if (registration) { await registration.update(); if (registration.waiting) this.updateRegistration = some(registration); }
+                this.inform('新しい版がある。設定のバックアップを保存し、メニューから適用できる。'); this.render();
+            }
+        } catch { /* offlineは通常動作。既存データを変更しない。 */ }
+    }
+    private async applyUpdate(): Promise<void> {
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.isSaving() || (this.editor.kind === 'some' && this.editor.value.isDirty())) { this.inform('学習・編集を終了してから更新する。'); return; }
+        if (this.updateRegistration.kind === 'none') return;
+        const registration = this.updateRegistration.value;
+        await registration.update();
+        if (registration.waiting) {
+            navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+    }
+}

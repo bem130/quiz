@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SVGの隔離受け入れ検証</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 16px; font: 16px/1.5 sans-serif; }
+        #fixture { width: 100%; min-width: 0; border: 1px solid #aaa; padding: 8px; }
+        #fixture .diagram { display: inline-block; max-width: 100%; vertical-align: middle; }
+        #fixture .token-content { display: inline; }
+    </style>
+</head>
+<body>
+    <div id="fixture" aria-label="図の検証領域"></div>
+    <script type="module" src="./svg-harness.ts"></script>
+</body>
+</html>

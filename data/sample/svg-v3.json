@@ -1,0 +1,45 @@
+{
+  "version": 3,
+  "title": "SVG図形のサンプル",
+  "description": "ファイル参照とインラインSVGを、問題文・選択肢の両方へ表示する。",
+  "table": [
+    {
+      "id": "circle",
+      "term": "円",
+      "figure": { "type": "svg", "src": "figures/circle.svg", "alt": "円" }
+    },
+    {
+      "id": "rectangle",
+      "term": "長方形",
+      "figure": { "type": "svg", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 240 120\"><rect x=\"12\" y=\"12\" width=\"216\" height=\"96\" rx=\"3\" fill=\"#dcfce7\" stroke=\"#176b45\" stroke-width=\"4\"/></svg>", "alt": "長方形" }
+    },
+    {
+      "id": "triangle",
+      "term": "三角形",
+      "figure": { "type": "svg", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 160 160\"><path d=\"M80 10 L150 145 L10 145 Z\" fill=\"#fff1d6\" stroke=\"#945000\" stroke-width=\"4\"/></svg>", "alt": "三角形" }
+    }
+  ],
+  "patterns": [
+    {
+      "id": "figure-to-name",
+      "label": "図形から名称",
+      "tokens": [
+        { "type": "key", "field": "figure" },
+        { "type": "br" },
+        "この図形の名称は ",
+        { "type": "hide", "id": "answer", "value": [{ "type": "key", "field": "term" }], "answer": { "mode": "choice_from_entities" } },
+        " である。"
+      ]
+    },
+    {
+      "id": "name-to-figure",
+      "label": "名称から図形",
+      "tokens": [
+        { "type": "key", "field": "term" },
+        " に対応する図形は ",
+        { "type": "hide", "id": "answer", "value": [{ "type": "key", "field": "figure" }], "answer": { "mode": "choice_from_entities" } },
+        " である。"
+      ]
+    }
+  ]
+}

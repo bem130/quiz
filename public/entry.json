@@ -1,0 +1,9 @@
+{
+    "version": 3,
+    "label": "サンプル問題",
+    "files": [
+        "./data/sample/math-v3.json",
+        "./data/sample/multi-answer-v3.json",
+        "./data/sample/svg-v3.json"
+    ]
+}
