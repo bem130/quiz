@@ -85,7 +85,7 @@ registration.waiting.postMessage({ type: 'SKIP_WAITING' });
 
 ### 公開前: #70 の事前確認と #72
 
-1. 候補SHAを固定し、clean install・CI・browser検証済みbuildの `dist` と `app-version.json`、資産hash一覧を保存する。同じ成果物を `/quiz/` のまま隔離HTTPS previewへ配信し、検証中に再buildで置き換えない。
+1. 候補SHAを固定し、clean install・CI・browser検証済みbuildの `dist` と `app-version.json`、資産hash一覧を保存する。同じ成果物を `/quiz/` のまま開発・CIの検証用serverで確認する。2026-11-09のユーザー指示以後、実機用の別公開経路は設けない。
 2. 新規browser profileでpreviewを開き、既定entry・全同梱題庫・circle.svgの実GET、MIME、最終URL、本文と選択画面、出題、保存・再起動を確認する。JS/CSS/fonts/WASM/workers、service workerのscopeとinstall、offlineも同じbuildで確認する。
 3. 任意外部entryの機能は、アプリpreviewとは**別のHTTPS origin**へ置いた非機密の実データで確認する。許可ありのentry→JSON→SVG、実HTTP 200だがCORS許可なしの読込拒否、redirect後の相対参照と題庫IDを含める。許可ありは本文を読んで実出題・図表示まで、拒否時は通信失敗表示と取得済み題庫・草稿の保持まで確認する。
 4. 結果へアプリSHA／version、preview URL、データ配信先、日時、browser、要求・最終URL、実GETのstatus／MIME／CORS設定、UI結果を記録する。ブラウザ側から読めない失敗応答はserver log／network記録と突き合わせる。`route.fulfill`／`route.abort`、curlだけの成功、HEAD、404のCORSヘッダーは、公開HTTPSの正常本文をブラウザで利用できた証拠にしない。
@@ -96,7 +96,7 @@ previewでの許可が本番originの許可を保証するわけではない。�
 
 ### Pages切替後: #78 の本番確認
 
-1. 上記事前確認と #72 の受け入れを満たした成果物を #78 で配信する。公開SHA、workflow run、最終URL、versionとasset hashの一致を記録する。検査時と異なるbuildを配信した場合は、その成果物を再検証する。
+1. 上記事前確認と #72 のソフトウェア検証を満たした成果物を #78 で配信する。実機確認はそのPages URLで公開後に行う。公開SHA、workflow run、最終URL、versionとasset hashの一致を記録する。検査時と異なるbuildを配信した場合は、その成果物を再検証する。
 2. `https://bem130.github.io/quiz/` の新規profileから、既定entry・3題庫・図・WASM／worker、保存・再起動、PWA scope、offline、更新を再確認する。一時previewでの成功をこの実配信確認へ置き換えない。
 3. 外部entryの許可・拒否・redirectを、同じ実データ配信先とPagesの実originから再確認する。公開時に採用する外部データ配信元を追加した場合は、そのentry・JSON・SVGを全て確認する。現時点の既定起動には外部題庫配信元がないことも棚卸し結果として記録する。
 4. 本番だけで失敗した場合は正常な空一覧と区別して記録する。同梱・ローカル機能を維持し、配信設定修正または直前の検証済み新サイト版へのrollbackを判断する。#70の本番後項目と #78 を、実結果が揃ってから完了にする。
@@ -107,7 +107,7 @@ previewでの許可が本番originの許可を保証するわけではない。�
 
 `.github/workflows/check.yml` は検証用であり公開しない。`.github/workflows/pages.yml` は `workflow_dispatch` による手動公開だけを定義する。push や pull request を本番公開の契機にしない。
 
-実際の公開は [#72](https://github.com/bem130/quiz/issues/72) と他の必須 Issue の受け入れ完了後、[#78](https://github.com/bem130/quiz/issues/78) で行う。GitHub Pages の source を GitHub Actions に設定し、main の検証済み SHA を対象とする。必要に応じて `github-pages` environment の承認設定をリポジトリ側で行う。
+実際の公開は [#72](https://github.com/bem130/quiz/issues/72) のソフトウェア検証とM0〜M3の完了後、[#78](https://github.com/bem130/quiz/issues/78) で先行して行う。実機確認は公開Pagesへ引き継ぐ。GitHub Pages の source を GitHub Actions に設定し、main の検証済み SHA を対象とする。必要に応じて `github-pages` environment の承認設定をリポジトリ側で行う。
 
 手動実行時は main を選択し、`confirm_publish` に `publish` と入力する。workflow は clean install、型検査・lint・テスト・build、Chromium／Firefox／WebKit の受け入れ検証を行い、成功した `dist` だけを upload して配信する。公開 action は公式 release の commit SHA に固定する。
 

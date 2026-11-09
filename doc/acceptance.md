@@ -88,15 +88,15 @@
 | #72 全体受け入れ | [application](../tests/e2e/application.spec.ts)、[editor](../tests/e2e/editor.spec.ts)、[svg](../tests/e2e/svg.spec.ts)、[PWA](../tests/e2e/pwa.spec.ts)、[設定](../playwright.config.ts) | 追加PWAはnative DB upgradeを含む7ケース×3browser、study4ケース×3browser、startup3ケース×3browser、補助機能6ケース×3browserを担当検証。全体CI／実機／読み上げ／公開先確認は残る。 |
 | #78 本番公開 | [Pages](../.github/workflows/pages.yml)、[配信契約](deployment.md)、本書 | 本番未実施。OGPのユーザー更新は独立作業として公開の前提から外す。アプリ本体の検証条件を満たし次第、自主的に更新する。 |
 
-## 公開前の残件
+## ソフトウェア検証・公開・公開後の残件
 
 1. 最終 SHA の clean install、型・lint・全 unit・build・全 browser・PWA と公開資産一覧を記録する。旧実装撤去と OGP 統合後も同じ成果物を検証する。
 2. #74の後続型修正と#76の公式validator比較を最終SHAの検査対象へ含める。比較の正本は規範契約第7節。
 3. 完全offlineの草稿編集→保存→browser再起動→出題→回答保存は担当7ケースで検証済み。最終統合SHAでも実行し、未取得外部データの利用不可と併せて記録する。
 4. dirty更新・install失敗・旧asset欠落・native DB upgrade・時間切れ・due待ち・学習再挑戦・容量変更／回復の専用browser回帰を実装し担当検証が成功。後続統合CIで同じsourceと成果物へ結び付ける。
-5. iOS Safari と Android Chrome、タッチ、実画面キーボード、OS の日本語 IME、フォーカス、読み上げ、狭幅・拡大文字を実機で確認する。desktop viewport と合成イベントで代替しない。
+5. ユーザー指示によりPagesを先に公開し、そのURLでiOS Safari／Android Chrome、touch、画面キーボード、実IME、フォーカス、読み上げを確認する。別の実機用URLは設けず、desktopや合成イベントで代替しない。
 6. 実配信元一覧とPages originからのCORS／redirect／MIMEを確認する。bem130.comの更新とlive OGP確認はユーザー主導の#71で独立追跡し、アプリ公開を待たせない。
-7. #72 完了後に #78 の手動公開を実行し、正規 URL、初回起動、保存・再起動、offline、更新、OGP、rollback を公開 SHA に結び付ける。
+7. #72のソフトウェア検証後に #78 の手動公開を実行し、正規URL、初回起動、保存・再起動、offline、更新、rollbackを公開SHAに結び付ける。実機確認は公開後の #72、OGPはユーザー主導の #71 へ残す。
 
 残件を解消したら、対象 SHA、環境、コマンドまたは操作、期待結果と実結果を追記する。未検証の行を一律に完了へ置き換えない。
 
