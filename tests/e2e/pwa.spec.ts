@@ -397,7 +397,8 @@ for (const failure of ['integrity', 'worker404', 'mime'] as const) {
             expect(state.caches.filter(name => name.includes(':static:'))).toHaveLength(1);
             expect(await databaseSnapshot(page)).toEqual(beforeDatabase);
             server.repairInstall(); await retry.click();
-            await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true })).toBeVisible();
+            // Repair repeats the full precache install, including WASM and fonts.
+            await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true })).toBeVisible({ timeout: 30_000 });
             await expect(retry).toHaveCount(0);
             expect(await databaseSnapshot(page)).toEqual(beforeDatabase);
             await context.setOffline(true); await page.reload(); await ready(page);
