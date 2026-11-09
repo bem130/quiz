@@ -15,11 +15,18 @@ async function ready(page: Page): Promise<void> {
     await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
 }
 
-test('本番buildをprecacheした後はofflineで題庫・図・編集workerを使用できる', async ({ page, context }) => {
+test('本番buildをprecacheした後はofflineで草稿を編集保存し、browser再起動後に出題と回答を保存できる', async ({ playwright, browserName }) => {
+    const server = await versionServer();
+    const profile = await mkdtemp(path.join(os.tmpdir(), 'quiz-pwa-profile-'));
+    let context: BrowserContext | undefined;
+    try {
+    context = await playwright[browserName].launchPersistentContext(profile, { headless: true });
+    const page = context.pages().at(0) ?? await context.newPage();
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.goto('./'); await ready(page);
-    await expect(page.locator('input[type=checkbox]')).toHaveCount(5);
+    await page.goto(server.baseURL); await ready(page);
+    await expect(page.locator('.quiz-card').filter({ hasText: 'math-v3.json' })).toBeVisible();
+    await expect(page.locator('.quiz-card').filter({ hasText: 'svg-v3.json' })).toBeVisible();
     const precache = await page.evaluate(async () => {
         const names = await caches.keys();
         const name = names.find(value => value.includes(':static:'));
@@ -31,12 +38,78 @@ test('本番buildをprecacheした後はofflineで題庫・図・編集workerを
     expect(precache.some(url => url.endsWith('.woff2'))).toBe(true);
     expect(precache.some(url => url.endsWith('/data/sample/figures/circle.svg'))).toBe(true);
     await context.setOffline(true); await page.reload(); await ready(page);
-    await expect(page.locator('input[type=checkbox]')).toHaveCount(5);
+    await expect(page.locator('.quiz-card').filter({ hasText: 'math-v3.json' })).toBeVisible();
+    await expect(page.locator('.quiz-card').filter({ hasText: 'svg-v3.json' })).toBeVisible();
     await page.getByRole('button', { name: '草稿を編集', exact: true }).click();
     await expect(page.locator('.monaco-editor').first()).toBeVisible();
     await expect(page.locator('body')).not.toContainText('編集器を読み込めない');
+    await createDraft(page, 'offline.json');
+    const text = draftJson('オフラインで編集した題庫');
+    await replaceEditorText(page, text);
+    await page.getByRole('button', { name: '保存・再試行', exact: true }).click();
+    await expect(page.locator('[data-state="saved"]').filter({ hasText: 'offline.json 保存済み' })).toBeVisible();
+    expect(await storedRows(page, 'drafts')).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'offline.json', text })]));
+    await page.getByRole('button', { name: '編集を閉じる', exact: true }).click();
+    // 同じ永続profileを使ってbrowserプロセスを終了・再起動する。storageStateによる再注入はしない。
+    await context.close();
+    context = await playwright[browserName].launchPersistentContext(profile, { headless: true });
+    await context.setOffline(true);
+    const restarted = context.pages().at(0) ?? await context.newPage();
+    restarted.on('pageerror', error => errors.push(error.message));
+    await restarted.goto(server.baseURL); await ready(restarted);
+    await restarted.getByRole('button', { name: '選択を解除', exact: true }).click();
+    await restarted.locator('.quiz-card').filter({ hasText: 'オフラインで編集した題庫' }).getByRole('checkbox').check();
+    await restarted.getByLabel('学習・テスト', { exact: true }).selectOption('test');
+    await restarted.getByLabel('問題数', { exact: true }).fill('1');
+    await restarted.getByRole('button', { name: 'クイズを開始', exact: true }).click();
+    await expect(restarted.locator('.choices button')).toHaveCount(2);
+    await restarted.locator('.choices button').first().click();
+    await expect(restarted.getByRole('button', { name: '次の問題', exact: true })).toBeEnabled();
+    expect(await storedRows(restarted, 'attempts')).toHaveLength(1);
+    await restarted.getByRole('button', { name: '次の問題', exact: true }).click();
+    await expect(restarted.getByRole('heading', { name: '結果', exact: true })).toBeVisible();
+    await restarted.reload(); await ready(restarted);
+    expect(await storedRows(restarted, 'attempts')).toHaveLength(1);
     expect(errors).toEqual([]);
+    } finally {
+        await context?.close(); await server.close();
+        expect(path.dirname(profile)).toBe(os.tmpdir()); expect(path.basename(profile).startsWith('quiz-pwa-profile-')).toBe(true);
+        await rm(profile, { recursive: true, force: true });
+    }
 });
+
+function draftJson(title: string): string {
+    return JSON.stringify({ version: 3, title, description: 'PWA実ブラウザー受入', table: [{ id: 'a', term: 'A' }, { id: 'b', term: 'B' }],
+        patterns: [{ id: 'p', label: '文字を選ぶ', tokens: [{ type: 'hide', id: 'answer', value: [{ type: 'key', field: 'term' }], answer: { mode: 'choice_from_entities' } }] }] });
+}
+async function createDraft(page: Page, id: string): Promise<void> {
+    await page.getByLabel('草稿のパス', { exact: true }).fill(id);
+    await page.getByRole('button', { name: '新規ファイル', exact: true }).click();
+    await expect(page.locator('[data-state="saved"]').filter({ hasText: `${id} 保存済み` })).toBeVisible();
+}
+async function replaceEditorText(page: Page, text: string): Promise<void> {
+    await page.locator('.monaco-editor .view-lines').first().click();
+    // Windows版WebKitもMacintoshのUAを使うため、Monacoのキー割当と同じブラウザー環境を見る。
+    const modifier = await page.evaluate(() => navigator.userAgent.includes('Macintosh') ? 'Meta' : 'Control');
+    await page.keyboard.press(`${modifier}+A`);
+    await page.keyboard.press('Backspace');
+    await page.keyboard.insertText(text);
+}
+async function storedRows(page: Page, store: string): Promise<readonly unknown[]> {
+    return page.evaluate(name => new Promise<unknown[]>((resolve, reject) => {
+        const open = indexedDB.open('bem130-quiz-web-v1');
+        open.onerror = () => reject(new Error('IDB open failed'));
+        open.onsuccess = () => {
+            const database = open.result;
+            const transaction = database.transaction(name, 'readonly');
+            const result = transaction.objectStore(name).getAll();
+            let rows: unknown[] = [];
+            result.onsuccess = () => { const value: unknown = result.result; if (Array.isArray(value)) rows = value; else reject(new Error('Invalid store result')); };
+            transaction.oncomplete = () => { database.close(); resolve(rows); };
+            transaction.onabort = () => { database.close(); reject(new Error('IDB read aborted')); };
+        };
+    }), store);
+}
 
 function versionFrom(value: unknown): string {
     if (typeof value !== 'object' || value === null || !('version' in value) || typeof value.version !== 'string') throw new Error('version metadata missing');
@@ -58,8 +131,9 @@ async function nextVersion(original: string, output: string, version: string): P
     for (const file of await outputFiles(output)) {
         if (!file.startsWith('assets/') || !file.endsWith('.js')) continue;
         const input = await readFile(path.join(output, file), 'utf8');
-        if (!input.includes(oldVersion)) continue;
-        const changed = input.replaceAll(oldVersion, version);
+        const editor = /^assets\/editor-[^/]+\.js$/u.test(file);
+        if (!input.includes(oldVersion) && !editor) continue;
+        const changed = input.replaceAll(oldVersion, version) + (editor ? `\n// acceptance version: ${version}\n` : '');
         const name = `${path.basename(file, '.js')}-${createHash('sha256').update(changed).digest('hex').slice(0, 8)}.js`;
         const next = `assets/${name}`;
         await writeFile(path.join(output, file), changed, 'utf8');
@@ -82,17 +156,29 @@ async function nextVersion(original: string, output: string, version: string): P
         build: { outDir: output, emptyOutDir: false, target: 'es2022', lib: { entry: path.resolve('src/service-worker.ts'), formats: ['iife'], name: 'QuizServiceWorker', fileName: () => 'sw.js' } }
     });
 }
-async function versionServer(): Promise<Readonly<{ baseURL: string; publish(): void; close(): Promise<void> }>> {
+type VersionServer = Readonly<{ baseURL: string; nextVersion: string; editorAsset: string; requests: readonly string[]; publish(): void; breakInstall(): void; denyAsset(asset: string): void; close(): Promise<void> }>;
+async function versionServer(): Promise<VersionServer> {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'quiz-pwa-update-'));
     const original = path.resolve('dist'); const next = path.join(directory, 'next');
     const oldVersion = versionFrom(JSON.parse(await readFile(path.join(original, 'app-version.json'), 'utf8')));
-    await nextVersion(original, next, `${oldVersion}-acceptance-next`);
+    const nextId = `${oldVersion}-acceptance-next`;
+    await nextVersion(original, next, nextId);
+    const editorAsset = (await outputFiles(original)).find(file => /^assets\/editor-[^/]+\.js$/u.test(file));
+    if (!editorAsset) throw new Error('Lazy editor chunk missing');
+    const fontAsset = (await outputFiles(next)).find(file => file.endsWith('.woff2'));
+    if (!fontAsset) throw new Error('Font precache asset missing');
+    const denied = new Set<string>();
+    const requests: string[] = [];
+    let brokenInstall = false;
     let current = original;
     const server = createServer((request, response) => {
         async function serve(): Promise<void> {
             const url = new URL(request.url ?? '/', 'http://127.0.0.1');
             if (!url.pathname.startsWith('/quiz/')) { response.writeHead(404).end(); return; }
             const relative = decodeURIComponent(url.pathname.slice('/quiz/'.length)) || 'index.html';
+            requests.push(relative);
+            if (denied.has(relative)) { response.writeHead(404, { 'Cache-Control': 'no-store' }).end(); return; }
+            if (brokenInstall && relative === fontAsset) { response.writeHead(200, { 'Content-Type': 'font/woff2', 'Cache-Control': 'no-store' }).end('corrupt font'); return; }
             const file = path.resolve(current, relative);
             const checked = path.relative(current, file);
             if (checked.startsWith('..') || path.isAbsolute(checked)) { response.writeHead(400).end(); return; }
@@ -108,7 +194,8 @@ async function versionServer(): Promise<Readonly<{ baseURL: string; publish(): v
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('server address missing');
     return {
-        baseURL: `http://127.0.0.1:${address.port}/quiz/`, publish() { current = next; },
+        baseURL: `http://127.0.0.1:${address.port}/quiz/`, nextVersion: nextId, editorAsset, requests,
+        publish() { current = next; }, breakInstall() { brokenInstall = true; current = next; }, denyAsset(asset) { denied.add(asset); },
         async close() {
             await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
             expect(path.dirname(directory)).toBe(os.tmpdir()); expect(path.basename(directory).startsWith('quiz-pwa-update-')).toBe(true);
@@ -186,4 +273,156 @@ test('旧版から新版を通知し、明示適用後も他tabの学習と旧ha
         await playing.locator('.choices button').first().click();
         await expect(playing.getByRole('button', { name: '次の問題', exact: true })).toBeEnabled();
     } finally { await context?.close(); await server.close(); }
+});
+
+test('未保存の草稿がある間は新版をwaitingに留め、保存と編集終了後だけ明示適用する', async ({ page }) => {
+    const server = await versionServer();
+    try {
+        await page.goto(server.baseURL); await ready(page);
+        const oldScript = await page.locator('script[type=module][src]').getAttribute('src');
+        await page.getByRole('button', { name: '草稿を編集', exact: true }).click();
+        await createDraft(page, 'update-protected.json');
+        const before = await storedRows(page, 'drafts');
+        const editor = page.getByRole('textbox', { name: '問題JSONの編集', exact: true });
+        // 実Monacoの変更bufferをIME変換中として保持する。OSのIME自体はこの試験の対象外。
+        const changed = draftJson('未保存中の更新保護');
+        await replaceEditorText(page, changed);
+        await editor.dispatchEvent('compositionstart', { data: '編集中' });
+        await expect(page.locator('[data-state="dirty"]')).toBeVisible();
+        server.publish(); await waiting(page);
+        expect(await storedRows(page, 'drafts')).toEqual(before);
+        await expect(page.locator('.monaco-editor').first()).toBeVisible();
+        await expect(page.getByRole('button', { name: '新しいアプリ版を適用', exact: true })).toHaveCount(0);
+        expect(await page.locator('script[type=module][src]').getAttribute('src')).toBe(oldScript);
+        expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.state)).toBe('installed');
+        await editor.dispatchEvent('compositionend', { data: '編集中' });
+        await page.getByRole('button', { name: '保存・再試行', exact: true }).click();
+        await expect(page.locator('[data-state="saved"]').filter({ hasText: 'update-protected.json 保存済み' })).toBeVisible();
+        await page.getByRole('button', { name: '編集を閉じる', exact: true }).click();
+        const apply = page.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true });
+        await expect(apply).toBeAttached();
+        await expect(apply).toBeVisible();
+        await Promise.all([page.waitForEvent('load'), apply.click()]); await ready(page);
+        expect(await page.locator('script[type=module][src]').getAttribute('src')).not.toBe(oldScript);
+        expect(await storedRows(page, 'drafts')).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'update-protected.json', text: changed })]));
+    } finally { await server.close(); }
+});
+
+for (const failure of ['integrity', 'worker404'] as const) {
+    test(`新版の${failure === 'integrity' ? 'install整合性検査' : 'worker取得'}が失敗しても旧版を維持する`, async ({ page, context }) => {
+        const server = await versionServer();
+        try {
+            await page.goto(server.baseURL); await ready(page);
+            const oldScript = await page.locator('script[type=module][src]').getAttribute('src');
+            const before = await storedRows(page, 'users');
+            if (failure === 'integrity') {
+                server.breakInstall();
+                const result = await page.evaluate(async () => {
+                    const registration = await navigator.serviceWorker.getRegistration();
+                    if (!registration) throw new Error('SW registration missing');
+                    const redundant = new Promise<string>(resolve => {
+                        registration.addEventListener('updatefound', () => {
+                            const installing = registration.installing;
+                            if (installing) installing.addEventListener('statechange', () => { if (installing.state === 'redundant') resolve(installing.state); });
+                        }, { once: true });
+                    });
+                    await registration.update();
+                    return redundant;
+                });
+                expect(result).toBe('redundant');
+            } else {
+                server.publish(); server.denyAsset('sw.js');
+                const failed = await page.evaluate(async () => {
+                    try { await (await navigator.serviceWorker.getRegistration())?.update(); return false; }
+                    catch { return true; }
+                });
+                expect(failed).toBe(true);
+            }
+            const state = await page.evaluate(async () => {
+                const registration = await navigator.serviceWorker.getRegistration();
+                return { active: registration?.active?.state, waiting: registration?.waiting?.state ?? 'none', caches: await caches.keys() };
+            });
+            expect(state.active).toBe('activated'); expect(state.waiting).toBe('none');
+            expect(state.caches.some(name => name.endsWith(server.nextVersion))).toBe(false);
+            expect(state.caches.filter(name => name.includes(':static:'))).toHaveLength(1);
+            await context.setOffline(true); await page.reload(); await ready(page);
+            expect(await page.locator('script[type=module][src]').getAttribute('src')).toBe(oldScript);
+            expect(await storedRows(page, 'users')).toEqual(before);
+            await page.getByRole('button', { name: 'クイズを開始', exact: true }).click();
+            await expect(page.getByRole('button', { name: '分からない', exact: true })).toBeVisible();
+        } finally { await server.close(); }
+    });
+}
+
+test('旧hashed editor資産がcacheにも配信元にも無ければ理由を表示してメニューを使い続ける', async ({ page }) => {
+    const server = await versionServer();
+    try {
+        await page.goto(server.baseURL); await ready(page);
+        const oldScript = await page.locator('script[type=module][src]').getAttribute('src');
+        const updater = await page.context().newPage();
+        await updater.goto(server.baseURL); await ready(updater);
+        server.publish(); await waiting(updater);
+        const apply = updater.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true });
+        await expect(apply).toBeAttached();
+        await expect(apply).toBeVisible();
+        await Promise.all([updater.waitForEvent('load'), apply.click()]); await ready(updater);
+        expect(await updater.locator('script[type=module][src]').getAttribute('src')).not.toBe(oldScript);
+        expect(await page.locator('script[type=module][src]').getAttribute('src')).toBe(oldScript);
+        server.denyAsset(server.editorAsset);
+        const removed = await page.evaluate(async asset => {
+            const url = new URL(asset, location.href).href;
+            let removed = false;
+            for (const name of await caches.keys()) removed = await (await caches.open(name)).delete(url, { ignoreVary: true }) || removed;
+            return removed;
+        }, server.editorAsset);
+        expect(removed).toBe(true);
+        await page.getByRole('button', { name: '草稿を編集', exact: true }).click();
+        await expect(page.getByRole('status').filter({ hasText: '編集器を読み込めない' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'クイズを開始', exact: true })).toBeEnabled();
+        await expect(page.locator('.monaco-editor')).toHaveCount(0);
+        expect(server.requests).toContain(server.editorAsset);
+        await page.getByRole('button', { name: 'クイズを開始', exact: true }).click();
+        await expect(page.getByRole('button', { name: '分からない', exact: true })).toBeVisible();
+        // 新版workerのindexから開き直せば、新しいhashの編集器を取得できる。
+        await page.reload(); await ready(page);
+        await page.getByRole('button', { name: '草稿を編集', exact: true }).click();
+        await expect(page.locator('.monaco-editor').first()).toBeVisible();
+    } finally { await server.close(); }
+});
+
+test('native IndexedDBのschema1をschema2へ更新してもユーザーと草稿を保持する', async ({ page }) => {
+    const server = await versionServer();
+    try {
+        // 同originのJSON文書で旧DBを作り、アプリ初期化前の実upgradeを試験する。
+        await page.goto(`${server.baseURL}app-version.json`);
+        const text = draftJson('schema1から保持した題庫');
+        await page.evaluate(text => new Promise<void>((resolve, reject) => {
+            const open = indexedDB.open('bem130-quiz-web-v1', 1);
+            open.onupgradeneeded = () => {
+                for (const store of ['users', 'drafts', 'packages', 'attempts', 'sessions', 'schedule', 'confusion', 'conceptStats', 'settings']) open.result.createObjectStore(store, { keyPath: 'id' });
+            };
+            open.onerror = () => reject(new Error('schema1 open failed'));
+            open.onsuccess = () => {
+                const database = open.result;
+                const transaction = database.transaction(['users', 'drafts', 'settings'], 'readwrite');
+                transaction.objectStore('users').put({ id: 'previous-user', name: 'schema1利用者', createdAt: 0 });
+                transaction.objectStore('drafts').put({ id: 'retained.json', text, updatedAt: 0, version: 37 });
+                transaction.objectStore('settings').put({ id: 'activeUserId', value: 'previous-user' });
+                transaction.oncomplete = () => { database.close(); resolve(); };
+                transaction.onabort = () => { database.close(); reject(new Error('schema1 fixture failed')); };
+            };
+        }), text);
+        await page.goto(server.baseURL); await ready(page);
+        const upgraded = await page.evaluate(() => new Promise<Readonly<{ version: number; stores: string[] }>>((resolve, reject) => {
+            const open = indexedDB.open('bem130-quiz-web-v1');
+            open.onerror = () => reject(new Error('upgraded open failed'));
+            open.onsuccess = () => { const database = open.result; resolve({ version: database.version, stores: Array.from(database.objectStoreNames) }); database.close(); };
+        }));
+        expect(upgraded.version).toBe(2); expect(upgraded.stores).toContain('assets');
+        expect(await storedRows(page, 'users')).toEqual([{ id: 'previous-user', name: 'schema1利用者', createdAt: 0 }]);
+        expect(await storedRows(page, 'drafts')).toEqual([{ id: 'retained.json', text, updatedAt: 0, version: 37 }]);
+        await page.getByRole('button', { name: '草稿を編集', exact: true }).click();
+        await page.getByRole('button', { name: 'retained.json', exact: true }).click();
+        await expect(page.getByLabel('問題プレビュー', { exact: true })).toContainText('schema1から保持した題庫');
+    } finally { await server.close(); }
 });
