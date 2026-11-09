@@ -171,7 +171,7 @@ test('旧版から新版を通知し、明示適用後も他tabの学習と旧ha
         await menu.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         const apply = menu.getByRole('button', { name: '新しいアプリ版を適用', exact: true, includeHidden: true });
         await expect(apply).toBeAttached();
-        await menu.locator('details').filter({ has: apply }).evaluate(element => { if (element instanceof HTMLDetailsElement) element.open = true; });
+        await expect(apply).toBeVisible();
         await Promise.all([menu.waitForEvent('load'), apply.click()]); await ready(menu);
         expect(await menu.locator('script[type=module][src]').getAttribute('src')).not.toBe(oldScript);
         const cacheNames = await menu.evaluate(() => caches.keys());
