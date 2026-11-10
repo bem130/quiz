@@ -1,0 +1,51 @@
+/* Native reading ruby and the first row of gloss grids share the text baseline.
+ * https://www.w3.org/TR/css-ruby-1/#ruby-layout
+ * https://www.w3.org/TR/css-grid/#grid-baselines
+ * Glosses use real grid rows: multiline notes reserve line height in Firefox too.
+ * Glosses retain span elements: only reading ruby participates in RubyBuffer. */
+.rich-text ruby, .token-content ruby {
+    display: ruby;
+    ruby-align: center;
+    ruby-position: over;
+    vertical-align: baseline;
+}
+.gloss {
+    display: inline-grid;
+    grid-template-columns: minmax(0, max-content);
+    max-inline-size: 100cqi;
+    align-items: baseline;
+    vertical-align: baseline;
+}
+/* These block contexts have an available inline size; inline ruby itself does not. */
+:where(.panel, .choice, .question-text, .quiz-card, .draft-preview, .draft-pattern, .editor-preview, .result-item, .rich-text-container) {
+    container-type: inline-size;
+}
+.pattern-choice > span { flex: 1; min-width: 0; container-type: inline-size; }
+.rich-text ruby > rb, .token-content ruby > rb {
+    display: inline-block;
+    display: ruby-base;
+    line-height: 1.3;
+    text-align: center;
+}
+.gloss > .gloss-base { line-height: 1.3; text-align: center; }
+.rich-text ruby > rt, .token-content ruby > rt {
+    display: ruby-text;
+    font-size: .6em;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+}
+.gloss > .gloss-alts { color: var(--muted); font-size: .6em; line-height: 1.2; text-align: center; }
+.gloss-notes {
+    /* Grid exposes the first line's baseline, including for wrapped notes. */
+    display: inline-grid;
+    inline-size: max-content;
+    max-inline-size: min(32em, 100cqi);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.2;
+}
+.gloss-alt { display: inline; }
+.gloss-alt + .gloss-alt::before { content: ' / '; }
+/* KaTeX's positioned superscript boxes must stay inside the note's metrics. */
+.gloss-alts .math { contain: layout; }

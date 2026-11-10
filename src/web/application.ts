@@ -1,6 +1,7 @@
 import { packageIdentity, parsePackageId, parseUserId, parseSessionId } from '../core/identity.ts';
 import type { PatternId } from '../core/identity.ts';
 import type { QuizFile } from '../core/model.ts';
+import { plainText } from '../core/content.ts';
 import { prepareQuiz } from '../core/quiz-engine.ts';
 import type { PreparedQuiz, QuestionCandidate } from '../core/quiz-engine.ts';
 import type { Question } from '../core/quiz-engine.ts';
@@ -73,9 +74,14 @@ export class QuizApplication {
     private notice = '';
     private busy = false;
     private refreshQueue: Promise<void> = Promise.resolve();
+    private preferencesQueue: Promise<void> = Promise.resolve();
+    private replacingPreferences = false;
     private readonly host: HTMLElement;
     private readonly message: HTMLElement;
     private readonly view: HTMLElement;
+    private readonly themeToggle: HTMLButtonElement;
+    private readonly themeLabel: HTMLElement;
+    private readonly headerUser: HTMLElement;
     private updateState: UpdateState = { kind: 'idle' };
     private readonly observedRegistrations = new WeakSet<ServiceWorkerRegistration>();
     private readonly observedWorkers = new WeakSet<ServiceWorker>();
@@ -91,7 +97,17 @@ export class QuizApplication {
         this.message.setAttribute('role', 'status');
         this.message.setAttribute('aria-live', 'polite');
         this.view = element('div', '', 'app-view');
-        host.replaceChildren(this.message, this.view);
+        const header = element('header', '', 'app-header');
+        this.headerUser = element('span', 'Guest');
+        this.themeLabel = element('span', '', 'theme-current');
+        this.themeToggle = this.button('', () => this.toggleTheme());
+        this.themeToggle.setAttribute('aria-label', 'ダークテーマ'); this.themeToggle.className = 'theme-toggle';
+        const themeControl = element('div', '', 'theme-control'); themeControl.append(this.themeLabel, this.themeToggle);
+        header.append(element('h1', '4択クイズ'), this.headerUser, themeControl, this.button('全画面', async () => {
+            if (document.fullscreenElement) await document.exitFullscreen(); else await this.host.requestFullscreen();
+        }));
+        host.replaceChildren(header, this.message, this.view);
+        this.syncThemeControls();
         window.addEventListener('beforeunload', (event) => {
             if ((this.editor.kind === 'some' && this.editor.value.isDirty()) || this.isSaving()) { event.preventDefault(); event.returnValue = ''; }
         });
@@ -129,6 +145,7 @@ export class QuizApplication {
         ++this.loadingGeneration;
         if (this.storage.kind === 'some') this.storage.value.close();
         this.storage = none;
+        this.replacingPreferences = false; this.view.inert = false;
         this.busy = false;
         this.state = { kind: 'loading' }; this.render();
         let connection: Option<QuizStorage> = none;
@@ -139,6 +156,8 @@ export class QuizApplication {
             return true;
         };
         try {
+        await this.preferencesQueue;
+        if (superseded()) return;
         const opened = await openQuizStorage();
         if (opened.ok) connection = some(opened.value);
         if (superseded()) return;
@@ -264,7 +283,7 @@ export class QuizApplication {
     }
 
     private async loadEntry(rawUrl: string, intent: EntryLoadIntent): Promise<Option<readonly PatternId[]>> {
-        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.busy) return none;
+        if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.busy || this.replacingPreferences) return none;
         const db = this.database(); if (db.kind === 'none') return none;
         const url = resolveHttpUrl(rawUrl, document.baseURI);
         if (!url.ok) { this.inform('entry URLはHTTP(S)で指定する。'); return none; }
@@ -318,21 +337,80 @@ export class QuizApplication {
                 if (this.published.kind === 'some') shared.pathname = new URL(this.published.value.base).pathname;
                 shared.searchParams.set('entry', url.value); shared.searchParams.delete('entries'); shared.searchParams.delete('scope'); history.replaceState(null, '', shared);
             }
-            this.inform(errors.length ? `${errors.length}ファイルを取得・検証できなかった。以前の有効版は保持している。` : `${entry.value.label} を読み込んだ。`);
+            this.inform(errors.length ? `${errors.length}ファイルを取得・検証できなかった。以前の有効版は保持している。` : `${plainText(entry.value.label)} を読み込んだ。`);
             return selected.length > 0 || errors.length === 0 ? some([...new Set(selected)]) : none;
         } finally { if (generation === this.loadingGeneration) { this.busy = false; this.render(); } }
     }
 
-    private async savePreferences(preferences: Preferences): Promise<void> {
-        if (this.state.kind !== 'ready') return;
-        this.state = { ...this.state, preferences }; this.render();
+    private applyAppearance(preferences: Preferences): void {
+        document.documentElement.dataset['theme'] = preferences.theme;
+        document.documentElement.dataset['font'] = preferences.font;
+        document.documentElement.style.setProperty('--text-scale', String(preferences.scale));
+        this.syncThemeControls();
+    }
+
+    private syncThemeControls(): void {
+        const theme = document.documentElement.dataset['theme'];
+        const current = theme === 'black' ? 'ブラック' : theme === 'dark' ? 'ダーク' : 'ライト';
+        const dark = theme === 'dark' || theme === 'black';
+        this.themeLabel.textContent = `配色: ${current}`;
+        this.themeToggle.textContent = 'ダークテーマ';
+        this.themeToggle.setAttribute('aria-pressed', String(dark));
+        this.themeToggle.title = `現在: ${current}。${dark ? 'ライト' : 'ダーク'}に切り替える。`;
+        this.themeToggle.disabled = this.state.kind === 'loading' || this.replacingPreferences;
+        for (const label of this.view.querySelectorAll('[data-theme-current]')) label.textContent = `現在: ${current}`;
+        for (const control of this.view.querySelectorAll('[data-theme-cycle]')) {
+            control.setAttribute('title', `現在: ${current}。${theme === 'dark' ? 'ブラック' : theme === 'black' ? 'ライト' : 'ダーク'}に切り替える。`);
+            if (control instanceof HTMLButtonElement) control.disabled = this.replacingPreferences;
+        }
+    }
+
+    private toggleTheme(): Promise<void> | void {
+        if (this.replacingPreferences) return;
+        const current = this.state.kind === 'ready' ? this.state.preferences.theme : document.documentElement.dataset['theme'];
+        const theme = current === 'dark' || current === 'black' ? 'light' : 'dark';
+        if (this.state.kind !== 'ready') {
+            this.applyAppearance({ ...DEFAULTS, theme }); this.inform('画面の配色を変更した。保存領域へ接続できないため設定は保存していない。'); return;
+        }
+        return this.savePreferences({ ...this.state.preferences, theme }, 'appearance');
+    }
+
+    private async savePreferences(preferences: Preferences, effect: 'render' | 'appearance' = 'render'): Promise<void> {
+        if (this.state.kind !== 'ready' || this.replacingPreferences) return;
+        this.state = { ...this.state, preferences };
+        if (effect === 'appearance') this.applyAppearance(preferences); else this.render();
         const db = this.database(); if (db.kind === 'none') return;
-        const saved = await db.value.setSetting({ id: 'preferences', value: JSON.stringify(preferences) });
-        if (!saved.ok) this.inform(saved.error.message);
+        const generation = this.startGeneration;
+        const current = (): boolean => generation === this.startGeneration && this.storage.kind === 'some' && this.storage.value === db.value;
+        const save = async (): Promise<void> => {
+            if (!current()) return;
+            const saved = await db.value.setSetting({ id: 'preferences', value: JSON.stringify(preferences) });
+            if (!current()) return;
+            if (!saved.ok) this.inform(effect === 'appearance' ? `画面の配色は変更したが、設定を保存できない: ${saved.error.message} 再読み込み前に配色を選び直して再試行できる。` : saved.error.message);
+            else if (this.state.kind === 'ready' && this.state.preferences === preferences && this.notice.startsWith('画面の配色は変更したが、設定を保存できない:')) this.inform('配色を保存した。');
+        };
+        const pending = this.preferencesQueue.then(save);
+        this.preferencesQueue = pending.catch(() => undefined);
+        await pending;
+    }
+
+    /** 全設定writeを終えてからrestore/resetし、置換中の新しい設定操作を受け付けない。 */
+    private async replacePreferences(db: QuizStorage, operation: () => Promise<void>): Promise<void> {
+        if (this.replacingPreferences || this.busy) return;
+        const generation = this.startGeneration;
+        this.replacingPreferences = true; this.view.inert = true; this.syncThemeControls();
+        try {
+            await this.preferencesQueue;
+            if (generation !== this.startGeneration || this.storage.kind === 'none' || this.storage.value !== db) return;
+            await operation();
+        } finally {
+            if (generation === this.startGeneration) { this.replacingPreferences = false; this.view.inert = false; this.syncThemeControls(); }
+        }
     }
 
     private render(): void {
         this.message.textContent = this.notice;
+        this.syncThemeControls();
         if (this.state.kind === 'loading') {
             this.view.replaceChildren(element('p', '保存領域を準備中…'), this.button('起動をやり直す', () => this.start())); return;
         }
@@ -360,18 +438,12 @@ export class QuizApplication {
             this.view.replaceChildren(recovery); return;
         }
         const state = this.state;
-        document.documentElement.dataset['theme'] = state.preferences.theme;
-        document.documentElement.dataset['font'] = state.preferences.font;
-        document.documentElement.style.setProperty('--text-scale', String(state.preferences.scale));
+        this.headerUser.textContent = state.data.users.find(user => user.id === state.data.userId)?.name ?? 'Guest';
+        this.applyAppearance(state.preferences);
         if (state.screen.kind === 'editor' && this.editor.kind === 'some') return;
         const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset['focusKey'] : '';
         this.renderGeneration += 1;
-        const header = element('header', '', 'app-header');
-        header.append(element('h1', '4択クイズ'), element('span', state.data.users.find((user) => user.id === state.data.userId)?.name ?? 'Guest'));
-        header.append(this.button('全画面', async () => {
-            if (document.fullscreenElement) await document.exitFullscreen(); else await this.host.requestFullscreen();
-        }));
-        this.view.replaceChildren(header);
+        this.view.replaceChildren();
         switch (state.screen.kind) {
             case 'menu': this.renderMenu(state); break;
             case 'playing': this.renderSession(state.screen.session, state.screen.idkPrompt); break;
@@ -383,6 +455,7 @@ export class QuizApplication {
             const target = this.view.querySelector(`[data-focus-key="${CSS.escape(focused)}"]`);
             if (target instanceof HTMLElement) target.focus({ preventScroll: true });
         }
+        this.syncThemeControls();
     }
 
     private selectionShareUrl(selected: readonly PatternId[]): string {
@@ -537,7 +610,7 @@ export class QuizApplication {
         controls.append(this.button('草稿を編集', () => this.openEditor(), this.busy));
         this.renderDraftImport(controls);
         this.renderPreferences(controls, state);
-        this.renderStorage(controls, state);
+        this.renderStorage(controls);
         layout.append(scope, controls); this.view.append(layout);
     }
 
@@ -565,11 +638,14 @@ export class QuizApplication {
         }, state.data.users.length <= 1));
         const mine = state.data.attempts.filter((attempt) => attempt.userId === state.data.userId);
         settings.append(element('p', `回答履歴: ${mine.length}件 / 正答: ${mine.filter((attempt) => attempt.result === 'strong' || attempt.result === 'weak').length}件`));
-        settings.append(this.button('配色を切替', () => {
+        const themeCycle = this.button('配色を切替', () => {
             if (this.state.kind !== 'ready') return;
             const current = this.state.preferences;
-            return this.savePreferences({ ...current, theme: current.theme === 'light' ? 'dark' : current.theme === 'dark' ? 'black' : 'light' });
-        }));
+            return this.savePreferences({ ...current, theme: current.theme === 'light' ? 'dark' : current.theme === 'dark' ? 'black' : 'light' }, 'appearance');
+        });
+        themeCycle.dataset['themeCycle'] = 'true';
+        const themeCurrent = element('span'); themeCurrent.dataset['themeCurrent'] = 'true';
+        settings.append(themeCycle, themeCurrent);
         settings.append(this.button('書体を切替', () => {
             if (this.state.kind !== 'ready') return;
             return this.savePreferences({ ...this.state.preferences, font: this.state.preferences.font === 'sans' ? 'serif' : 'sans' });
@@ -603,34 +679,49 @@ export class QuizApplication {
         parent.append(settings);
     }
 
-    private renderStorage(parent: HTMLElement, state: ReadyState): void {
+    private renderStorage(parent: HTMLElement): void {
         const details = element('details'); details.append(element('summary', 'バックアップ・復元'));
         details.append(this.button('完全バックアップをダウンロード', async () => {
             const db = this.database(); if (db.kind === 'none') return;
-            const snapshot = await db.value.exportBackup(); if (!snapshot.ok) { this.inform(snapshot.error.message); return; }
+            const generation = this.startGeneration;
+            const current = (): boolean => generation === this.startGeneration && this.storage.kind === 'some' && this.storage.value === db.value;
+            await this.preferencesQueue;
+            if (!current()) return;
+            const snapshot = await db.value.exportBackup();
+            if (!current()) return;
+            if (!snapshot.ok) { this.inform(snapshot.error.message); return; }
             const text = JSON.stringify(snapshot.value, null, 2);
             if (new TextEncoder().encode(text).byteLength > BACKUP_MAX_BYTES) { this.inform('完全バックアップが50MBの上限を超える。データを省略せずに出力するため、保存内容を整理して再試行する。'); return; }
             this.download(text, 'quiz-backup.json'); this.inform('草稿・ユーザー・履歴・設定・取得済みSVGを含むバックアップを作成した。');
         }));
         const file = element('input'); file.type = 'file'; file.accept = 'application/json,.json'; file.setAttribute('aria-label', '復元するバックアップ');
+        file.disabled = this.busy || this.replacingPreferences;
         file.addEventListener('change', () => this.run(async () => {
+            if (this.busy || this.replacingPreferences) { this.inform('問題一覧の取得または保存データの置換が完了してから復元できる。'); return; }
             const selected = file.files?.item(0); const db = this.database();
             if (!selected || db.kind === 'none') return;
             if (selected.size > BACKUP_MAX_BYTES) { this.inform('バックアップの上限は50MBである。'); return; }
             let value: unknown;
             try { value = JSON.parse(await selected.text()); } catch { this.inform('バックアップJSONを解釈できない。'); return; }
+            if (this.busy || this.replacingPreferences) { this.inform('問題一覧の取得または保存データの置換が完了してから復元できる。'); return; }
             if (!confirm('現在の新サイトの全保存データを、選択したバックアップで置き換える。よいか。')) return;
-            const restored = await db.value.restoreBackup(value); if (!restored.ok) { this.inform(restored.error.message); return; }
-            const preferences = await db.value.getSetting('preferences');
-            if (this.state.kind === 'ready' && preferences.ok) this.state = { ...this.state, preferences: preferences.value.kind === 'some' ? preferencesFrom(preferences.value.value) : DEFAULTS };
-            await this.refreshData(); this.inform('バックアップを復元した。別のタブは再読み込みが必要である。');
+            await this.replacePreferences(db.value, async () => {
+                const restored = await db.value.restoreBackup(value); if (!restored.ok) { this.inform(restored.error.message); return; }
+                const preferences = await db.value.getSetting('preferences');
+                if (this.state.kind === 'ready' && preferences.ok) this.state = { ...this.state, preferences: preferences.value.kind === 'some' ? preferencesFrom(preferences.value.value) : DEFAULTS };
+                await this.refreshData(); this.inform('バックアップを復元した。別のタブは再読み込みが必要である。');
+            });
         }));
         details.append(file, this.button('新サイトの全データを削除', async () => {
+            if (this.busy || this.replacingPreferences) { this.inform('問題一覧の取得または保存データの置換が完了してから削除できる。'); return; }
             if (!confirm('草稿・ユーザー・履歴・設定をすべて削除する。よいか。')) return;
             const db = this.database(); if (db.kind === 'none') return;
-            const cleared = await db.value.clearAll(); if (!cleared.ok) { this.inform(cleared.error.message); return; }
-            this.state = { ...state, preferences: DEFAULTS, selected: [] }; await this.refreshData(); this.inform('新サイトの全保存データを削除した。');
-        }));
+            await this.replacePreferences(db.value, async () => {
+                const cleared = await db.value.clearAll(); if (!cleared.ok) { this.inform(cleared.error.message); return; }
+                if (this.state.kind === 'ready') this.state = { ...this.state, preferences: DEFAULTS, selected: [] };
+                await this.refreshData(); this.inform('新サイトの全保存データを削除した。');
+            });
+        }, this.busy || this.replacingPreferences));
         if (this.updateState.kind === 'ready' && this.updateState.registration.waiting === this.updateState.worker) parent.append(this.button('新しいアプリ版を適用', () => this.applyUpdate()));
         else if (this.updateState.kind === 'failed') parent.append(this.button('オフライン・更新の準備を再試行', () => this.retryWorker()));
         else if (this.updateState.kind === 'reload') parent.append(this.button('新しい版でページを開き直す', () => this.applyUpdate()));
@@ -730,7 +821,8 @@ export class QuizApplication {
         const phase = session.phase;
         switch (phase.kind) {
             case 'question': case 'saving': case 'answered': {
-                panel.append(element('p', phase.stage), element('h2', phase.question.title));
+                const title = element('h2'); title.append(richText(phase.question.title));
+                panel.append(element('p', phase.stage), title);
                 const context = this.context(session, this.renderGeneration, phase.kind === 'answered');
                 const stem = element('div', '', 'question-text'); stem.append(renderTokens(phase.question.pattern.tokens, phase.question.row, context)); panel.append(stem);
                 const regions: SourceRegion[] = [{ root: stem, source: this.sourceInfo(phase.question, phase.question.row) }];
@@ -856,7 +948,9 @@ export class QuizApplication {
     }
 
     private keyboard(event: KeyboardEvent): void {
-        if (event.isComposing || event.repeat || event.ctrlKey || event.altKey || event.metaKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
+        if (event.isComposing || event.repeat || event.ctrlKey || event.altKey || event.metaKey || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement ||
+            ((event.key === 'Enter' || event.key === ' ') && (event.target instanceof HTMLButtonElement || event.target instanceof HTMLAnchorElement)) ||
+            (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
         if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing') return;
         const phase = this.state.screen.session.phase;
         if (phase.kind === 'question' && /^[1-4]$/.test(event.key)) {

@@ -1,3 +1,4 @@
+import { plainText } from '../core/content.ts';
 import { err, ok } from '../core/result.ts';
 import type { Result } from '../core/result.ts';
 
@@ -273,7 +274,7 @@ export function sanitizeSvg(source: string, alt: string): Result<SVGSVGElement, 
     }
     output.setAttribute('width', String(width)); output.setAttribute('height', String(height));
     output.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    output.setAttribute('role', 'img'); output.setAttribute('aria-label', alt);
+    output.setAttribute('role', 'img'); output.setAttribute('aria-label', plainText(alt));
     output.classList.add('quiz-svg');
     // 包含する文章・選択肢の幅と文字拡大に追随し、原図の比率を保つ。
     output.style.display = 'inline-block'; output.style.verticalAlign = 'middle';

@@ -65,8 +65,11 @@ export function folderKeys(source: string): readonly string[] {
 export function rubyItems(root: HTMLElement, source: SourceInfo): readonly RubyBufferItem[] {
     const result: RubyBufferItem[] = [];
     for (const ruby of root.tagName === 'RUBY' ? [root] : root.querySelectorAll('ruby')) {
-        const reading = ruby.querySelector('rt')?.textContent ?? '';
-        const base = ruby.querySelector('rb')?.textContent ?? Array.from(ruby.childNodes).filter((node) => !(node instanceof HTMLElement && (node.tagName === 'RT' || node.tagName === 'RP'))).map((node) => node.textContent ?? '').join('');
+        const reading = ruby.querySelector(':scope > rt')?.textContent ?? '';
+        const ownBase = ruby.querySelector(':scope > rb') ?? ruby;
+        const baseCopy = ownBase.cloneNode(true);
+        if (baseCopy instanceof Element) for (const note of baseCopy.querySelectorAll('rt, rp, .gloss-alts')) note.remove();
+        const base = baseCopy.textContent ?? '';
         if (base && reading) result.push({ base, reading, source });
     }
     return result;
