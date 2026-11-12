@@ -919,7 +919,7 @@ export class QuizApplication {
         const head = element('div', '', 'session-head');
         const progress = session.config.completion.kind === 'questions' ? ` / 全${session.config.completion.count}問` : '';
         head.append(element('p', `${summary.answered}問回答 / ${summary.correct}問正答${progress}`));
-        const timer = element('p', '', 'timer'); timer.dataset['timer'] = 'session'; head.append(timer);
+        const timer = element('p', '', 'timer'); timer.dataset['timer'] = 'session'; timer.textContent = this.timerText(session, Date.now()); head.append(timer);
         main.append(head);
         const body = element('div', '', 'session-body');
         const foot = element('div', '', 'session-foot');
@@ -1104,11 +1104,23 @@ export class QuizApplication {
         this.editor = some(controller.value);
     }
 
+    private timerText(session: SessionState, now: number): string {
+        // 時間指定のセッションでは制限がセッション全体へかかるため、経過時間を表示する。
+        if (session.config.completion.kind === 'time') return `${Math.floor(Math.max(0, now - session.record.startedAt) / 1000)}秒`;
+        // それ以外は現在の設問の回答時間を表示し、回答が記録された時点で止める。
+        const phase = session.phase;
+        if (phase.kind === 'question') return `${Math.floor(Math.max(0, now - phase.startedAt) / 1000)}秒`;
+        if (phase.kind === 'saving') return `${Math.floor(phase.commit.attempt.answerMs / 1000)}秒`;
+        if (phase.kind === 'answered') return `${Math.floor(phase.attempt.answerMs / 1000)}秒`;
+        const last = session.history[session.history.length - 1];
+        return `${Math.floor((last ? last.attempt.answerMs : 0) / 1000)}秒`;
+    }
+
     private async tick(): Promise<void> {
         if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing') return;
         const session = this.state.screen.session; const now = Date.now();
         const timer = this.view.querySelector('[data-timer="session"]');
-        if (timer) timer.textContent = `${Math.floor((now - session.record.startedAt) / 1000)}秒`;
+        if (timer) timer.textContent = this.timerText(session, now);
         const limit = session.config.completion;
         if (limit.kind === 'time' && now >= session.record.startedAt + limit.durationMs) {
             if (session.phase.kind === 'question') await this.select({ kind: 'timeout' });
