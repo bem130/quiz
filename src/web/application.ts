@@ -89,6 +89,7 @@ export class QuizApplication {
     private draftImportText = '';
     private draftImportPath = `imports/quiz-${crypto.randomUUID()}.json`;
     private sharedInputError: Option<string> = none;
+    private mistakesOpen: boolean | null = null;
     private published: Option<PublishedPages> = none;
 
     constructor(host: HTMLElement) {
@@ -592,7 +593,10 @@ export class QuizApplication {
             const value = Number(minutes.value);
             if (this.state.kind === 'ready' && Number.isFinite(value) && value >= 1 && value <= 180) this.state = { ...this.state, preferences: { ...this.state.preferences, minutes: value } };
         });
-        controls.append(mode, completion, element('label', '問題数'), count, element('label', '制限時間（分）'), minutes);
+        const form = element('div', '', 'settings-form');
+        const selects = element('div', '', 'settings-selects'); selects.append(mode, completion);
+        form.append(selects, element('label', '問題数'), count, element('label', '制限時間（分）'), minutes);
+        controls.append(form);
         const capacity = state.data.packages.flatMap((item) => item.prepared.candidates).filter((candidate) => state.selected.includes(candidate.patternId)).length;
         controls.append(element('p', `選択範囲: ${capacity}問`));
         controls.append(this.button('クイズを開始', async () => {
@@ -730,6 +734,7 @@ export class QuizApplication {
 
     private async begin(override: Option<readonly QuestionCandidate[]> = none): Promise<void> {
         if (this.state.kind !== 'ready' || (this.state.screen.kind !== 'menu' && this.state.screen.kind !== 'result')) return;
+        this.mistakesOpen = null;
         const state = this.state; const db = this.database(); if (db.kind === 'none') return;
         const requestId = crypto.randomUUID();
         this.state = { ...state, screen: { kind: 'starting', requestId } }; this.render();
@@ -900,12 +905,18 @@ export class QuizApplication {
     }
 
     private renderMistakes(session: SessionState): HTMLElement {
-        const side = element('aside', '', 'session-side');
+        if (this.mistakesOpen === null) this.mistakesOpen = !(window.matchMedia('(max-aspect-ratio: 1/1)').matches || window.innerWidth <= 900);
+        const open = this.mistakesOpen;
+        const side = element('aside', '', open ? 'session-side' : 'session-side collapsed');
         const head = element('div', '', 'mistake-head');
         head.append(element('p', '間違えた問題', 'mistake-title'));
         const mistakes = session.history.filter((entry) => entry.attempt.result === 'wrong' || entry.attempt.result === 'idk' || entry.attempt.result === 'timeout');
         if (mistakes.length) head.append(element('span', String(mistakes.length), 'mistake-count'));
+        const toggle = this.button(open ? '閉じる' : '開く', () => { this.mistakesOpen = !open; this.render(); });
+        toggle.classList.add('mistake-toggle'); toggle.setAttribute('aria-expanded', String(open));
+        head.append(toggle);
         side.append(head);
+        if (!open) return side;
         if (!mistakes.length) { side.append(element('p', 'まだ間違えた問題はない。')); return side; }
         const list = element('ol', '', 'mistake-list');
         session.history.forEach((entry, index) => {
