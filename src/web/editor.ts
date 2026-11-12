@@ -30,6 +30,7 @@ type SourceRange = Readonly<{ start: number; end: number }>;
 type StringSource = Readonly<{ range: SourceRange; value: string; offsets: readonly number[] }>;
 type SourceIndex = Readonly<{ ranges: ReadonlyMap<string, SourceRange>; strings: readonly StringSource[] }>;
 type BufferState = Readonly<{ record: DraftRecord; text: string; savedText: string }>;
+type DraftTreeNode = Readonly<{ name: string; path: string; folder: boolean; children: DraftTreeNode[] }>;
 
 function failure(kind: EditorError['kind'], detail: string): Result<never, EditorError> { return err({ kind, detail }); }
 function message(error: unknown): string { return error instanceof Error ? error.message : '編集器で不明な失敗が発生した。'; }
@@ -135,6 +136,7 @@ export async function mountDraftEditor(
     let navigationTail: Promise<void> = Promise.resolve();
     let index: SourceIndex = { ranges: new Map(), strings: [] };
     let parsed: Option<QuizFile> = none;
+    const collapsedFolders = new Set<string>();
     const section = document.createElement('section'); section.className = 'draft-editor';
     const heading = document.createElement('h2'); heading.textContent = 'ローカル問題の編集';
     const toolbar = document.createElement('div'); toolbar.className = 'draft-toolbar';
@@ -147,9 +149,13 @@ export async function mountDraftEditor(
     modeSelect.append(new Option('標準入力（textarea）', 'native'), new Option('高度編集（Monaco・デスクトップ向け）', 'advanced'));
     const modeNotice = document.createElement('p'); modeNotice.setAttribute('role', 'status');
     toolbar.append(pathInput, openButton, newButton, folderButton, renameButton, moveButton, deleteButton, saveButton, saveAsButton, closeButton, labelControl('入力方式 ', modeSelect));
-    const status = document.createElement('p'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+    const status = document.createElement('p'); status.className = 'draft-status'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     const diagnostic = document.createElement('p'); diagnostic.className = 'draft-diagnostic'; diagnostic.setAttribute('role', 'status');
     const tree = document.createElement('nav'); tree.setAttribute('aria-label', '草稿一覧'); tree.className = 'draft-tree';
+    const sidebar = document.createElement('div'); sidebar.className = 'draft-sidebar';
+    const sidebarHead = document.createElement('div'); sidebarHead.className = 'draft-sidebar-head'; sidebarHead.textContent = '草稿';
+    sidebar.append(sidebarHead, tree);
+    const body = document.createElement('div'); body.className = 'draft-body';
     const main = document.createElement('div'); main.className = 'draft-main';
     const editorHost = document.createElement('div'); editorHost.className = 'draft-code'; editorHost.style.height = 'min(60vh, 620px)';
     editorHost.style.minHeight = '280px';
@@ -165,14 +171,15 @@ export async function mountDraftEditor(
     const jsonPreview = document.createElement('pre'); jsonPreview.className = 'draft-json-preview'; jsonPreview.hidden = true;
     jsonPreview.setAttribute('aria-label', 'JSONプレビュー');
     const style = document.createElement('style');
-    style.textContent = `.draft-editor .draft-toolbar,.draft-editor .draft-selectors{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.draft-editor .draft-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem}.draft-editor .draft-tree{display:flex;flex-wrap:wrap;gap:.25rem;margin-block:.5rem}.draft-editor .draft-tree button[aria-current=true]{font-weight:bold;outline:2px solid currentColor}.draft-editor .draft-preview,.draft-editor .draft-json-preview{overflow:auto;max-height:65vh;white-space:pre-wrap;overflow-wrap:anywhere}.draft-editor .draft-pattern{padding:.75rem;border:1px solid #8090a0;border-radius:.4rem;margin-block:.5rem}.draft-editor .source-preview{cursor:pointer}.draft-editor .json-current{outline:2px solid #347ed0}.quiz-editor-ruby{background:#d0eaff55}.quiz-editor-gloss{background:#d6f8d655}.quiz-editor-math{background:#f5e7bb66}.quiz-editor-command{color:#7d39ae!important}@media(max-width:760px){.draft-editor .draft-main{grid-template-columns:1fr}}`;
+    style.textContent = `.draft-editor .draft-toolbar,.draft-editor .draft-selectors{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.draft-editor{display:flex;flex-direction:column;min-height:100%}.draft-editor .draft-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;flex:1 1 auto;min-width:0;padding-left:1rem}.draft-editor .draft-body{display:flex;align-items:stretch;flex:1 1 auto;min-height:0}.draft-editor .draft-sidebar{flex:0 0 16rem;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border,#8090a0)}.draft-editor .draft-sidebar-head{flex:0 0 auto;padding:.35rem .45rem;border-bottom:1px solid var(--border,#8090a0);font-size:.85rem;font-weight:bold;letter-spacing:.05em}.draft-editor .draft-tree{flex:1 1 auto;min-height:0;overflow-y:auto;padding:.25rem}.draft-editor .draft-status{flex:0 0 auto;margin:0;border-top:1px solid var(--border,#8090a0);padding:.25rem .45rem;font-size:.85rem}.draft-editor .draft-tree button{display:flex;align-items:center;gap:.35rem;width:100%;min-height:0;margin:0;padding:.3rem .45rem;border:1px solid transparent;border-radius:.35rem;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden}.draft-editor .draft-tree button:hover{background:var(--disabled-surface,#e5ebf1)}.draft-editor .draft-tree button[aria-current=true]{font-weight:bold;background:var(--disabled-surface,#e5ebf1);outline:2px solid currentColor}.draft-editor .draft-tree-chevron{flex:0 0 1em;text-align:center}.draft-editor .draft-tree-icon{flex:0 0 1.2em;text-align:center}.draft-editor .draft-tree-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.draft-editor .draft-preview,.draft-editor .draft-json-preview{overflow:auto;max-height:65vh;white-space:pre-wrap;overflow-wrap:anywhere}.draft-editor .draft-pattern{padding:.75rem;border:1px solid #8090a0;border-radius:.4rem;margin-block:.5rem}.draft-editor .source-preview{cursor:pointer}.draft-editor .json-current{outline:2px solid #347ed0}.quiz-editor-ruby{background:#d0eaff55}.quiz-editor-gloss{background:#d6f8d655}.quiz-editor-math{background:#f5e7bb66}.quiz-editor-command{color:#7d39ae!important}@media(max-width:760px){.draft-editor .draft-main{grid-template-columns:1fr;padding-left:0}.draft-editor .draft-body{flex-direction:column}.draft-editor .draft-sidebar{flex:0 0 auto;border-right:none;border-bottom:1px solid var(--border,#8090a0)}.draft-editor .draft-tree{max-height:35vh}}`;
     const right = document.createElement('div'); right.append(selectors, diagnostic, preview, jsonPreview);
     // 入力surfaceと初期草稿の準備が終わる前に操作を公開しない。
     // dynamic import中にもtoolbar自体は描画されるため、listener登録前のclickを防ぐ。
     for (const control of [pathInput, openButton, newButton, folderButton, renameButton, moveButton, deleteButton,
         saveButton, saveAsButton, closeButton, modeSelect, rowSelect, patternSelect, renderedTab, jsonTab]) control.disabled = true;
     status.textContent = '編集器を準備中…'; status.dataset['state'] = 'loading';
-    main.append(editorHost, right); section.append(style, heading, toolbar, modeNotice, status, tree, main); host.replaceChildren(section);
+    main.append(editorHost, right); body.append(sidebar, main);
+    section.append(style, heading, toolbar, modeNotice, body, status); host.replaceChildren(section);
     let editor: InputSurface;
     try {
         editor = await createInputSurface(defaultInputMode(), inputHost);
@@ -314,16 +321,64 @@ export async function mountDraftEditor(
             const parts = record.id.split('/'); parts.pop(); let prefix = '';
             for (const part of parts) { prefix += `${part}/`; paths.add(prefix); }
         }
+        const roots: DraftTreeNode[] = [];
+        const knownFolders = new Map<string, DraftTreeNode>();
+        const ensureFolder = (path: string, name: string, siblings: DraftTreeNode[]): DraftTreeNode => {
+            const existing = knownFolders.get(path);
+            if (existing !== undefined) return existing;
+            const node: DraftTreeNode = { name, path, folder: true, children: [] };
+            knownFolders.set(path, node); siblings.push(node); return node;
+        };
         for (const path of [...paths].sort()) {
-            const folder = path.endsWith('/'); const item = button(`${folder ? '📁 ' : ''}${path}`);
-            item.dataset['path'] = path; item.setAttribute('aria-current', selected.kind === 'some' && selected.value === path ? 'true' : 'false');
-            item.addEventListener('click', () => {
-                if (busy || composing) return;
-                if (folder) { selected = some(path); pathInput.value = path; refreshTree(); }
-                else navigate(() => openDraft(path));
+            const folder = path.endsWith('/');
+            const segments = (folder ? path.slice(0, -1) : path).split('/');
+            let siblings = roots; let prefix = '';
+            segments.forEach((segment, segmentIndex) => {
+                prefix += segment;
+                if (segmentIndex < segments.length - 1 || folder) {
+                    prefix += '/';
+                    siblings = ensureFolder(prefix, segment, siblings).children;
+                } else siblings.push({ name: segment, path, folder: false, children: [] });
             });
-            tree.append(item);
         }
+        const byKindThenName = (a: DraftTreeNode, b: DraftTreeNode): number =>
+            a.folder === b.folder ? (a.name < b.name ? -1 : a.name > b.name ? 1 : 0) : a.folder ? -1 : 1;
+        const sortNodes = (nodes: DraftTreeNode[]): void => {
+            nodes.sort(byKindThenName);
+            for (const node of nodes) sortNodes(node.children);
+        };
+        sortNodes(roots);
+        const renderNodes = (nodes: readonly DraftTreeNode[], depth: number): void => {
+            for (const node of nodes) {
+                const expanded = node.folder && !collapsedFolders.has(node.path);
+                const item = button('');
+                item.dataset['path'] = node.path;
+                item.setAttribute('aria-current', selected.kind === 'some' && selected.value === node.path ? 'true' : 'false');
+                item.style.paddingLeft = `${0.45 + depth * 1.15}rem`;
+                const chevron = document.createElement('span');
+                chevron.className = 'draft-tree-chevron'; chevron.setAttribute('aria-hidden', 'true');
+                chevron.textContent = node.folder ? (expanded ? '▾' : '▸') : '';
+                const icon = document.createElement('span');
+                icon.className = 'draft-tree-icon'; icon.setAttribute('aria-hidden', 'true');
+                icon.textContent = node.folder ? (expanded ? '📂' : '📁') : '📄';
+                const name = document.createElement('span');
+                name.className = 'draft-tree-name'; name.textContent = node.name;
+                item.append(chevron, icon, name);
+                if (node.folder) item.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                const path = node.path; const folder = node.folder;
+                item.addEventListener('click', () => {
+                    if (busy || composing) return;
+                    if (folder) {
+                        if (collapsedFolders.has(path)) collapsedFolders.delete(path); else collapsedFolders.add(path);
+                        selected = some(path); pathInput.value = path; refreshTree();
+                    }
+                    else navigate(() => openDraft(path));
+                });
+                tree.append(item);
+                if (expanded) renderNodes(node.children, depth + 1);
+            }
+        };
+        renderNodes(roots, 0);
     };
     const reloadRecords = async (): Promise<Result<true, EditorError>> => {
         const result = await storage.listDrafts();
