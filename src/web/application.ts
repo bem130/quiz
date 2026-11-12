@@ -818,7 +818,8 @@ export class QuizApplication {
         const main = element('div', '', 'session-main');
         const summary = sessionSummary(session, Date.now());
         const head = element('div', '', 'session-head');
-        head.append(element('p', `${summary.answered}問回答 / ${summary.correct}問正答`));
+        const progress = session.config.completion.kind === 'questions' ? ` / 全${session.config.completion.count}問` : '';
+        head.append(element('p', `${summary.answered}問回答 / ${summary.correct}問正答${progress}`));
         const timer = element('p', '', 'timer'); timer.dataset['timer'] = 'session'; head.append(timer);
         main.append(head);
         const body = element('div', '', 'session-body');
@@ -901,7 +902,7 @@ export class QuizApplication {
     private renderMistakes(session: SessionState): HTMLElement {
         const side = element('aside', '', 'session-side');
         const head = element('div', '', 'mistake-head');
-        head.append(element('h2', '間違えた問題'));
+        head.append(element('p', '間違えた問題', 'mistake-title'));
         const mistakes = session.history.filter((entry) => entry.attempt.result === 'wrong' || entry.attempt.result === 'idk' || entry.attempt.result === 'timeout');
         if (mistakes.length) head.append(element('span', String(mistakes.length), 'mistake-count'));
         side.append(head);
