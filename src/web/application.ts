@@ -831,6 +831,7 @@ export class QuizApplication {
         const foot = element('div', '', 'session-foot');
         const actions = element('div', '', 'session-actions');
         const phase = session.phase;
+        let explanation: HTMLElement | null = null;
         switch (phase.kind) {
             case 'question': case 'saving': case 'answered': {
                 const title = element('h2'); title.append(richText(phase.question.title));
@@ -864,22 +865,26 @@ export class QuizApplication {
                 }
                 body.append(choices);
                 if (phase.kind === 'question') {
-                    if (idkPrompt) { foot.append(element('p', '最も近いと思う選択肢を任意で選べる。正誤判定には影響しない。')); actions.append(this.button('近い選択肢を選ばずスキップ', () => this.select({ kind: 'idk', nearestOptionId: none }))); }
+                    if (idkPrompt) { body.append(element('p', '最も近いと思う選択肢を任意で選べる。正誤判定には影響しない。')); actions.append(this.button('近い選択肢を選ばずスキップ', () => this.select({ kind: 'idk', nearestOptionId: none }))); }
                     else actions.append(this.button('分からない', () => { if (this.state.kind === 'ready' && this.state.screen.kind === 'playing') { this.state = { ...this.state, screen: { ...this.state.screen, idkPrompt: true } }; this.render(); } }));
                 }
-                if (phase.kind === 'saving') { foot.append(element('p', '回答を保存中…')); actions.append(this.button('保存を再試行', () => this.commit())); }
+                if (phase.kind === 'saving') { body.append(element('p', '回答を保存中…')); actions.append(this.button('保存を再試行', () => this.commit())); }
                 if (phase.kind === 'answered') {
-                    foot.append(element('p', phase.attempt.result === 'strong' || phase.attempt.result === 'weak' ? '正解' : phase.attempt.result === 'idk' ? '分からないとして記録した' : phase.attempt.result === 'timeout' ? '時間切れ' : '不正解', 'feedback'));
+                    const explanationBody = element('div', '', 'side-section-body');
+                    explanationBody.append(element('p', phase.attempt.result === 'strong' || phase.attempt.result === 'weak' ? '正解' : phase.attempt.result === 'idk' ? '分からないとして記録した' : phase.attempt.result === 'timeout' ? '時間切れ' : '不正解', 'feedback'));
                     for (const tip of phase.question.pattern.tips) {
                         const correct = phase.attempt.result === 'strong' || phase.attempt.result === 'weak';
                         if (tip.when === 'after_answer' || (tip.when === 'after_correct' && correct) || (tip.when === 'after_incorrect' && !correct)) {
-                            const tipRoot = renderTokens(tip.tokens, phase.question.row, context); foot.append(tipRoot);
+                            const tipRoot = renderTokens(tip.tokens, phase.question.row, context); explanationBody.append(tipRoot);
                             regions.push({ root: tipRoot, source: this.sourceInfo(phase.question, phase.question.row) });
                         }
                     }
+                    const section = element('section', '', 'side-section explanation-section');
+                    section.append(element('p', '解説', 'explanation-title'), explanationBody);
+                    explanation = section;
                     actions.append(this.button('次の問題', () => this.advance()));
                 }
-                foot.append(this.textTools(regions, session.record.id));
+                body.append(this.textTools(regions, session.record.id));
                 break;
             }
             case 'waiting': body.append(element('h2', '次の復習を待っている'), element('p', `${new Date(phase.dueAt).toLocaleTimeString()} に再開する。`)); actions.append(this.button('確認', () => this.advance())); break;
@@ -894,7 +899,10 @@ export class QuizApplication {
         }, phase.kind === 'saving'));
         foot.append(actions);
         main.append(body, foot);
-        panel.append(main, this.renderMistakes(session));
+        const side = element('aside', '', 'session-side');
+        if (explanation) side.append(explanation);
+        side.append(this.renderMistakes(session));
+        panel.append(main, side);
         this.view.append(panel);
     }
 
@@ -907,7 +915,7 @@ export class QuizApplication {
     private renderMistakes(session: SessionState): HTMLElement {
         if (this.mistakesOpen === null) this.mistakesOpen = !(window.matchMedia('(max-aspect-ratio: 1/1)').matches || window.innerWidth <= 900);
         const open = this.mistakesOpen;
-        const side = element('aside', '', open ? 'session-side' : 'session-side collapsed');
+        const side = element('section', '', open ? 'side-section mistakes-section' : 'side-section mistakes-section collapsed');
         const head = element('div', '', 'mistake-head');
         head.append(element('p', '間違えた問題', 'mistake-title'));
         const mistakes = session.history.filter((entry) => entry.attempt.result === 'wrong' || entry.attempt.result === 'idk' || entry.attempt.result === 'timeout');
