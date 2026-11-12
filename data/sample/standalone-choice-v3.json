@@ -1,0 +1,70 @@
+{
+  "version": 3,
+  "title": "通常の4択問題",
+  "table": [
+    {
+      "id": "ct2024_09",
+      "question": [
+        "Fe・Niとともにstainless steelの主要成分となり、不動態形成に寄与する元素は何か。"
+      ],
+      "answer": "Cr",
+      "choices": [
+        [
+          "Cr"
+        ],
+        [
+          "Zn"
+        ],
+        [
+          "Sn"
+        ],
+        [
+          "Mg"
+        ]
+      ],
+      "explanation": [
+        "Cr を含む合金の表面には緻密な酸化被膜が形成される。この被膜が内部の腐食を抑える。"
+      ]
+    }
+  ],
+  "patterns": [
+    {
+      "id": "knowledge_and_reasoning",
+      "label": "正誤・択一の出題論点",
+      "tokens": [
+        {
+          "type": "key",
+          "field": "question"
+        },
+        {
+          "type": "hide",
+          "id": "answer_letter",
+          "value": [
+            {
+              "type": "key",
+              "field": "answer"
+            }
+          ],
+          "answer": {
+            "mode": "choice_from_field",
+            "field": "choices"
+          },
+          "display": "none"
+        }
+      ],
+      "tips": [
+        {
+          "id": "explanation",
+          "when": "after_answer",
+          "tokens": [
+            {
+              "type": "key",
+              "field": "explanation"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "description": "問題ごとの選択肢を直接表示する通常の択一問題。"
+}

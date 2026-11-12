@@ -82,6 +82,93 @@ await test('省略可能フィールドを既定値へ正規化し、入力参�
     assert.deepEqual(getRowValue(row, 'missing'), { kind: 'none' });
 });
 
+await test('hideのdisplay省略値とinlineを同じdomainとrevisionへ正規化する', () => {
+    const omitted = requireOk(parseQuiz(fixture()));
+    const explicit = requireOk(parseQuiz(fixture({ patterns: [pattern([{ ...hide(), display: 'inline' }])] })));
+    const token = omitted.patterns[0]?.tokens[0];
+    assert.ok(typeof token === 'object' && token.type === 'hide');
+    assert.equal(token.display, 'inline');
+    assert.deepEqual(explicit, omitted);
+    const revision = serializeQuiz(omitted);
+    assert.equal(serializeQuiz(explicit), revision);
+    assert.equal(revision.includes('"display"'), false);
+    assert.equal(isRevision(revision), true);
+    assert.deepEqual(requireOk(parseQuizJson(revision)), omitted);
+});
+
+await test('hideのdisplay noneと解答定義をJSONとrevisionで往復する', () => {
+    const quiz = requireOk(parseQuiz(fixture({ patterns: [pattern([{ ...hide(), display: 'none' }])] })));
+    const token = quiz.patterns[0]?.tokens[0];
+    assert.ok(typeof token === 'object' && token.type === 'hide');
+    assert.equal(token.display, 'none');
+    assert.deepEqual(token.value, [{ type: 'key', field: 'name', styles: [] }]);
+    assert.deepEqual(token.answer, { mode: 'choice_from_entities', groupField: { kind: 'none' } });
+    assert.deepEqual(requireOk(parseQuiz(quizToJson(quiz))), quiz);
+    const revision = serializeQuiz(quiz);
+    assert.equal(revision.includes('"display": "none"'), true);
+    assert.equal(isRevision(revision), true);
+    assert.deepEqual(requireOk(parseQuizJson(revision)), quiz);
+});
+
+await test('hideのdisplayはinlineとnoneを受理し、無効値の位置を報告する', () => {
+    for (const display of [null, '', 'hidden', 'block', true, 0, {}, []]) {
+        const result = parseQuiz(fixture({ patterns: [pattern([{ ...hide(), display }])] }));
+        assert.equal(result.ok, false);
+        if (!result.ok) {
+            assert.equal(result.error.code, 'invalid-value');
+            assert.equal(result.error.path, '$.patterns[0].tokens[0].display');
+        }
+    }
+});
+
+await test('choice_from_fieldは行の選択肢matrixと正答を保持して往復する', () => {
+    for (const count of [2, 3, 4]) {
+        const quiz = requireOk(parseQuiz(fixture({
+            table: [{ id: 'r1', name: 'A', formula: 'x^2', choices: [
+                [{ type: 'key', field: 'name' }],
+                [{ type: 'katex', field: 'formula' }],
+                ['C'], ['D']
+            ].slice(0, count) }],
+            patterns: [pattern([{ ...hide(), display: 'none', answer: { mode: 'choice_from_field', field: 'choices' } }])]
+        })));
+        const token = quiz.patterns[0]?.tokens[0];
+        assert.ok(typeof token === 'object' && token.type === 'hide');
+        assert.deepEqual(token.answer, { mode: 'choice_from_field', field: 'choices' });
+        assert.deepEqual(token.value, [{ type: 'key', field: 'name', styles: [] }]);
+        assert.deepEqual(requireOk(parseQuiz(quizToJson(quiz))), quiz);
+        const revision = serializeQuiz(quiz);
+        assert.equal(isRevision(revision), true);
+        assert.deepEqual(requireOk(parseQuizJson(revision)), quiz);
+    }
+});
+
+await test('choice_from_fieldは2〜4件のToken matrixを要求する', () => {
+    const patterns = [pattern([{ ...hide(), answer: { mode: 'choice_from_field', field: 'choices' } }])];
+    rejects(fixture({ patterns }), 'invalid-reference');
+    for (const choices of ['A', 1, true, { type: 'key', field: 'name' }, ['A', 'B']]) {
+        rejects(fixture({ table: [{ id: 'r1', name: 'A', choices }], patterns }), 'invalid-reference');
+    }
+    for (const count of [0, 1, 5]) {
+        rejects(fixture({ table: [{ id: 'r1', name: 'A', choices: Array.from({ length: count }, () => ['A']) }], patterns }), 'invalid-value');
+    }
+    for (const answer of [
+        { mode: 'choice_from_field' }, { mode: 'choice_from_field', field: '' },
+        { mode: 'choice_from_field', field: 'choices', distractorSource: {} },
+        { mode: 'choice_from_entities', field: 'choices' }
+    ]) assert.equal(parseQuiz(fixture({ patterns: [pattern([{ ...hide(), answer }])] })).ok, false);
+});
+
+await test('choice_from_fieldは全選択肢内の参照を追跡して欠損・型違い・循環を検出する', () => {
+    const patterns = [pattern([{ ...hide(), answer: { mode: 'choice_from_field', field: 'choices' } }])];
+    for (const choices of [
+        [['A'], [{ type: 'key', field: 'missing' }]],
+        [['A'], [{ type: 'katex', field: 'numeric' }]],
+        [['A'], [{ type: 'ruby', base: ['B'], ruby: [{ type: 'key', field: 'missing' }] }]]
+    ]) rejects(fixture({ table: [{ id: 'r1', name: 'A', numeric: 1, choices }], patterns }), 'invalid-reference');
+    rejects(fixture({ table: [{ id: 'r1', name: 'A', choices: [['A'], [{ type: 'listkey', field: 'choices' }]] }], patterns }), 'cyclic-reference');
+    rejects(fixture({ table: [{ id: 'r1', name: 'A', choices: [['A'], [{ type: 'key', field: 'alias' }]], alias: { type: 'listkey', field: 'choices' } }], patterns }), 'cyclic-reference');
+});
+
 await test('JSON.parseと同じ厳密な数値・制御文字の構文を要求する', () => {
     for (const value of ['{"n":01}', '{"n":1.}', '{"n":1e}', '{"x":"a\tb"}', '{} trailing']) {
         const result = parseQuizJson(value);

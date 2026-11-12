@@ -203,6 +203,7 @@ export function renderTokens(tokens: readonly Token[], row: Row = DEFAULT_ROW, c
             }
             case 'katex': katex.render(sourceText(token.source, row), wrapper, { throwOnError: false, trust: false, maxExpand: 1000 }); break;
             case 'hide': {
+                if (token.display === 'none') continue;
                 wrapper.classList.add('answer-blank');
                 if (context.answer.kind === 'some') wrapper.append(renderTokens(context.answer.value.tokens, context.answer.value.row, context, depth + 1));
                 else { wrapper.textContent = '＿＿＿'; wrapper.setAttribute('aria-label', '解答する空欄'); }

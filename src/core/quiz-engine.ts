@@ -32,7 +32,7 @@ export type Question = Readonly<{
 }>;
 export type PreparedQuiz = Readonly<{
     packageId: PackageId; revision: Revision; title: string; candidates: readonly QuestionCandidate[];
-    capacity: number; unavailable: readonly Readonly<{ patternId: string; rowId: string; reason: 'empty-answer' | 'no-distractor' }>[];
+    capacity: number; unavailable: readonly Readonly<{ patternId: string; rowId: string; reason: 'empty-answer' | 'no-distractor' | 'invalid-options' }>[];
     /** 性能検証用の実処理計数。利用者向け表示には使用しない。 */
     statistics: Readonly<{ sharedPools: number; indexVisits: number; rowChecks: number; capacityKeyChecks: number }>;
 }>;
@@ -133,20 +133,24 @@ function findHide(pattern: Pattern): Option<HideToken> {
     return { kind: 'none' };
 }
 
+function variantFor(packageId: PackageId, row: Row, tokens: readonly Token[]): AnswerVariant {
+    const scopedRow = rowId(packageId, row.id);
+    const comparisonKey = tokensToText(tokens, row, true).trim();
+    return {
+        id: JSON.stringify([scopedRow, comparisonKey]),
+        conceptId: conceptId(packageId, row.conceptId.kind === 'some' ? row.conceptId.value : row.id),
+        rowId: scopedRow, row, tokens, text: tokensToText(tokens, row).trim(), comparisonKey
+    };
+}
+
 function variantsFor(packageId: PackageId, row: Row, hide: HideToken): readonly AnswerVariant[] {
     const variants: AnswerVariant[] = [];
     const seen = new Set<string>();
-    const scopedRow = rowId(packageId, row.id);
-    const scopedConcept = conceptId(packageId, row.conceptId.kind === 'some' ? row.conceptId.value : row.id);
     for (const tokens of expandAnswers(hide.value, row)) {
-        const text = tokensToText(tokens, row).trim();
-        const comparisonKey = tokensToText(tokens, row, true).trim();
-        if (comparisonKey.length === 0 || seen.has(comparisonKey)) continue;
-        seen.add(comparisonKey);
-        variants.push({
-            id: JSON.stringify([scopedRow, comparisonKey]), conceptId: scopedConcept,
-            rowId: scopedRow, row, tokens, text, comparisonKey
-        });
+        const variant = variantFor(packageId, row, tokens);
+        if (variant.comparisonKey.length === 0 || seen.has(variant.comparisonKey)) continue;
+        seen.add(variant.comparisonKey);
+        variants.push(variant);
     }
     return variants;
 }
@@ -158,12 +162,41 @@ function variantsFor(packageId: PackageId, row: Row, hide: HideToken): readonly 
  */
 export function prepareQuiz(quiz: QuizFile, packageId: PackageId, revision: Revision): PreparedQuiz {
     const candidates: QuestionCandidate[] = [];
-    const unavailable: { patternId: string; rowId: string; reason: 'empty-answer' | 'no-distractor' }[] = [];
+    const unavailable: { patternId: string; rowId: string; reason: 'empty-answer' | 'no-distractor' | 'invalid-options' }[] = [];
     let sharedPools = 0; let indexVisits = 0; let rowChecks = 0; let capacityKeyChecks = 0;
     for (const pattern of quiz.patterns) {
         const hide = findHide(pattern);
         if (hide.kind === 'none') continue;
         const scopedPattern = patternId(packageId, pattern.id);
+        if (hide.value.answer.mode === 'choice_from_field') {
+            const field = hide.value.answer.field;
+            for (const row of quiz.table) {
+                rowChecks += 1;
+                const answers = variantsFor(packageId, row, hide.value);
+                const value = fieldValue(row, field);
+                const variants = value.kind === 'some' && isTokenMatrix(value.value)
+                    ? value.value.map(tokens => variantFor(packageId, row, tokens)) : [];
+                indexVisits += variants.length;
+                capacityKeyChecks += variants.length;
+                const answer = answers.at(0);
+                const correct = answer === undefined ? [] : variants.filter(option => option.comparisonKey === answer.comparisonKey);
+                if (answer === undefined || answers.length !== 1 || variants.length < 2 || variants.length > 4 ||
+                    variants.some(option => option.comparisonKey.length === 0) ||
+                    new Set(variants.map(option => option.comparisonKey)).size !== variants.length || correct.length !== 1) {
+                    unavailable.push({ patternId: scopedPattern, rowId: row.id, reason: 'invalid-options' });
+                    continue;
+                }
+                const pool: AnswerPool = { variants, comparisonCounts: new Map(variants.map(option => [option.comparisonKey, 1])), groupCounts: new Map(), groupSizes: new Map() };
+                sharedPools += 1;
+                candidates.push({
+                    id: questionId(packageId, pattern.id, row.id), packageId, revision, patternId: scopedPattern,
+                    conceptId: conceptId(packageId, row.conceptId.kind === 'some' ? row.conceptId.value : row.id),
+                    rowId: rowId(packageId, row.id), title: quiz.title, row, pattern,
+                    answers: correct, pool, distractors: variants.filter(option => option.comparisonKey !== answer.comparisonKey)
+                });
+            }
+            continue;
+        }
         const rows = quiz.table.map((row) => ({ row, variants: variantsFor(packageId, row, hide.value) }));
         const allVariants = rows.flatMap((entry) => entry.variants);
         const comparisonCounts = new Map<string, number>();
@@ -228,6 +261,17 @@ export function generateQuestion(
     initial: RandomState,
     strategy: DistractorStrategy = { confusions: [], recentConceptIds: [] }
 ): Option<Readonly<{ question: Question; random: RandomState }>> {
+    const hide = findHide(candidate.pattern);
+    if (hide.kind === 'some' && hide.value.answer.mode === 'choice_from_field') {
+        const answer = candidate.answers.at(0);
+        if (answer === undefined) return none;
+        const options = shuffle(candidate.pool.variants.map(option => ({ ...option, isCorrect: option.comparisonKey === answer.comparisonKey })), initial);
+        return some({ question: {
+            id: candidate.id, packageId: candidate.packageId, revision: candidate.revision,
+            patternId: candidate.patternId, conceptId: candidate.conceptId, title: candidate.title,
+            row: candidate.row, pattern: candidate.pattern, options: options.items, correctOptionId: answer.id
+        }, random: options.state });
+    }
     const answers = shuffle(candidate.answers, initial);
     const answer = answers.items.at(0);
     if (answer === undefined) return { kind: 'none' };

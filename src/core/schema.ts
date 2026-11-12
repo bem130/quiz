@@ -3,7 +3,7 @@ import type { Revision } from './identity.ts';
 import type { DomainError, DomainErrorCode, Option, Result } from './result.ts';
 import { getRowValue } from './model.ts';
 import type {
-    EntryFile, JsonObject, JsonValue, Pattern, QuizFile, Row, RowValue, Style,
+    EntryFile, HideToken, JsonObject, JsonValue, Pattern, QuizFile, Row, RowValue, Style,
     SvgSource, TextSource, TipBlock, Token
 } from './model.ts';
 
@@ -129,19 +129,29 @@ function token(value: unknown, path: string, allowHide: boolean, level: number):
             return { type, styles: decoration, source: svgSource(data, path), alt: text(data['alt'], `${path}.alt`) };
         case 'hide': {
             if (!allowHide) fail('nested-hide', path, 'hide is only allowed directly in pattern tokens');
-            keys(data, ['type', 'id', 'value', 'answer', 'styles'], path);
-            const answer = object(data['answer'], `${path}.answer`);
-            keys(answer, ['mode', 'distractorSource'], `${path}.answer`);
-            if (answer['mode'] !== 'choice_from_entities') fail('invalid-value', `${path}.answer.mode`, 'choice_from_entities required');
-            let groupField: Option<string> = none;
-            if (answer['distractorSource'] !== undefined) {
-                const distractor = object(answer['distractorSource'], `${path}.answer.distractorSource`);
-                keys(distractor, ['groupField'], `${path}.answer.distractorSource`);
-                if (distractor['groupField'] !== undefined) groupField = some(text(distractor['groupField'], `${path}.answer.distractorSource.groupField`));
+            keys(data, ['type', 'id', 'value', 'display', 'answer', 'styles'], path);
+            const display = data['display'] === undefined ? 'inline' : data['display'];
+            if (display !== 'inline' && display !== 'none') fail('invalid-value', `${path}.display`, 'inline or none required');
+            const answerData = object(data['answer'], `${path}.answer`);
+            let answer: HideToken['answer'];
+            if (answerData['mode'] === 'choice_from_entities') {
+                keys(answerData, ['mode', 'distractorSource'], `${path}.answer`);
+                let groupField: Option<string> = none;
+                if (answerData['distractorSource'] !== undefined) {
+                    const distractor = object(answerData['distractorSource'], `${path}.answer.distractorSource`);
+                    keys(distractor, ['groupField'], `${path}.answer.distractorSource`);
+                    if (distractor['groupField'] !== undefined) groupField = some(text(distractor['groupField'], `${path}.answer.distractorSource.groupField`));
+                }
+                answer = { mode: 'choice_from_entities', groupField };
+            } else if (answerData['mode'] === 'choice_from_field') {
+                keys(answerData, ['mode', 'field'], `${path}.answer`);
+                answer = { mode: 'choice_from_field', field: text(answerData['field'], `${path}.answer.field`) };
+            } else {
+                fail('invalid-value', `${path}.answer.mode`, 'choice_from_entities or choice_from_field required');
             }
             const values = tokenList(data['value'], `${path}.value`, false, level + 1);
             if (!values.length) fail('invalid-value', `${path}.value`, 'hide value must contain tokens');
-            return { type, id: text(data['id'], `${path}.id`), value: values, answer: { mode: 'choice_from_entities', groupField }, styles: decoration };
+            return { type, id: text(data['id'], `${path}.id`), value: values, display, answer, styles: decoration };
         }
         case 'br': case 'hr':
             keys(data, ['type', 'styles'], path);
@@ -245,7 +255,12 @@ function references(tokens: readonly Token[], currentRow: Row, path: string, act
                 break;
             case 'hide':
                 references(item.value, currentRow, path, active, level + 1);
-                if (item.answer.groupField.kind === 'some') {
+                if (item.answer.mode === 'choice_from_field') {
+                    const choices = field(item.answer.field);
+                    if (!isTokenMatrix(choices)) fail('invalid-reference', path, `choice_from_field requires token matrix: ${item.answer.field}`);
+                    if (choices.length < 2 || choices.length > 4) fail('invalid-value', path, 'choice_from_field requires 2 to 4 choices');
+                    for (const entry of choices) references(entry, currentRow, path, [...active, item.answer.field], level + 1);
+                } else if (item.answer.groupField.kind === 'some') {
                     const group = getRowValue(currentRow, item.answer.groupField.value);
                     if (group.kind === 'some' && typeof group.value !== 'string' && typeof group.value !== 'number' && typeof group.value !== 'boolean') {
                         fail('invalid-reference', path, 'group field must be scalar');
@@ -362,7 +377,8 @@ function tokenJson(value: Token): JsonValue {
         };
         case 'hide': return {
             ...base, id: value.id, value: value.value.map(tokenJson),
-            answer: {
+            ...(value.display === 'none' ? { display: value.display } : {}),
+            answer: value.answer.mode === 'choice_from_field' ? { mode: value.answer.mode, field: value.answer.field } : {
                 mode: value.answer.mode,
                 ...(value.answer.groupField.kind === 'some' ? { distractorSource: { groupField: value.answer.groupField.value } } : {})
             }
