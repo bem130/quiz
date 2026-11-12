@@ -655,6 +655,7 @@ v3 で使用する `answer.mode` は次の 2 種類です：
 {
   "version": 3,
   "title": "化学",
+  "description": "問題ごとに指定した選択肢から解答する。",
   "table": [{
     "id": "stainless",
     "question": "Fe・Niとともにstainless steelの主要成分となり、不動態形成に寄与する元素は何か。",

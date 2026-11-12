@@ -25,7 +25,7 @@ function candidate(rows: readonly unknown[], answer: unknown = { type: 'key', fi
 }
 
 await test('既存サンプルを全候補列挙し、容量と実際に生成できる題目数が一致する', () => {
-    for (const [name, expected] of [['math-v3', 8], ['multi-answer-v3', 3], ['svg-v3', 6]] as const) {
+    for (const [name, expected] of [['math-v3', 8], ['multi-answer-v3', 3], ['svg-v3', 6], ['standalone-choice-v3', 1]] as const) {
         const quiz = valueOf(parseQuizJson(readFileSync(new URL(`../../data/sample/${name}.json`, import.meta.url), 'utf8')));
         const prepared = prepare(quiz);
         assert.equal(prepared.capacity, expected);
