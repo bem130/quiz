@@ -815,17 +815,24 @@ export class QuizApplication {
 
     private renderSession(session: SessionState, idkPrompt: boolean): void {
         const panel = element('main', '', 'panel quiz-panel');
+        const main = element('div', '', 'session-main');
         const summary = sessionSummary(session, Date.now());
-        panel.append(element('p', `${summary.answered}問回答 / ${summary.correct}問正答`));
-        const timer = element('p', '', 'timer'); timer.dataset['timer'] = 'session'; panel.append(timer);
+        const head = element('div', '', 'session-head');
+        head.append(element('p', `${summary.answered}問回答 / ${summary.correct}問正答`));
+        const timer = element('p', '', 'timer'); timer.dataset['timer'] = 'session'; head.append(timer);
+        main.append(head);
+        const body = element('div', '', 'session-body');
+        const foot = element('div', '', 'session-foot');
+        const actions = element('div', '', 'session-actions');
         const phase = session.phase;
         switch (phase.kind) {
             case 'question': case 'saving': case 'answered': {
                 const title = element('h2'); title.append(richText(phase.question.title));
-                panel.append(element('p', phase.stage), title);
+                body.append(element('p', phase.stage), title);
                 const context = this.context(session, this.renderGeneration, phase.kind === 'answered');
-                const stem = element('div', '', 'question-text'); stem.append(renderTokens(phase.question.pattern.tokens, phase.question.row, context)); panel.append(stem);
+                const stem = element('div', '', 'question-text'); stem.append(renderTokens(phase.question.pattern.tokens, phase.question.row, context)); body.append(stem);
                 const regions: SourceRegion[] = [{ root: stem, source: this.sourceInfo(phase.question, phase.question.row) }];
+                const selectedId = phase.kind === 'answered' ? this.answeredSelection(session, phase.question.id) : undefined;
                 const choices = element('div', '', 'choices');
                 for (const [index, option] of phase.question.options.entries()) {
                     const choice = this.button('', async () => {
@@ -836,40 +843,88 @@ export class QuizApplication {
                     choice.append(element('span', `${index + 1}. `), renderTokens(option.tokens, option.row, { ...context, answer: none }));
                     regions.push({ root: choice, source: this.sourceInfo(phase.question, option.row) });
                     choice.className = 'choice';
-                    if (phase.kind === 'answered') { choice.classList.add(option.isCorrect ? 'correct' : 'review'); choice.setAttribute('aria-label', `${index + 1}. ${option.text} ${option.isCorrect ? '正答' : ''}`); }
+                    if (phase.kind === 'answered') {
+                        choice.classList.add(option.isCorrect ? 'correct' : 'review');
+                        choice.setAttribute('aria-label', `${index + 1}. ${option.text} ${option.isCorrect ? '正答' : ''}`);
+                        const preview = element('span', '', `option-preview ${option.isCorrect ? 'correct' : selectedId === option.id ? 'selected' : 'other'}`);
+                        preview.append(element('span', option.isCorrect ? '正答' : selectedId === option.id ? 'あなたの解答' : 'この選択肢', 'option-preview-label'));
+                        const previewBody = element('span', '', 'option-preview-body');
+                        previewBody.append(renderTokens(phase.question.pattern.tokens, option.row, { ...context, answer: some({ tokens: option.tokens, row: option.row }) }));
+                        preview.append(previewBody);
+                        choice.append(preview);
+                        regions.push({ root: preview, source: this.sourceInfo(phase.question, option.row) });
+                    }
                     choices.append(choice);
                 }
-                panel.append(choices);
+                body.append(choices);
                 if (phase.kind === 'question') {
-                    if (idkPrompt) { panel.append(element('p', '最も近いと思う選択肢を任意で選べる。正誤判定には影響しない。'), this.button('近い選択肢を選ばずスキップ', () => this.select({ kind: 'idk', nearestOptionId: none }))); }
-                    else panel.append(this.button('分からない', () => { if (this.state.kind === 'ready' && this.state.screen.kind === 'playing') { this.state = { ...this.state, screen: { ...this.state.screen, idkPrompt: true } }; this.render(); } }));
+                    if (idkPrompt) { foot.append(element('p', '最も近いと思う選択肢を任意で選べる。正誤判定には影響しない。')); actions.append(this.button('近い選択肢を選ばずスキップ', () => this.select({ kind: 'idk', nearestOptionId: none }))); }
+                    else actions.append(this.button('分からない', () => { if (this.state.kind === 'ready' && this.state.screen.kind === 'playing') { this.state = { ...this.state, screen: { ...this.state.screen, idkPrompt: true } }; this.render(); } }));
                 }
-                if (phase.kind === 'saving') panel.append(element('p', '回答を保存中…'), this.button('保存を再試行', () => this.commit()));
+                if (phase.kind === 'saving') { foot.append(element('p', '回答を保存中…')); actions.append(this.button('保存を再試行', () => this.commit())); }
                 if (phase.kind === 'answered') {
-                    panel.append(element('p', phase.attempt.result === 'strong' || phase.attempt.result === 'weak' ? '正解' : phase.attempt.result === 'idk' ? '分からないとして記録した' : phase.attempt.result === 'timeout' ? '時間切れ' : '不正解', 'feedback'));
+                    foot.append(element('p', phase.attempt.result === 'strong' || phase.attempt.result === 'weak' ? '正解' : phase.attempt.result === 'idk' ? '分からないとして記録した' : phase.attempt.result === 'timeout' ? '時間切れ' : '不正解', 'feedback'));
                     for (const tip of phase.question.pattern.tips) {
                         const correct = phase.attempt.result === 'strong' || phase.attempt.result === 'weak';
                         if (tip.when === 'after_answer' || (tip.when === 'after_correct' && correct) || (tip.when === 'after_incorrect' && !correct)) {
-                            const tipRoot = renderTokens(tip.tokens, phase.question.row, context); panel.append(tipRoot);
+                            const tipRoot = renderTokens(tip.tokens, phase.question.row, context); foot.append(tipRoot);
                             regions.push({ root: tipRoot, source: this.sourceInfo(phase.question, phase.question.row) });
                         }
                     }
-                    panel.append(this.button('次の問題', () => this.advance()));
+                    actions.append(this.button('次の問題', () => this.advance()));
                 }
-                panel.append(this.textTools(regions, session.record.id));
+                foot.append(this.textTools(regions, session.record.id));
                 break;
             }
-            case 'waiting': panel.append(element('h2', '次の復習を待っている'), element('p', `${new Date(phase.dueAt).toLocaleTimeString()} に再開する。`), this.button('確認', () => this.advance())); break;
-            case 'ready': panel.append(this.button('次の問題', () => this.advance())); break;
-            case 'finished': panel.append(element('p', '結果を保存中…'), this.button('結果の保存を再試行', () => this.complete(session))); break;
+            case 'waiting': body.append(element('h2', '次の復習を待っている'), element('p', `${new Date(phase.dueAt).toLocaleTimeString()} に再開する。`)); actions.append(this.button('確認', () => this.advance())); break;
+            case 'ready': actions.append(this.button('次の問題', () => this.advance())); break;
+            case 'finished': body.append(element('p', '結果を保存中…')); actions.append(this.button('結果の保存を再試行', () => this.complete(session))); break;
         }
-        panel.append(this.button('中断して結果を見る', async () => {
+        actions.append(this.button('中断して結果を見る', async () => {
             if (this.state.kind !== 'ready' || this.state.screen.kind !== 'playing') return;
             const ended = finishSession(this.state.screen.session, Date.now());
             if (!ended.ok) return;
             await this.complete(ended.value);
         }, phase.kind === 'saving'));
+        foot.append(actions);
+        main.append(body, foot);
+        panel.append(main, this.renderMistakes(session));
         this.view.append(panel);
+    }
+
+    private answeredSelection(session: SessionState, questionId: string): string | undefined {
+        const last = session.history[session.history.length - 1];
+        if (!last || last.question.id !== questionId) return undefined;
+        return last.selection.kind === 'option' ? last.selection.optionId : undefined;
+    }
+
+    private renderMistakes(session: SessionState): HTMLElement {
+        const side = element('aside', '', 'session-side');
+        const head = element('div', '', 'mistake-head');
+        head.append(element('h2', '間違えた問題'));
+        const mistakes = session.history.filter((entry) => entry.attempt.result === 'wrong' || entry.attempt.result === 'idk' || entry.attempt.result === 'timeout');
+        if (mistakes.length) head.append(element('span', String(mistakes.length), 'mistake-count'));
+        side.append(head);
+        if (!mistakes.length) { side.append(element('p', 'まだ間違えた問題はない。')); return side; }
+        const list = element('ol', '', 'mistake-list');
+        session.history.forEach((entry, index) => {
+            if (entry.attempt.result === 'strong' || entry.attempt.result === 'weak') return;
+            const item = element('li', '', 'mistake-item');
+            item.append(element('p', `Q${index + 1}: ${entry.attempt.result === 'timeout' ? '時間切れ' : entry.attempt.result === 'idk' ? '分からない' : '不正解'}`));
+            const source = this.state.kind === 'ready' ? this.state.data.packages.find((loaded) => loaded.record.id === entry.question.packageId)?.record.source ?? document.baseURI : document.baseURI;
+            const correct = entry.question.options.find((option) => option.id === entry.question.correctOptionId);
+            const generation = this.renderGeneration;
+            const context = { baseUrl: /^https?:/i.test(source) ? source : document.baseURI, ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}), answer: correct ? some({ tokens: correct.tokens, row: correct.row }) : none, isCurrent: () => generation === this.renderGeneration };
+            item.append(renderTokens(entry.question.pattern.tokens, entry.question.row, context));
+            if (entry.selection.kind === 'option') {
+                const selectedId = entry.selection.optionId;
+                const selected = entry.question.options.find((option) => option.id === selectedId);
+                if (selected && selected.id !== entry.question.correctOptionId) { item.append(element('p', '選んだ解答:')); item.append(renderTokens(selected.tokens, selected.row, { ...context, answer: none })); }
+            }
+            list.append(item);
+        });
+        side.append(list);
+        return side;
     }
 
     private renderResult(session: SessionState): void {
