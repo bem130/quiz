@@ -49,6 +49,10 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', class
 function hasInlineAnswer(question: Question): boolean {
     return question.pattern.tokens.some(token => typeof token !== 'string' && token.type === 'hide' && token.display === 'inline');
 }
+const STAGE_LABELS: Readonly<Record<string, string>> = {
+    test: 'テスト', new: '新規', learning: '学習中', relearning: '再学習', review: '復習', repair: '補修', retry: '再挑戦'
+};
+function stageLabel(stage: string): string { return STAGE_LABELS[stage] ?? stage; }
 function isObject(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function preferencesFrom(value: string): Preferences {
     try {
@@ -932,7 +936,7 @@ export class QuizApplication {
         switch (phase.kind) {
             case 'question': case 'saving': case 'answered': {
                 const title = element('h2'); title.append(richText(phase.question.title));
-                body.append(element('p', phase.stage), title);
+                body.append(element('p', stageLabel(phase.stage), 'stage-label'), title);
                 const context = this.context(session, this.renderGeneration, phase.kind === 'answered');
                 const stem = element('div', '', 'question-text'); stem.append(renderTokens(phase.question.pattern.tokens, phase.question.row, context)); body.append(stem);
                 const regions: SourceRegion[] = [{ root: stem, source: this.sourceInfo(phase.question, phase.question.row) }];
@@ -944,14 +948,19 @@ export class QuizApplication {
                         else if (idkPrompt) await this.select({ kind: 'idk', nearestOptionId: some(option.id) });
                         else await this.select({ kind: 'option', optionId: option.id });
                     }, phase.kind === 'saving');
-                    choice.append(element('span', `${index + 1}. `), renderTokens(option.tokens, option.row, { ...context, answer: none }));
+                    const content = element('span', '', 'choice-content');
+                    content.append(element('span', `${index + 1}. `), renderTokens(option.tokens, option.row, { ...context, answer: none }));
+                    choice.append(content);
                     regions.push({ root: choice, source: this.sourceInfo(phase.question, option.row) });
                     choice.className = 'choice';
                     if (phase.kind === 'answered') {
                         choice.classList.add(option.isCorrect ? 'correct' : 'review');
                         choice.setAttribute('aria-label', `${index + 1}. ${option.text} ${option.isCorrect ? '正答' : ''}${selectedId === option.id ? ' あなたの解答' : ''}`);
-                        if (!hasInlineAnswer(phase.question) && selectedId === option.id) {
-                            choice.append(element('span', 'あなたの解答', 'option-preview-label'));
+                        if (option.isCorrect || selectedId === option.id) {
+                            const status = element('span', '', 'choice-status');
+                            if (option.isCorrect) status.append(element('span', '✓ 正答', 'choice-badge correct'));
+                            if (selectedId === option.id) status.append(element('span', 'あなたの解答', 'choice-badge selected'));
+                            choice.append(status);
                         }
                         if (hasInlineAnswer(phase.question)) {
                             const preview = element('span', '', `option-preview ${option.isCorrect ? 'correct' : selectedId === option.id ? 'selected' : 'other'}`);
