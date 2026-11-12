@@ -27,7 +27,7 @@ import { clearAppCache } from './cache-reset.ts';
 
 type LoadedPackage = Readonly<{ record: PackageRecord; quiz: QuizFile; prepared: PreparedQuiz }>;
 type Preferences = Readonly<{ theme: 'light' | 'dark' | 'black'; font: 'sans' | 'serif'; scale: number; mode: 'study' | 'test'; completion: 'questions' | 'time' | 'drain'; count: number; minutes: number }>;
-type Data = Readonly<{ users: readonly UserRecord[]; userId: UserRecord['id']; packages: readonly LoadedPackage[]; drafts: readonly DraftRecord[]; attempts: readonly AttemptRecord[]; entries: readonly string[]; editorFiles: readonly EditorFile[] }>;
+type Data = Readonly<{ users: readonly UserRecord[]; userId: UserRecord['id']; packages: readonly LoadedPackage[]; drafts: readonly DraftRecord[]; attempts: readonly AttemptRecord[]; entries: readonly string[]; editorFiles: readonly EditorFile[]; favorites: readonly string[] }>;
 type Screen = Readonly<{ kind: 'menu' }> | Readonly<{ kind: 'editor' }> | Readonly<{ kind: 'starting'; requestId: string }> |
     Readonly<{ kind: 'playing'; session: SessionState; idkPrompt: boolean }> |
     Readonly<{ kind: 'result'; session: SessionState }>;
@@ -265,7 +265,18 @@ export class QuizApplication {
         }
         const editorSetting = await db.value.getSetting('editorFiles'); if (!editorSetting.ok) return err(editorSetting.error.message);
         const editorFiles = editorSetting.value.kind === 'some' ? editorFilesFromSetting(editorSetting.value.value) : [];
-        return ok({ users: userList, userId: user.id, packages: loaded, drafts: drafts.value, attempts: attempts.value, entries, editorFiles });
+        const favoriteSetting = await db.value.getSetting('favoritePackages'); if (!favoriteSetting.ok) return err(favoriteSetting.error.message);
+        const favorites: string[] = [];
+        if (favoriteSetting.value.kind === 'some') {
+            try {
+                const value: unknown = JSON.parse(favoriteSetting.value.value);
+                if (Array.isArray(value)) for (const item of value) {
+                    if (typeof item !== 'string' || favorites.length >= 200 || favorites.includes(item)) continue;
+                    favorites.push(item);
+                }
+            } catch { /* 不正なお気に入りは無視する。題庫自体は保持される。 */ }
+        }
+        return ok({ users: userList, userId: user.id, packages: loaded, drafts: drafts.value, attempts: attempts.value, entries, editorFiles, favorites });
     }
 
     private async refreshDataNow(): Promise<void> {
@@ -525,6 +536,73 @@ export class QuizApplication {
         }, async (source) => { await navigator.clipboard.writeText(JSON.stringify(source, null, 2)); this.inform('出典情報をコピーした。'); });
     }
 
+    private renderWidgets(state: ReadyState): HTMLElement {
+        const grid = element('div', '', 'menu-widgets');
+        const byId = new Map(state.data.packages.map((loaded) => [loaded.record.id, loaded] as const));
+        const dateText = (timestamp: number): string => new Date(timestamp).toLocaleDateString();
+        const makeEntry = (fillTitle: (title: HTMLElement) => void, meta: string, action: () => void): HTMLButtonElement => {
+            const item = this.button('', action, this.busy);
+            item.className = 'widget-entry';
+            const title = element('span', '', 'widget-entry-title'); fillTitle(title);
+            item.append(title, element('small', meta, 'widget-entry-meta'));
+            return item;
+        };
+        const selectPackage = (loaded: LoadedPackage): void => {
+            if (this.state.kind !== 'ready') return;
+            this.state = { ...this.state, selected: [...new Set(loaded.prepared.candidates.map((candidate) => candidate.patternId))] };
+            this.inform(`「${plainText(loaded.quiz.title)}」を選択した。`);
+            this.render();
+        };
+        const packageEntry = (loaded: LoadedPackage, meta: string): HTMLButtonElement =>
+            makeEntry((title) => title.append(richText(loaded.quiz.title)), meta, () => selectPackage(loaded));
+        const widget = (title: string, entries: readonly HTMLButtonElement[], emptyText: string): HTMLElement => {
+            const card = element('section', '', 'panel widget');
+            card.append(element('h2', title));
+            if (!entries.length) card.append(element('p', emptyText, 'widget-empty'));
+            else { const list = element('div', '', 'widget-entries'); list.append(...entries); card.append(list); }
+            return card;
+        };
+        const favoriteEntries = state.data.favorites.flatMap((id) => {
+            const loaded = byId.get(id); return loaded ? [packageEntry(loaded, `${loaded.prepared.capacity}問`)] : [];
+        }).slice(0, 5);
+        const updatedEntries = [...state.data.packages].sort((a, b) => b.record.updatedAt - a.record.updatedAt)
+            .slice(0, 5).map((loaded) => packageEntry(loaded, `更新: ${dateText(loaded.record.updatedAt)}`));
+        const studied = new Map<string, number>();
+        for (const attempt of state.data.attempts) {
+            if (attempt.userId !== state.data.userId) continue;
+            const last = studied.get(attempt.packageId);
+            if (last === undefined || attempt.answeredAt > last) studied.set(attempt.packageId, attempt.answeredAt);
+        }
+        const studiedEntries = [...studied.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).flatMap(([id, answeredAt]) => {
+            const loaded = byId.get(id); return loaded ? [packageEntry(loaded, `最終学習: ${dateText(answeredAt)}`)] : [];
+        });
+        const misses = new Map<string, { count: number; last: number; packageId: string; patternId: string }>();
+        for (const attempt of state.data.attempts) {
+            if (attempt.userId !== state.data.userId) continue;
+            if (attempt.result !== 'wrong' && attempt.result !== 'idk' && attempt.result !== 'timeout') continue;
+            const key = `${attempt.packageId}\n${attempt.patternId}`;
+            const group = misses.get(key);
+            if (group) { group.count += 1; group.last = Math.max(group.last, attempt.answeredAt); }
+            else misses.set(key, { count: 1, last: attempt.answeredAt, packageId: attempt.packageId, patternId: attempt.patternId });
+        }
+        const missedEntries = [...misses.values()].sort((a, b) => b.count - a.count || b.last - a.last).slice(0, 5).flatMap(({ count, packageId, patternId }) => {
+            const loaded = byId.get(packageId); if (!loaded) return [];
+            const candidate = loaded.prepared.candidates.find((item) => item.patternId === patternId); if (!candidate) return [];
+            return [makeEntry((title) => title.append(richText(loaded.quiz.title), document.createTextNode(' / '), richText(candidate.pattern.label)), `ミス${count}件`, () => {
+                if (this.state.kind !== 'ready') return;
+                this.state = { ...this.state, selected: [candidate.patternId] };
+                this.inform(`「${plainText(loaded.quiz.title)} / ${plainText(candidate.pattern.label)}」を選択した。`);
+                this.render();
+            })];
+        });
+        grid.append(
+            widget('お気に入り', favoriteEntries, 'お気に入りはまだない。'),
+            widget('最近更新された問題', updatedEntries, '題庫はまだない。'),
+            widget('最近勉強した問題', studiedEntries, '学習履歴はまだない。'),
+            widget('ミスが多い問題', missedEntries, 'ミスした問題はまだない。'));
+        return grid;
+    }
+
     private renderMenu(state: ReadyState): void {
         const layout = element('main', '', 'menu-layout');
         const scope = element('section', '', 'panel'); scope.append(element('h2', '出題範囲'));
@@ -549,6 +627,22 @@ export class QuizApplication {
             const description = element('p'); description.append(richText(loaded.quiz.description)); card.append(description);
             card.append(element('small', `${loaded.prepared.capacity}問 / ${loaded.record.source}`));
             card.append(this.button('この題庫を選択', () => { if (this.state.kind === 'ready') { this.state = { ...this.state, selected: [...new Set(loaded.prepared.candidates.map((candidate) => candidate.patternId))] }; this.render(); } }, this.busy));
+            const favorite = state.data.favorites.includes(loaded.record.id);
+            const star = this.button(favorite ? '★ お気に入り解除' : '☆ お気に入り', async () => {
+                if (this.state.kind !== 'ready') return;
+                const db = this.database(); if (db.kind === 'none') return;
+                const current = this.state.data.favorites;
+                const next = current.includes(loaded.record.id) ? current.filter((id) => id !== loaded.record.id) : [...current, loaded.record.id];
+                const saved = await db.value.setSetting({ id: 'favoritePackages', value: JSON.stringify(next) });
+                if (!saved.ok) { this.inform(saved.error.message); return; }
+                if (this.state.kind !== 'ready') return;
+                this.state = { ...this.state, data: { ...this.state.data, favorites: next } };
+                this.inform(next.includes(loaded.record.id) ? 'お気に入りに追加した。' : 'お気に入りから外した。');
+                this.render();
+            }, this.busy);
+            star.setAttribute('aria-pressed', String(favorite));
+            star.setAttribute('aria-label', favorite ? 'お気に入りから外す' : 'お気に入りに追加する');
+            card.append(star);
             for (const pattern of loaded.quiz.patterns) {
                 const candidates = loaded.prepared.candidates.filter((candidate) => candidate.pattern.id === pattern.id);
                 const identity = candidates.at(0)?.patternId;
@@ -615,7 +709,7 @@ export class QuizApplication {
         this.renderDraftImport(controls);
         this.renderPreferences(controls, state);
         this.renderStorage(controls);
-        layout.append(scope, controls); this.view.append(layout);
+        layout.append(scope, controls); this.view.append(this.renderWidgets(state), layout);
     }
 
     private renderPreferences(parent: HTMLElement, state: ReadyState): void {
