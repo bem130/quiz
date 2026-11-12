@@ -26,7 +26,10 @@ export type SvgSource =
 export type SvgToken = Styled & Readonly<{ type: 'svg'; source: SvgSource; alt: string }>;
 export type HideToken = Styled & Readonly<{
     type: 'hide'; id: string; value: readonly Token[];
-    answer: Readonly<{ mode: 'choice_from_entities'; groupField: Option<string> }>;
+    display: 'inline' | 'none';
+    answer:
+        | Readonly<{ mode: 'choice_from_entities'; groupField: Option<string> }>
+        | Readonly<{ mode: 'choice_from_field'; field: string }>;
 }>;
 export type BreakToken = Styled & Readonly<{ type: 'br' | 'hr' }>;
 export type Token = string | KeyToken | ListKeyToken | RubyToken | KatexToken | SmilesToken | SvgToken | HideToken | BreakToken;

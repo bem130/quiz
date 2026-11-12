@@ -46,6 +46,9 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', class
     value.className = className;
     return value;
 }
+function hasInlineAnswer(question: Question): boolean {
+    return question.pattern.tokens.some(token => typeof token !== 'string' && token.type === 'hide' && token.display === 'inline');
+}
 function isObject(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function preferencesFrom(value: string): Preferences {
     try {
@@ -946,14 +949,19 @@ export class QuizApplication {
                     choice.className = 'choice';
                     if (phase.kind === 'answered') {
                         choice.classList.add(option.isCorrect ? 'correct' : 'review');
-                        choice.setAttribute('aria-label', `${index + 1}. ${option.text} ${option.isCorrect ? '正答' : ''}`);
-                        const preview = element('span', '', `option-preview ${option.isCorrect ? 'correct' : selectedId === option.id ? 'selected' : 'other'}`);
-                        preview.append(element('span', option.isCorrect ? '正答' : selectedId === option.id ? 'あなたの解答' : 'この選択肢', 'option-preview-label'));
-                        const previewBody = element('span', '', 'option-preview-body');
-                        previewBody.append(renderTokens(phase.question.pattern.tokens, option.row, { ...context, answer: some({ tokens: option.tokens, row: option.row }) }));
-                        preview.append(previewBody);
-                        choice.append(preview);
-                        regions.push({ root: preview, source: this.sourceInfo(phase.question, option.row) });
+                        choice.setAttribute('aria-label', `${index + 1}. ${option.text} ${option.isCorrect ? '正答' : ''}${selectedId === option.id ? ' あなたの解答' : ''}`);
+                        if (!hasInlineAnswer(phase.question) && selectedId === option.id) {
+                            choice.append(element('span', 'あなたの解答', 'option-preview-label'));
+                        }
+                        if (hasInlineAnswer(phase.question)) {
+                            const preview = element('span', '', `option-preview ${option.isCorrect ? 'correct' : selectedId === option.id ? 'selected' : 'other'}`);
+                            preview.append(element('span', option.isCorrect ? '正答' : selectedId === option.id ? 'あなたの解答' : 'この選択肢', 'option-preview-label'));
+                            const previewBody = element('span', '', 'option-preview-body');
+                            previewBody.append(renderTokens(phase.question.pattern.tokens, option.row, { ...context, answer: some({ tokens: option.tokens, row: option.row }) }));
+                            preview.append(previewBody);
+                            choice.append(preview);
+                            regions.push({ root: preview, source: this.sourceInfo(phase.question, option.row) });
+                        }
                     }
                     choices.append(choice);
                 }
@@ -1030,6 +1038,10 @@ export class QuizApplication {
             const generation = this.renderGeneration;
             const context = { baseUrl: /^https?:/i.test(source) ? source : document.baseURI, ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}), answer: correct ? some({ tokens: correct.tokens, row: correct.row }) : none, isCurrent: () => generation === this.renderGeneration };
             item.append(renderTokens(entry.question.pattern.tokens, entry.question.row, context));
+            if (correct && !hasInlineAnswer(entry.question)) {
+                item.append(element('p', '正答:'));
+                item.append(renderTokens(correct.tokens, correct.row, { ...context, answer: none }));
+            }
             if (entry.selection.kind === 'option') {
                 const selectedId = entry.selection.optionId;
                 const selected = entry.question.options.find((option) => option.id === selectedId);
@@ -1067,6 +1079,12 @@ export class QuizApplication {
             const context = { baseUrl: /^https?:/i.test(source) ? source : document.baseURI, ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}), answer: correct ? some({ tokens: correct.tokens, row: correct.row }) : none, isCurrent: () => generation === this.renderGeneration };
             const stem = renderTokens(entry.question.pattern.tokens, entry.question.row, context); item.append(stem);
             const regions: SourceRegion[] = [{ root: stem, source: this.sourceInfo(entry.question, entry.question.row) }];
+            if (correct && !hasInlineAnswer(entry.question)) {
+                item.append(element('p', '正答:'));
+                const root = renderTokens(correct.tokens, correct.row, { ...context, answer: none });
+                item.append(root);
+                regions.push({ root, source: this.sourceInfo(entry.question, correct.row) });
+            }
             if (entry.selection.kind === 'option') {
                 const id = entry.selection.optionId;
                 const selected = entry.question.options.find((option) => option.id === id);

@@ -54,3 +54,19 @@ for (const kind of ['panel', 'pattern-choice', 'draft-preview']) {
     content.append(richText('{語/long annotation with multiple words that must fit the available content width}'));
     context.append(content); host.append(context);
 }
+
+// Answer definitions can be used independently of inline blanks.
+import { none, some } from '../../src/core/result.ts';
+import type { HideToken, Row } from '../../src/core/model.ts';
+const answerRow: Row = { id: 'answer', conceptId: none, fields: {} };
+for (const display of ['inline', 'none'] as const) for (const answered of [false, true]) {
+    const sample = document.createElement('p');
+    sample.dataset['sample'] = `${display}-${answered ? 'answered' : 'pending'}`;
+    const hide: HideToken = { type: 'hide', id: 'answer', display, value: ['黄色'], answer: { mode: 'choice_from_entities', groupField: none }, styles: [] };
+    sample.append(renderTokens(['呈色は', hide, '。'], answerRow, {
+        baseUrl: location.href,
+        answer: answered ? some({ tokens: ['黄色'], row: answerRow }) : none,
+        isCurrent: () => true
+    }));
+    host.append(sample);
+}

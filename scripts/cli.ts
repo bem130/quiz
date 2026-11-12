@@ -62,7 +62,7 @@ async function main(): Promise<void> {
         const question = generated.value.question;
         random = generated.value.random;
         console.log(`=== 問題 ${index + 1} ===`);
-        console.log(tokensToText(question.pattern.tokens.map((token) => typeof token !== 'string' && token.type === 'hide' ? '＿＿＿' : token), question.row));
+        console.log(tokensToText(question.pattern.tokens.map((token) => typeof token !== 'string' && token.type === 'hide' ? (token.display === 'inline' ? '＿＿＿' : '') : token), question.row));
         for (const [optionIndex, option] of question.options.entries()) console.log(`  (${optionIndex + 1}) ${option.text}${option.isCorrect ? ' [正解]' : ''}`);
         for (const tip of question.pattern.tips) console.log(`Tips: ${tokensToText(tip.tokens, question.row)}`);
         console.log('');

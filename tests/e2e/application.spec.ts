@@ -422,3 +422,24 @@ test('復元前に開始した遅いSVG取得は復元後の資産を上書き�
     release(); await finished;
     expect(await records(page, 'assets')).toEqual(original.records.assets);
 });
+
+test('問題固有の選択肢を直接表示し、回答後も同じ問題の解説を表示する', async ({ page }) => {
+    const fixture = await readFile(new URL('../../data/sample/standalone-choice-v3.json', import.meta.url), 'utf8');
+    await page.route('**/quiz/entry.json', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ version: 3, label: '化学', files: ['./test-data/fixed.json'] }) }));
+    await page.route('**/quiz/test-data/fixed.json', route => route.fulfill({ contentType: 'application/json', body: fixture }));
+    await open(page);
+    await startTest(page, 1);
+    await expect(page.locator('.question-text')).toHaveText('Fe・Niとともにstainless steelの主要成分となり、不動態形成に寄与する元素は何か。');
+    await expect(page.locator('.answer-blank')).toHaveCount(0);
+    const choices = page.locator('.choices .choice');
+    await expect(choices).toHaveCount(4);
+    expect((await choices.allTextContents()).map(text => text.replace(/^\d+\. /u, '')).sort()).toEqual(['Cr', 'Mg', 'Sn', 'Zn']);
+    await choices.filter({ hasText: 'Zn' }).click();
+    await expect(page.locator('.choice.correct')).toContainText('Cr');
+    await expect(choices.filter({ hasText: 'Zn' })).toContainText('あなたの解答');
+    await expect(page.locator('.option-preview')).toHaveCount(0);
+    await expect(page.locator('.answer-blank')).toHaveCount(0);
+    await page.getByRole('button', { name: '次の問題', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '結果', exact: true })).toBeVisible();
+    await expect(page.getByText('正答:', { exact: true })).toBeVisible();
+});

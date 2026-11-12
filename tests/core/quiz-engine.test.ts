@@ -169,3 +169,102 @@ await test('keyが参照する単一TokenとToken配列のlistkeyは同じ全正
         if (generated.kind === 'some') assert.equal(generated.value.question.options.length, 2);
     }
 });
+
+function fixedQuiz(display: 'inline' | 'none' = 'none', count = 4): QuizFile {
+    return valueOf(parseQuiz({ version: 3, title: '固定選択肢', description: '行ごとの択一問題',
+        table: [
+            { id: 'first', correct: 'A', choices: ['A', 'B', 'C', 'D'].slice(0, count).map(text => [text]) },
+            { id: 'second', correct: 'Z', choices: ['Z', 'Y', 'X', 'W'].slice(0, count).map(text => [text]) }
+        ],
+        patterns: [{ id: 'fixed', tokens: [{ type: 'hide', id: 'h', display,
+            value: [{ type: 'key', field: 'correct' }], answer: { mode: 'choice_from_field', field: 'choices' } }] }]
+    }));
+}
+
+await test('固定選択肢はinline/noneとも同じ行の2〜4件をすべて出し、正答を1件保持する', () => {
+    for (const display of ['inline', 'none'] as const) for (const count of [2, 3, 4]) {
+        const prepared = prepare(fixedQuiz(display, count));
+        assert.equal(prepared.capacity, 2);
+        assert.deepEqual(prepared.unavailable, []);
+        for (const entry of prepared.candidates) {
+            const generated = generateQuestion(entry, seedRandom('fixed'));
+            assert.equal(generated.kind, 'some');
+            if (generated.kind !== 'some') continue;
+            const question = generated.value.question;
+            assert.equal(question.options.length, count);
+            assert.equal(question.options.filter(option => option.isCorrect).length, 1);
+            assert.ok(question.options.every(option => option.row === entry.row && option.rowId === entry.rowId && option.conceptId === entry.conceptId));
+            assert.equal(new Set(question.options.map(option => option.id)).size, count);
+            assert.deepEqual(question.options.map(option => option.text).sort(), entry.pool.variants.map(option => option.text).sort());
+            assert.ok(question.options.some(option => option.id === question.correctOptionId && option.isCorrect));
+            assert.deepEqual(generated, generateQuestion(entry, seedRandom('fixed')));
+            assert.deepEqual(generated, generateQuestion(entry, seedRandom('fixed'), {
+                confusions: [{ conceptId: entry.conceptId, wrongConceptId: entry.conceptId, score: 1 }], recentConceptIds: [entry.conceptId]
+            }));
+        }
+    }
+});
+
+await test('1行だけの固定選択肢も出題可能で、seedにより正答位置が変わる', () => {
+    const source = fixedQuiz();
+    const prepared = prepare({ ...source, table: source.table.slice(0, 1) });
+    assert.equal(prepared.capacity, 1);
+    const entry = prepared.candidates.at(0);
+    assert.ok(entry);
+    const positions = new Set<number>();
+    for (let seed = 0; seed < 40; seed += 1) {
+        const generated = generateQuestion(entry, seedRandom(String(seed)));
+        assert.equal(generated.kind, 'some');
+        if (generated.kind === 'some') positions.add(generated.value.question.options.findIndex(option => option.isCorrect));
+    }
+    assert.equal(positions.size, 4);
+});
+
+await test('固定選択肢の空値・重複・正答不一致・不正件数を候補から除外する', () => {
+    const source = fixedQuiz();
+    const first = source.table.at(0);
+    assert.ok(first);
+    for (const choices of [[], [['A']], [['A'], ['B'], ['C'], ['D'], ['E']], [['A'], []], [['A'], ['  ']],
+        [['A'], ['A']], [['A'], ['[A/えー]']], [['B'], ['C']]]) {
+        const row = { ...first, fields: { ...first.fields, choices } };
+        const prepared = prepareQuiz({ ...source, table: [row] }, packageId, serializeQuiz(source));
+        assert.equal(prepared.capacity, 0, JSON.stringify(choices));
+        assert.deepEqual(prepared.unavailable.map(entry => entry.reason), ['invalid-options']);
+    }
+});
+
+await test('固定選択肢で複数の正答variantを宣言した行は候補から除外する', () => {
+    const source = fixedQuiz();
+    const first = source.table.at(0);
+    const pattern = source.patterns.at(0);
+    assert.ok(first && pattern);
+    const hide = pattern.tokens.at(0);
+    assert.ok(typeof hide === 'object' && hide.type === 'hide');
+    const quiz: QuizFile = { ...source,
+        table: [{ ...first, fields: { ...first.fields, correct: [['A'], ['B']] } }],
+        patterns: [{ ...pattern, tokens: [{ ...hide, value: [{ type: 'listkey', field: 'correct', separatorTokens: [], styles: [] }] }] }]
+    };
+    const prepared = prepareQuiz(quiz, packageId, serializeQuiz(source));
+    assert.equal(prepared.capacity, 0);
+    assert.equal(prepared.unavailable.at(0)?.reason, 'invalid-options');
+});
+
+await test('固定選択肢のSVGは同じaltでもsourceで区別し、元のtokenを描画用に保持する', () => {
+    const source = fixedQuiz();
+    const first = source.table.at(0);
+    assert.ok(first);
+    const image = (src: string) => ({ type: 'svg' as const, source: { kind: 'file' as const, src }, alt: '構造', styles: [] });
+    const a = image('a.svg'); const b = image('b.svg');
+    const row = { ...first, fields: { ...first.fields, correct: [a], choices: [[a], [b]] } };
+    const prepared = prepareQuiz({ ...source, table: [row] }, packageId, serializeQuiz(source));
+    assert.equal(prepared.capacity, 1);
+    const entry = prepared.candidates.at(0);
+    assert.ok(entry);
+    const generated = generateQuestion(entry, 42);
+    assert.equal(generated.kind, 'some');
+    if (generated.kind === 'some') {
+        assert.deepEqual(generated.value.question.options.map(option => option.text), ['構造', '構造']);
+        assert.equal(new Set(generated.value.question.options.map(option => option.comparisonKey)).size, 2);
+        assert.ok(generated.value.question.options.every(option => option.tokens.at(0) === a || option.tokens.at(0) === b));
+    }
+});
