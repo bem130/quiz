@@ -36,6 +36,11 @@ h1 { font-size: 1.5rem; } h2 { font-size: 1.3rem; }
 .app-message { white-space: pre-wrap; color: var(--accent); min-height: 1.6em; margin: .25rem 0; overflow-wrap: anywhere; }
 .menu-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: 1rem; align-items: stretch; flex: 1 1 auto; min-height: 0; }
 .menu-layout > .panel { overflow-y: auto; min-height: 0; }
+.settings-form { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .5rem .75rem; margin-bottom: 1rem; }
+.settings-form label { white-space: nowrap; }
+.settings-form input[type='number'] { justify-self: start; }
+.settings-selects { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .5rem; }
+.settings-selects select { flex: 1 1 9rem; min-width: 0; margin: 0; }
 .panel { min-width: 0; min-height: 0; background: var(--surface); border: 1px solid var(--border); border-radius: .9rem; padding: 1rem; }
 .quiz-card { min-width: 0; margin: 1rem 0; border: 1px solid var(--border); border-radius: .6rem; padding: .75rem; }
 .quiz-card legend { max-width: 100%; }
@@ -69,6 +74,8 @@ summary { cursor: pointer; min-height: 44px; }
 .quiz-panel { display: flex; gap: 1rem; }
 .session-main { flex: 3 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .session-side { flex: 2 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); padding-left: 1rem; }
+.session-side.collapsed { flex: 0 0 auto; }
+.mistake-toggle { margin-left: auto; }
 .session-head { flex: 0 0 auto; display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
 .session-head p { margin: 0; }
 .session-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: flex-start; justify-content: safe center; }
@@ -93,6 +100,7 @@ summary { cursor: pointer; min-height: 44px; }
 .editor-input { height: 50dvh; min-height: 260px; }
 .editor-preview { overflow: auto; max-height: 65dvh; }
 pre { overflow: auto; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
-@media (max-width: 760px) { .menu-layout, .editor-layout { grid-template-columns: minmax(0, 1fr); } .menu-layout { overflow-y: auto; } .menu-layout > .panel { overflow: visible; } .panel { padding: .75rem; } #app { padding: .5rem; } }
+@media (max-width: 900px), (max-aspect-ratio: 1/1) { .menu-layout { display: flex; flex-direction: column; overflow-y: auto; } .menu-layout > .panel { overflow: visible; flex: 0 0 auto; } .editor-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .panel { padding: .75rem; } #app { padding: .5rem; } }
 @media (max-width: 390px) { .choices { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } button:active { transform: none; } }
