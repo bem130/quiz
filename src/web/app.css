@@ -7,6 +7,11 @@ body { margin: 0; background: var(--background); color: var(--text); height: 100
 button, input, select, textarea { font: inherit; }
 button, input, select, textarea { border: 1px solid var(--border); border-radius: .5rem; background: var(--surface); color: var(--text); padding: .55rem .8rem; max-width: 100%; }
 button { cursor: pointer; margin: .25rem; touch-action: manipulation; min-height: 44px; }
+button:active { transform: scale(.98); }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+::-webkit-scrollbar { width: .35rem; height: .35rem; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
 button:hover { border-color: var(--accent); }
 button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: default; opacity: 1; color: var(--muted); background: var(--disabled-surface); border-style: dashed; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
@@ -70,7 +75,7 @@ summary { cursor: pointer; min-height: 44px; }
 .session-foot { flex: 0 0 auto; max-height: 45%; overflow-y: auto; }
 .session-actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: flex-end; }
 .mistake-head { flex: 0 0 auto; display: flex; align-items: center; gap: .5rem; }
-.mistake-head h2 { margin: 0; }
+.mistake-title { margin: 0; font-size: 1.3rem; font-weight: bold; }
 .mistake-count { background: var(--warning); color: var(--background); border-radius: 9999px; padding: 0 .55rem; font-weight: bold; }
 .mistake-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0; padding-left: 1.4rem; }
 .mistake-item { margin: .75rem 0; padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
@@ -90,4 +95,4 @@ summary { cursor: pointer; min-height: 44px; }
 pre { overflow: auto; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 760px) { .menu-layout, .editor-layout { grid-template-columns: minmax(0, 1fr); } .menu-layout { overflow-y: auto; } .menu-layout > .panel { overflow: visible; } .panel { padding: .75rem; } #app { padding: .5rem; } }
 @media (max-width: 390px) { .choices { grid-template-columns: minmax(0, 1fr); } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } button:active { transform: none; } }
