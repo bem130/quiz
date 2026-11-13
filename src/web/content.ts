@@ -7,7 +7,7 @@ import rdkitWasmUrl from '@rdkit/rdkit/RDKit_minimal.wasm?url';
 import { parseContentToSegments, plainText } from '../core/content.ts';
 import type { ContentSegment } from '../core/content.ts';
 import { getRowValue } from '../core/model.ts';
-import type { Row, RowValue, SmilesToken, Token, TextSource } from '../core/model.ts';
+import type { Palette, Row, RowValue, SmilesToken, Token, TextSource } from '../core/model.ts';
 import { none, some } from '../core/result.ts';
 import type { Option } from '../core/result.ts';
 import { fetchText, resolveHttpUrl } from './network.ts';
@@ -16,6 +16,7 @@ import type { QuizStorage } from './storage/database.ts';
 
 export type RenderContext = Readonly<{
     baseUrl: string;
+    palette?: Palette;
     answer: Option<Readonly<{ tokens: readonly Token[]; row: Row }>>;
     isCurrent: () => boolean;
     assets?: Pick<QuizStorage, 'getAsset' | 'saveAsset'>;
@@ -100,7 +101,7 @@ function graphicFailure(target: HTMLElement, alt: string, detail: string): void 
 }
 function svgMarkup(target: HTMLElement, source: string, alt: string, context: RenderContext, limits?: SmilesToken): void {
     if (!context.isCurrent() || !target.isConnected) return;
-    const parsed = sanitizeSvg(source, alt);
+    const parsed = sanitizeSvg(source, alt, context.palette);
     if (!parsed.ok) { graphicFailure(target, limits === undefined ? plainText(alt) : alt, parsed.error.detail); return; }
     if (limits) {
         const em = limits.maxHeightEm.kind === 'some' ? Math.min(24, limits.maxHeightEm.value) : 24;
@@ -136,7 +137,7 @@ async function renderFileSvg(target: HTMLElement, src: string, alt: string, cont
     if (context.assets) {
         const stored = await context.assets.getAsset(url.value);
         if (stored.ok && stored.value.kind === 'some') {
-            const parsed = sanitizeSvg(stored.value.value.text, alt);
+            const parsed = sanitizeSvg(stored.value.value.text, alt, context.palette);
             if (parsed.ok) {
                 cached = true;
                 if (context.isCurrent() && target.isConnected) target.replaceChildren(parsed.value);
@@ -149,7 +150,7 @@ async function renderFileSvg(target: HTMLElement, src: string, alt: string, cont
         return;
     }
     // 保存するのは元のSVG文字列。保存済み・復元済みデータも表示のたびに再検証する。
-    const parsed = sanitizeSvg(fetched.value.text, alt);
+    const parsed = sanitizeSvg(fetched.value.text, alt, context.palette);
     if (!parsed.ok) {
         if (!cached && context.isCurrent() && target.isConnected) graphicFailure(target, label, parsed.error.detail);
         return;

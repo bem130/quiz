@@ -77,6 +77,9 @@ summary { cursor: pointer; min-height: 44px; }
 .katex-display { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
 .diagram { display: inline-block; max-width: 100%; min-width: 0; vertical-align: middle; white-space: normal; }
 .diagram .quiz-svg { background: #fff; color: #172b3e; color-scheme: light; }
+.quiz-svg-palette { color-scheme: light; }
+:root[data-theme='dark'] .quiz-svg-palette, :root[data-theme='black'] .quiz-svg-palette { color-scheme: dark; }
+.diagram .quiz-svg.quiz-svg-palette { background: transparent; color: var(--text); }
 .draft-editor .quiz-editor-command { color: #6f2797 !important; }
 [data-theme='dark'] .draft-editor .quiz-editor-command, [data-theme='black'] .draft-editor .quiz-editor-command { color: #d5a3ff !important; }
 .graphic-error, .warning { color: var(--warning); font-size: .9rem; }

@@ -913,9 +913,11 @@ export class QuizApplication {
 
     private context(session: SessionState, generation: number, answer = false) {
         const question = session.phase.kind === 'question' || session.phase.kind === 'saving' || session.phase.kind === 'answered' ? some(session.phase.question) : none;
-        const baseUrl = question.kind === 'some' && this.state.kind === 'ready' ? this.state.data.packages.find((item) => item.record.id === question.value.packageId)?.record.source ?? document.baseURI : document.baseURI;
+        const loadedPackage = question.kind === 'some' && this.state.kind === 'ready' ? this.state.data.packages.find((item) => item.record.id === question.value.packageId) : undefined;
+        const baseUrl = loadedPackage?.record.source ?? document.baseURI;
         const correct = question.kind === 'some' ? question.value.options.find((option) => option.id === question.value.correctOptionId) : undefined;
         return { baseUrl: /^https?:/i.test(baseUrl) ? baseUrl : document.baseURI,
+            ...(loadedPackage?.quiz.palette === undefined ? {} : { palette: loadedPackage.quiz.palette }),
             ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}),
             answer: answer && correct ? some({ tokens: correct.tokens, row: correct.row }) : none,
             isCurrent: () => generation === this.renderGeneration };
@@ -1044,10 +1046,11 @@ export class QuizApplication {
             if (entry.attempt.result === 'strong' || entry.attempt.result === 'weak') return;
             const item = element('li', '', 'mistake-item');
             item.append(element('p', `Q${index + 1}: ${entry.attempt.result === 'timeout' ? '時間切れ' : entry.attempt.result === 'idk' ? '分からない' : '不正解'}`));
-            const source = this.state.kind === 'ready' ? this.state.data.packages.find((loaded) => loaded.record.id === entry.question.packageId)?.record.source ?? document.baseURI : document.baseURI;
+            const loadedForContext = this.state.kind === 'ready' ? this.state.data.packages.find((loaded) => loaded.record.id === entry.question.packageId) : undefined;
+            const source = loadedForContext?.record.source ?? document.baseURI;
             const correct = entry.question.options.find((option) => option.id === entry.question.correctOptionId);
             const generation = this.renderGeneration;
-            const context = { baseUrl: /^https?:/i.test(source) ? source : document.baseURI, ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}), answer: correct ? some({ tokens: correct.tokens, row: correct.row }) : none, isCurrent: () => generation === this.renderGeneration };
+            const context = { baseUrl: /^https?:/i.test(source) ? source : document.baseURI, ...(loadedForContext?.quiz.palette === undefined ? {} : { palette: loadedForContext.quiz.palette }), ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}), answer: correct ? some({ tokens: correct.tokens, row: correct.row }) : none, isCurrent: () => generation === this.renderGeneration };
             item.append(renderTokens(entry.question.pattern.tokens, entry.question.row, context));
             if (correct && !hasInlineAnswer(entry.question)) {
                 item.append(element('p', '正答:'));
@@ -1084,10 +1087,11 @@ export class QuizApplication {
         for (const entry of session.history) {
             const item = element('li', '', 'result-item');
             item.append(element('p', entry.attempt.result));
-            const source = this.state.kind === 'ready' ? this.state.data.packages.find((loaded) => loaded.record.id === entry.question.packageId)?.record.source ?? document.baseURI : document.baseURI;
+            const loadedForContext = this.state.kind === 'ready' ? this.state.data.packages.find((loaded) => loaded.record.id === entry.question.packageId) : undefined;
+            const source = loadedForContext?.record.source ?? document.baseURI;
             const correct = entry.question.options.find((option) => option.id === entry.question.correctOptionId);
             const generation = this.renderGeneration;
-            const context = { baseUrl: /^https?:/i.test(source) ? source : document.baseURI, ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}), answer: correct ? some({ tokens: correct.tokens, row: correct.row }) : none, isCurrent: () => generation === this.renderGeneration };
+            const context = { baseUrl: /^https?:/i.test(source) ? source : document.baseURI, ...(loadedForContext?.quiz.palette === undefined ? {} : { palette: loadedForContext.quiz.palette }), ...(this.storage.kind === 'some' ? { assets: this.storage.value } : {}), answer: correct ? some({ tokens: correct.tokens, row: correct.row }) : none, isCurrent: () => generation === this.renderGeneration };
             const stem = renderTokens(entry.question.pattern.tokens, entry.question.row, context); item.append(stem);
             const regions: SourceRegion[] = [{ root: stem, source: this.sourceInfo(entry.question, entry.question.row) }];
             if (correct && !hasInlineAnswer(entry.question)) {
