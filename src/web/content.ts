@@ -206,7 +206,7 @@ export function renderTokens(tokens: readonly Token[], row: Row = DEFAULT_ROW, c
                 if (token.display === 'none') continue;
                 wrapper.classList.add('answer-blank');
                 if (context.answer.kind === 'some') wrapper.append(renderTokens(context.answer.value.tokens, context.answer.value.row, context, depth + 1));
-                else { wrapper.textContent = '＿＿＿'; wrapper.setAttribute('aria-label', '解答する空欄'); }
+                else { wrapper.textContent = '\u00A0'; wrapper.setAttribute('aria-label', '解答する空欄'); }
                 break;
             }
             case 'svg': {
