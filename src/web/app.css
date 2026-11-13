@@ -1,6 +1,6 @@
 :root { color-scheme: light; --text-scale: 1; --background: #eef3f8; --surface: #fff; --text: #172b3e; --muted: #4a5e71; --border: #718598; --accent: #075a78; --warning: #a33c16; --correct: #147d4f; --disabled-surface: #e5ebf1; font-family: system-ui, 'Yu Gothic', sans-serif; font-size: calc(clamp(14px, 1.8vmin + 0.5rem, 24px) * var(--text-scale)); line-height: 1.65; }
-:root[data-theme='dark'] { color-scheme: dark; --background: #101b27; --surface: #1b2a3a; --text: #eef5fb; --muted: #b8c8d7; --border: #7890a5; --accent: #8edbff; --warning: #ffb59c; --correct: #6cdda6; --disabled-surface: #243547; }
-:root[data-theme='black'] { color-scheme: dark; --background: #000; --surface: #090909; --text: #fff; --muted: #ddd; --border: #888; --accent: #a6e9ff; --warning: #ffb59c; --correct: #6cdda6; --disabled-surface: #202020; }
+:root[data-theme='dark'] { color-scheme: dark; --background: #050708; --surface: #121314; --text: #f4f9ff; --muted: #aebfd2; --border: #6f8699; --accent: #3fd9ff; --warning: #ffa02e; --correct: #2fe673; --disabled-surface: #1a1d20; }
+:root[data-theme='black'] { color-scheme: dark; --background: #000; --surface: #090909; --text: #fff; --muted: #ddd; --border: #888; --accent: #3fd9ff; --warning: #ffa02e; --correct: #2fe673; --disabled-surface: #202020; }
 :root[data-font='serif'] { font-family: 'Yu Mincho', 'Hiragino Mincho ProN', serif; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--background); color: var(--text); height: 100dvh; overflow: hidden; }
@@ -13,6 +13,7 @@ button:active { transform: scale(.98); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
 button:hover { border-color: var(--accent); }
+input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); }
 button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: default; opacity: 1; color: var(--muted); background: var(--disabled-surface); border-style: dashed; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 input[type='checkbox'] { width: 1.3rem; height: 1.3rem; flex: 0 0 auto; }
