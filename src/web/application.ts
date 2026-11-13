@@ -24,6 +24,7 @@ import { shareQr, shareUrl, sharedEntries, sharedScope } from './sharing.ts';
 import { currentPublishedPage, publishedPages } from './published-sharing.ts';
 import type { PublishedPages } from './published-sharing.ts';
 import { clearAppCache } from './cache-reset.ts';
+import { answerPreviewEnabled } from './answer-preview.ts';
 
 type LoadedPackage = Readonly<{ record: PackageRecord; quiz: QuizFile; prepared: PreparedQuiz }>;
 type Preferences = Readonly<{ theme: 'light' | 'dark' | 'black'; font: 'sans' | 'serif'; scale: number; mode: 'study' | 'test'; completion: 'questions' | 'time' | 'drain'; count: number; minutes: number }>;
@@ -964,7 +965,7 @@ export class QuizApplication {
                             if (selectedId === option.id) status.append(element('span', 'あなたの解答', 'choice-badge selected'));
                             choice.append(status);
                         }
-                        if (hasInlineAnswer(phase.question)) {
+                        if (answerPreviewEnabled(phase.question.pattern)) {
                             const preview = element('span', '', `option-preview ${option.isCorrect ? 'correct' : selectedId === option.id ? 'selected' : 'other'}`);
                             preview.append(element('span', option.isCorrect ? '正答' : selectedId === option.id ? 'あなたの解答' : 'この選択肢', 'option-preview-label'));
                             const previewBody = element('span', '', 'option-preview-body');
