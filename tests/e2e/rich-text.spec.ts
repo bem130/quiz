@@ -114,6 +114,6 @@ test('通常の択一問題は空欄を省き、穴埋め問題は回答を本�
         await expect(statement).toHaveText('呈色は。');
         await expect(statement.locator('.answer-blank')).toHaveCount(0);
     }
-    await expect(page.locator('[data-sample="inline-pending"]')).toHaveText('呈色は＿＿＿。');
+    await expect(page.locator('[data-sample="inline-pending"]')).toHaveText('呈色は 。');
     await expect(page.locator('[data-sample="inline-answered"]')).toHaveText('呈色は黄色。');
 });
