@@ -43,8 +43,11 @@ export type TipBlock = Readonly<{ id: string; when: TipWhen; tokens: readonly To
 export type Pattern = Readonly<{
     id: string; label: string; description: string; tokens: readonly Token[]; tips: readonly TipBlock[];
 }>;
+export type PaletteColor = Readonly<{ light?: string; dark?: string; black?: string }>;
+export type Palette = Readonly<Record<string, PaletteColor>>;
 export type QuizFile = Readonly<{
     version: 3; title: string; description: string; table: readonly Row[]; patterns: readonly Pattern[];
+    palette?: Palette;
 }>;
 export type EntryFile = Readonly<{
     version: 3; label: string; files: readonly string[];

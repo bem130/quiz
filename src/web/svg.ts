@@ -1,4 +1,5 @@
 import { plainText } from '../core/content.ts';
+import type { Palette } from '../core/model.ts';
 import { err, ok } from '../core/result.ts';
 import type { Result } from '../core/result.ts';
 
@@ -13,6 +14,27 @@ export const SVG_LIMITS = Object.freeze({
     pathCharacters: 200_000, pathNumbers: 20_000, text: 100_000,
     referenceDepth: 16, expandedWork: 100_000
 });
+export const DEFAULT_SVG_PALETTE: Palette = Object.freeze({
+    ink: { light: '#172b3e', dark: '#eef5fb' },
+    paper: { light: '#ffffff', dark: '#17191c' },
+    accent: { light: '#075a78', dark: '#3fd9ff' },
+    warn: { light: '#a33c16', dark: '#ffa02e' },
+    good: { light: '#147d4f', dark: '#2fe673' },
+    muted: { light: '#4a5e71', dark: '#aebfd2' }
+});
+type ResolvedToken = Readonly<{ light: string; dark: string }>;
+function resolveTokens(palette: Palette | undefined): ReadonlyMap<string, ResolvedToken> {
+    const tokens = new Map<string, ResolvedToken>();
+    const names = new Set([...Object.keys(DEFAULT_SVG_PALETTE), ...Object.keys(palette ?? {})]);
+    for (const name of names) {
+        const entry = palette?.[name];
+        const fallback = DEFAULT_SVG_PALETTE[name];
+        const light = entry?.light ?? fallback?.light ?? entry?.dark ?? entry?.black ?? '#000000';
+        const dark = entry?.dark ?? entry?.black ?? fallback?.dark ?? entry?.light ?? '#ffffff';
+        tokens.set(name, { light, dark });
+    }
+    return tokens;
+}
 const ELEMENTS = new Set(['svg', 'g', 'defs', 'symbol', 'use', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan', 'title', 'desc', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'marker']);
 const GRAPHICS = new Set(['svg', 'g', 'symbol', 'use', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan']);
 const NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
@@ -45,11 +67,12 @@ function safeNumber(value: string): boolean { return NUMBER.test(value) && Numbe
 function safeLength(value: string): boolean { return LENGTH.test(value) && Number.isFinite(Number.parseFloat(value)) && Math.abs(Number.parseFloat(value)) <= 1_000_000; }
 function numbers(value: string): readonly string[] { return value.trim().split(/[\s,]+/); }
 function localReference(value: string): string { return /^url\(\s*#([A-Za-z_][A-Za-z0-9_.:-]{0,127})\s*\)$/.exec(value)?.at(1) ?? ''; }
-function paint(value: string): boolean {
+function paint(value: string, tokens: ReadonlyMap<string, ResolvedToken>): boolean {
+    if (tokens.has(value)) return true;
     return /^(?:none|currentColor|transparent|[a-zA-Z]{1,32}|#[0-9a-fA-F]{3,8})$/.test(value) ||
         /^(?:rgb|rgba|hsl|hsla)\([0-9+.,%\s-]+\)$/.test(value) || localReference(value).length > 0;
 }
-function attributeAllowed(name: string, value: string): boolean {
+function attributeAllowed(name: string, value: string, tokens: ReadonlyMap<string, ResolvedToken>): boolean {
     if (value.length > 200_000) return false;
     for (let index = 0; index < value.length; index += 1) {
         const code = value.charCodeAt(index);
@@ -57,7 +80,7 @@ function attributeAllowed(name: string, value: string): boolean {
     }
     if (SCALARS.has(name)) return safeLength(value);
     if (NUMERIC.has(name)) return safeNumber(value);
-    if (PAINT.has(name)) return paint(value);
+    if (PAINT.has(name)) return paint(value, tokens);
     if (REFERENCES.has(name)) return value === 'none' || localReference(value).length > 0;
     const choices = ENUMS[name];
     if (choices) return choices.includes(value);
@@ -145,7 +168,9 @@ function checkWork(nodes: readonly SvgNode[], order: readonly number[]): Result<
  * 生DOM/innerHTMLを挿入せず、URL・CSS・namespace・参照予算を検証する。
  * サブセットと資源上限の契約はdoc/svg-subset.mdに記載する。
  */
-export function sanitizeSvg(source: string, alt: string): Result<SVGSVGElement, SvgError> {
+export function sanitizeSvg(source: string, alt: string, palette?: Palette): Result<SVGSVGElement, SvgError> {
+    const paletteTokens = resolveTokens(palette);
+    let usesPalette = false;
     if (!alt.trim() || source.length > SVG_LIMITS.source || /<!DOCTYPE|<!ENTITY|<\?/i.test(source.replace(/^\s*<\?xml\s[^?]*\?>/, ''))) return invalid('説明の欠損、サイズ超過、またはXML宣言の不正');
     const parsed = new DOMParser().parseFromString(source, 'image/svg+xml');
     const input = parsed.documentElement;
@@ -192,7 +217,14 @@ export function sanitizeSvg(source: string, alt: string): Result<SVGSVGElement, 
             return ok(prefix + id);
         };
         const copyAttribute = (name: string, value: string): Result<true, SvgError> => {
-            if (!attributeAllowed(name, value)) return unsafe(`許可されていない属性または値: ${name}`);
+            if (!attributeAllowed(name, value, paletteTokens)) return unsafe(`許可されていない属性または値: ${name}`);
+            const token = PAINT.has(name) ? paletteTokens.get(value) : undefined;
+            if (token) {
+                usesPalette = true;
+                node.output.style.setProperty(name, `light-dark(${token.light}, ${token.dark})`);
+                return ok(true);
+            }
+            if (PAINT.has(name)) node.output.style.removeProperty(name);
             if (name === 'id') node.output.setAttribute('id', prefix + value);
             else if (name === 'class') node.output.setAttribute('class', value.split(/\s+/).filter(Boolean).map((part) => prefix + part).join(' '));
             else {
@@ -276,6 +308,7 @@ export function sanitizeSvg(source: string, alt: string): Result<SVGSVGElement, 
     output.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     output.setAttribute('role', 'img'); output.setAttribute('aria-label', plainText(alt));
     output.classList.add('quiz-svg');
+    if (usesPalette) output.classList.add('quiz-svg-palette');
     // 包含する文章・選択肢の幅と文字拡大に追随し、原図の比率を保つ。
     output.style.display = 'inline-block'; output.style.verticalAlign = 'middle';
     output.style.width = `min(100%, ${width}px, calc(min(24em, 70vh) * ${width / height}))`;

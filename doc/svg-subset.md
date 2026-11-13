@@ -10,6 +10,10 @@ SVG名前空間のsvg、g、defs、symbol、use、path、基本図形、text/tsp
 
 script、foreignObject、image、リンク、アニメーション、style要素、イベント属性、未知属性、外部href、外部url、任意のCSS、DTD、entity宣言、処理命令、名前空間の迂回を拒否する。通常のXML宣言だけは許す。これは一般のSVGファイル全体に対する互換実装ではない。
 
+## パレットトークン
+
+paint値（fill・stroke・stop-color・color）が題庫のパレットまたは内蔵の既定パレットのトークン名と一致する場合、その値は具体色ではなくテーマ連動の色として扱う。sanitizerはトークンを `light-dark(ライト色, ダーク色)` の style プロパティへ変換し、図のルートへ `quiz-svg-palette` classを付ける。テーマの選択は color-scheme で行い、dark と black ではダーク色、light ではライト色を使う。トークンを使う図は `.diagram` の白い canvas 強制の対象外とし、背景は透過とする。トークン解決に使うパレットは、その題庫の Quiz File が持つ `palette` であり、RDKit が生成する構造図など題庫に属さない図はトークンを使わない。
+
 ## 資源の上限
 
 `SVG_LIMITS` を契約の正本とする。文字数はUTF-16コード単位で数える。

@@ -3,7 +3,7 @@ import type { Revision } from './identity.ts';
 import type { DomainError, DomainErrorCode, Option, Result } from './result.ts';
 import { getRowValue } from './model.ts';
 import type {
-    EntryFile, HideToken, JsonObject, JsonValue, Pattern, QuizFile, Row, RowValue, Style,
+    EntryFile, HideToken, JsonObject, JsonValue, Palette, PaletteColor, Pattern, QuizFile, Row, RowValue, Style,
     SvgSource, TextSource, TipBlock, Token
 } from './model.ts';
 
@@ -309,10 +309,37 @@ function parseText<T>(value: string, parse: (input: unknown) => Result<T, Domain
     catch { return err(domainError('invalid-json', '$', 'strict JSON required', 'syntax')); }
     return parse(decoded);
 }
+
+const CSS_NAMED_COLORS: ReadonlySet<string> = new Set(['aliceblue', 'antiquewhite', 'aqua', 'aquamarine', 'azure', 'beige', 'bisque', 'black', 'blanchedalmond', 'blue', 'blueviolet', 'brown', 'burlywood', 'cadetblue', 'chartreuse', 'chocolate', 'coral', 'cornflowerblue', 'cornsilk', 'crimson', 'cyan', 'darkblue', 'darkcyan', 'darkgoldenrod', 'darkgray', 'darkgreen', 'darkgrey', 'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen', 'darkslateblue', 'darkslategray', 'darkslategrey', 'darkturquoise', 'darkviolet', 'deeppink', 'deepskyblue', 'dimgray', 'dimgrey', 'dodgerblue', 'firebrick', 'floralwhite', 'forestgreen', 'fuchsia', 'gainsboro', 'ghostwhite', 'gold', 'goldenrod', 'gray', 'green', 'greenyellow', 'grey', 'honeydew', 'hotpink', 'indianred', 'indigo', 'ivory', 'khaki', 'lavender', 'lavenderblush', 'lawngreen', 'lemonchiffon', 'lightblue', 'lightcoral', 'lightcyan', 'lightgoldenrodyellow', 'lightgray', 'lightgreen', 'lightgrey', 'lightpink', 'lightsalmon', 'lightseagreen', 'lightskyblue', 'lightslategray', 'lightslategrey', 'lightsteelblue', 'lightyellow', 'lime', 'limegreen', 'linen', 'magenta', 'maroon', 'mediumaquamarine', 'mediumblue', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue', 'mediumspringgreen', 'mediumturquoise', 'mediumvioletred', 'midnightblue', 'mintcream', 'mistyrose', 'moccasin', 'navajowhite', 'navy', 'oldlace', 'olive', 'olivedrab', 'orange', 'orangered', 'orchid', 'palegoldenrod', 'palegreen', 'paleturquoise', 'palevioletred', 'papayawhip', 'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple', 'rebeccapurple', 'red', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'seashell', 'sienna', 'silver', 'skyblue', 'slateblue', 'slategray', 'slategrey', 'snow', 'springgreen', 'steelblue', 'tan', 'teal', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'white', 'whitesmoke', 'yellow', 'yellowgreen']);
+const PALETTE_TOKEN = /^[a-z][a-z0-9-]{0,30}$/;
+const PALETTE_COLOR = /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,32}|(?:rgb|rgba|hsl|hsla)\([0-9+.,%\s-]+\))$/;
+function paletteColor(value: unknown, path: string): string {
+    const color = text(value, path);
+    if (!PALETTE_COLOR.test(color) || color === 'none' || color === 'transparent' || color.toLowerCase() === 'currentcolor') fail('invalid-value', path, 'palette color must be a concrete color');
+    return color;
+}
+function palette(value: unknown, path: string): Palette {
+    const data = object(value, path);
+    const names = Object.keys(data);
+    if (names.length > 32) fail('invalid-value', path, 'palette has at most 32 tokens');
+    const result: Record<string, PaletteColor> = {};
+    for (const name of names) {
+        if (!PALETTE_TOKEN.test(name) || CSS_NAMED_COLORS.has(name)) fail('invalid-value', `${path}.${name}`, 'palette token must be a lowercase name that is not a CSS color name');
+        const entry = object(data[name], `${path}.${name}`);
+        keys(entry, ['light', 'dark', 'black'], `${path}.${name}`);
+        const color: { light?: string; dark?: string; black?: string } = {};
+        if (entry['light'] !== undefined) color.light = paletteColor(entry['light'], `${path}.${name}.light`);
+        if (entry['dark'] !== undefined) color.dark = paletteColor(entry['dark'], `${path}.${name}.dark`);
+        if (entry['black'] !== undefined) color.black = paletteColor(entry['black'], `${path}.${name}.black`);
+        if (color.light === undefined && color.dark === undefined && color.black === undefined) fail('invalid-value', `${path}.${name}`, 'palette token needs at least one theme color');
+        Object.defineProperty(result, name, { value: color, enumerable: true });
+    }
+    return result;
+}
 export function parseQuiz(value: unknown): Result<QuizFile, DomainError> {
     return boundary(() => {
         const data = object(value, '$');
-        keys(data, ['version', 'title', 'description', 'table', 'patterns'], '$');
+        keys(data, ['version', 'title', 'description', 'table', 'patterns', 'palette'], '$');
         if (data['version'] !== undefined && data['version'] !== 3) fail('invalid-version', '$.version', 'v3 required');
         const table = array(data['table'], '$.table').map((entry, index) => row(entry, `$.table[${index}]`));
         const patterns = array(data['patterns'], '$.patterns').map((entry, index) => pattern(entry, `$.patterns[${index}]`));
@@ -329,7 +356,9 @@ export function parseQuiz(value: unknown): Result<QuizFile, DomainError> {
                 }
             }
         }
-        return { version: 3, title: text(data['title'], '$.title'), description: text(data['description'], '$.description'), table, patterns };
+        const parsedPalette = data['palette'] === undefined ? undefined : palette(data['palette'], '$.palette');
+        return { version: 3, title: text(data['title'], '$.title'), description: text(data['description'], '$.description'), table, patterns,
+            ...(parsedPalette === undefined ? {} : { palette: parsedPalette }) };
     });
 }
 export function parseQuizJson(value: string): Result<QuizFile, DomainError> { return parseText(value, parseQuiz); }
@@ -396,6 +425,10 @@ function valueJson(value: RowValue): JsonValue {
 export function quizToJson(value: QuizFile): JsonObject {
     return {
         version: 3, title: value.title, description: value.description,
+        ...(value.palette === undefined ? {} : { palette: Object.fromEntries(Object.keys(value.palette).sort().map((name) => {
+            const color = value.palette?.[name];
+            return [name, { ...(color?.light === undefined ? {} : { light: color.light }), ...(color?.dark === undefined ? {} : { dark: color.dark }), ...(color?.black === undefined ? {} : { black: color.black }) }];
+        })) }),
         table: value.table.map(item => ({
             ...Object.fromEntries(Object.entries(item.fields).map(([key, fieldValue]) => [key, valueJson(fieldValue)])),
             id: item.id, ...(item.conceptId.kind === 'some' ? { conceptId: item.conceptId.value } : {})
