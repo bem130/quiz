@@ -332,13 +332,13 @@ test('listkeyとSVGの範囲を明示して出題し、選択肢のfile SVGも�
     await expect(page.locator('.graphic-error')).toHaveCount(0);
 });
 
-test('数値入力を設定変更で失わず、狭幅・文字拡大・IME中のキーを処理する', async ({ page }) => {
+test('数値入力を設定変更で失わず、狭幅・UI拡大・IME中のキーを処理する', async ({ page }) => {
     await controlledEntry(page); await page.setViewportSize({ width: 320, height: 640 }); await open(page);
     await page.getByLabel('問題数', { exact: true }).fill('2');
     await page.getByLabel('学習・テスト', { exact: true }).selectOption('test');
     await expect(page.getByLabel('問題数', { exact: true })).toHaveValue('2');
     await details(page, 'ユーザー・表示・問題一覧');
-    await page.getByRole('button', { name: '文字 170%', exact: true }).click();
+    await page.getByRole('button', { name: 'UIスケール 170%', exact: true }).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
     await page.getByRole('button', { name: 'クイズを開始', exact: true }).click();
     await expect(page.locator('.question-text')).toBeVisible();

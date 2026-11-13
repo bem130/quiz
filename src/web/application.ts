@@ -38,6 +38,8 @@ type UpdateState = Readonly<{ kind: 'idle' | 'preparing' | 'reload' }> |
     Readonly<{ kind: 'ready'; registration: ServiceWorkerRegistration; worker: ServiceWorker }> |
     Readonly<{ kind: 'failed'; initial: boolean }>;
 const DEFAULTS: Preferences = { theme: 'light', font: 'sans', scale: 1, mode: 'study', completion: 'questions', count: 10, minutes: 10 };
+/** UIスケール100%は、従来の文字スケール100%の60%の大きさとする。 */
+const UI_SCALE_BASE = 0.6;
 const BACKUP_MAX_BYTES = 50_000_000;
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', className = ''): HTMLElementTagNameMap[K] {
@@ -364,7 +366,7 @@ export class QuizApplication {
     private applyAppearance(preferences: Preferences): void {
         document.documentElement.dataset['theme'] = preferences.theme;
         document.documentElement.dataset['font'] = preferences.font;
-        document.documentElement.style.setProperty('--text-scale', String(preferences.scale));
+        document.documentElement.style.setProperty('--text-scale', String(preferences.scale * UI_SCALE_BASE));
         this.syncThemeControls();
     }
 
@@ -755,7 +757,7 @@ export class QuizApplication {
             if (this.state.kind !== 'ready') return;
             return this.savePreferences({ ...this.state.preferences, font: this.state.preferences.font === 'sans' ? 'serif' : 'sans' });
         }));
-        for (const scale of [0.5, 0.65, 0.8, 1, 1.2, 1.4, 1.7]) settings.append(this.button(`文字 ${Math.round(scale * 100)}%`, () => {
+        for (const scale of [0.5, 0.65, 0.8, 1, 1.2, 1.4, 1.7]) settings.append(this.button(`UIスケール ${Math.round(scale * 100)}%`, () => {
             if (this.state.kind !== 'ready') return;
             return this.savePreferences({ ...this.state.preferences, scale });
         }));
