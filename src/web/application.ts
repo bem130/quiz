@@ -27,7 +27,7 @@ import { clearAppCache } from './cache-reset.ts';
 
 type LoadedPackage = Readonly<{ record: PackageRecord; quiz: QuizFile; prepared: PreparedQuiz }>;
 type Preferences = Readonly<{ theme: 'light' | 'dark' | 'black'; font: 'sans' | 'serif'; scale: number; mode: 'study' | 'test'; completion: 'questions' | 'time' | 'drain'; count: number; minutes: number }>;
-type Data = Readonly<{ users: readonly UserRecord[]; userId: UserRecord['id']; packages: readonly LoadedPackage[]; drafts: readonly DraftRecord[]; attempts: readonly AttemptRecord[]; entries: readonly string[]; editorFiles: readonly EditorFile[]; favorites: readonly string[] }>;
+type Data = Readonly<{ users: readonly UserRecord[]; userId: UserRecord['id']; packages: readonly LoadedPackage[]; drafts: readonly DraftRecord[]; attempts: readonly AttemptRecord[]; entries: readonly string[]; editorFiles: readonly EditorFile[]; favorites: readonly string[]; dismissed: readonly string[] }>;
 type Screen = Readonly<{ kind: 'menu' }> | Readonly<{ kind: 'editor' }> | Readonly<{ kind: 'starting'; requestId: string }> |
     Readonly<{ kind: 'playing'; session: SessionState; idkPrompt: boolean }> |
     Readonly<{ kind: 'result'; session: SessionState }>;
@@ -285,7 +285,18 @@ export class QuizApplication {
                 }
             } catch { /* 不正なお気に入りは無視する。題庫自体は保持される。 */ }
         }
-        return ok({ users: userList, userId: user.id, packages: loaded, drafts: drafts.value, attempts: attempts.value, entries, editorFiles, favorites });
+        const dismissedSetting = await db.value.getSetting('dismissedPackages'); if (!dismissedSetting.ok) return err(dismissedSetting.error.message);
+        const dismissed: string[] = [];
+        if (dismissedSetting.value.kind === 'some') {
+            try {
+                const value: unknown = JSON.parse(dismissedSetting.value.value);
+                if (Array.isArray(value)) for (const item of value) {
+                    if (typeof item !== 'string' || dismissed.length >= 200 || dismissed.includes(item)) continue;
+                    dismissed.push(item);
+                }
+            } catch { /* 不正な削除済み一覧は無視する。題庫自体は保持される。 */ }
+        }
+        return ok({ users: userList, userId: user.id, packages: loaded, drafts: drafts.value, attempts: attempts.value, entries, editorFiles, favorites, dismissed });
     }
 
     private async refreshDataNow(): Promise<void> {
@@ -303,7 +314,7 @@ export class QuizApplication {
         return pending;
     }
 
-    private async loadEntry(rawUrl: string, intent: EntryLoadIntent): Promise<Option<readonly PatternId[]>> {
+    private async loadEntry(rawUrl: string, intent: EntryLoadIntent, restore = false): Promise<Option<readonly PatternId[]>> {
         if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.busy || this.replacingPreferences) return none;
         const db = this.database(); if (db.kind === 'none') return none;
         const url = resolveHttpUrl(rawUrl, document.baseURI);
@@ -323,6 +334,15 @@ export class QuizApplication {
             if (!fetched.ok) { this.inform('問題一覧を取得できない。保存済み題庫と草稿は引き続き利用できる。'); return none; }
             const entry = parseEntryJson(fetched.value.text);
             if (!entry.ok) { this.inform(`entryの形式が不正: ${entry.error.path} ${entry.error.detail}`); return none; }
+            if (restore && this.state.kind === 'ready') {
+                const fileUrls = entry.value.files.flatMap((path) => { const resolved = resolveHttpUrl(path, fetched.value.url); return resolved.ok ? [resolved.value] : []; });
+                const kept = this.state.data.dismissed.filter((value) => !fileUrls.includes(value));
+                if (kept.length !== this.state.data.dismissed.length) {
+                    const saved = await db.value.setSetting({ id: 'dismissedPackages', value: JSON.stringify(kept) });
+                    if (!saved.ok) { this.inform(saved.error.message); return none; }
+                    if (this.state.kind === 'ready') this.state = { ...this.state, data: { ...this.state.data, dismissed: kept } };
+                }
+            }
             const editorMapping = editorFilesFromEntry(fetched.value.text, fetched.value.url, entry.value.files);
             const newEditorFiles: EditorFile[] = [];
             const selected: PatternId[] = [];
@@ -330,10 +350,12 @@ export class QuizApplication {
             for (const path of entry.value.files) {
                 const resolved = resolveHttpUrl(path, fetched.value.url);
                 if (!resolved.ok) { errors.push(path); continue; }
+                if (this.state.kind === 'ready' && this.state.data.dismissed.includes(resolved.value)) continue;
                 const before = await db.value.listPackages(); if (!before.ok) { errors.push(path); continue; }
                 const text = await fetchText(resolved.value);
                 if (generation !== this.loadingGeneration) return none;
                 if (!text.ok) { errors.push(path); continue; }
+                if (this.state.kind === 'ready' && this.state.data.dismissed.includes(text.value.url)) continue;
                 const quiz = parseQuizJson(text.value.text);
                 const identity = packageIdentity({ kind: 'remote', url: text.value.url });
                 if (!quiz.ok || !identity.ok) { errors.push(path); continue; }
@@ -652,6 +674,22 @@ export class QuizApplication {
             star.setAttribute('aria-pressed', String(favorite));
             star.setAttribute('aria-label', favorite ? 'お気に入りから外す' : 'お気に入りに追加する');
             card.append(star);
+            if (/^https?:\/\//u.test(loaded.record.source)) card.append(this.button('この題庫を削除', async () => {
+                if (this.state.kind !== 'ready') return;
+                const db = this.database(); if (db.kind === 'none') return;
+                if (!confirm(`「${plainText(loaded.quiz.title)}」を削除する。自動では再表示されない。サンプルは「サンプルを再読込」、問題一覧の題庫はその一覧の「更新」で戻せる。よいか。`)) return;
+                const deleted = await db.value.deletePackage(loaded.record.id, Date.now());
+                if (!deleted.ok) { this.inform(deleted.error.message); return; }
+                const dismissed = [...new Set([...this.state.data.dismissed, loaded.record.source])].slice(-200);
+                const savedDismissed = await db.value.setSetting({ id: 'dismissedPackages', value: JSON.stringify(dismissed) });
+                if (!savedDismissed.ok) { this.inform(savedDismissed.error.message); return; }
+                if (this.state.data.favorites.includes(loaded.record.id)) {
+                    const next = this.state.data.favorites.filter((id) => id !== loaded.record.id);
+                    const savedFavorites = await db.value.setSetting({ id: 'favoritePackages', value: JSON.stringify(next) });
+                    if (!savedFavorites.ok) { this.inform(savedFavorites.error.message); return; }
+                }
+                await this.refreshData(); this.inform('題庫を削除した。');
+            }, this.busy));
             for (const pattern of loaded.quiz.patterns) {
                 const candidates = loaded.prepared.candidates.filter((candidate) => candidate.pattern.id === pattern.id);
                 const identity = candidates.at(0)?.patternId;
@@ -765,7 +803,7 @@ export class QuizApplication {
         settings.append(url, this.button('問題一覧を読み込む', async () => { await this.loadEntry(url.value, 'manual'); }, this.busy));
         for (const entry of state.data.entries) {
             const item = element('div'); item.append(element('small', entry));
-            item.append(this.button('更新', async () => { await this.loadEntry(entry, 'refresh'); }, this.busy));
+            item.append(this.button('更新', async () => { await this.loadEntry(entry, 'refresh', true); }, this.busy));
             item.append(this.button('登録解除', async () => {
                 const db = this.database(); if (db.kind === 'none' || this.state.kind !== 'ready') return;
                 const saved = await db.value.setSetting({ id: 'entrySources', value: JSON.stringify(this.state.data.entries.filter((value) => value !== entry)) });
@@ -774,7 +812,7 @@ export class QuizApplication {
             }, this.busy));
             settings.append(item);
         }
-        settings.append(this.button('サンプルを再読込', async () => { await this.loadEntry(new URL('entry.json', document.baseURI).href, 'refresh'); }, this.busy));
+        settings.append(this.button('サンプルを再読込', async () => { await this.loadEntry(new URL('entry.json', document.baseURI).href, 'refresh', true); }, this.busy));
         settings.append(this.button('offline cacheを削除して再起動', async () => {
             if (this.state.kind !== 'ready' || this.state.screen.kind !== 'menu' || this.busy) return;
             if (!confirm('このアプリのoffline cacheを削除して再起動する。IndexedDBの草稿・ユーザー・学習記録は保持する。再取得には通信が必要である。よいか。')) return;
