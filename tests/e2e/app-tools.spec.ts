@@ -79,6 +79,11 @@ test('rubyを右クリックとキーボード操作で収集し、結果へ出�
     await page.getByRole('button', { name: '結果JSONをコピー', exact: true }).click();
     const copied: unknown = await page.evaluate((): unknown => JSON.parse(window.toolsTest.copied));
     expect(copied).toHaveProperty('rubyBuffer');
+    const packageRefs = await page.evaluate((): { urlOnly: boolean } => {
+        const parsed = JSON.parse(window.toolsTest.copied) as { replay: { packages: ReadonlyArray<Record<string, unknown>> } };
+        return { urlOnly: parsed.replay.packages.length > 0 && parsed.replay.packages.every((pkg) => typeof pkg['url'] === 'string' && !('revision' in pkg)) };
+    });
+    expect(packageRefs.urlOnly).toBe(true);
     expect(copied).toMatchObject({ rubyBuffer: [expect.objectContaining({ base: expect.any(String), reading: expect.any(String) })] });
     await page.getByRole('button', { name: '同じ設定で再挑戦', exact: true }).click();
     await expect(page.locator('.question-text')).toBeVisible();

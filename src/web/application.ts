@@ -1118,7 +1118,13 @@ export class QuizApplication {
                 void _revision; // revision原文はreplayに一度だけ格納する。
                 return { ...entry, question };
             });
-            await navigator.clipboard.writeText(JSON.stringify({ summary, seed: session.config.seed, replay: session.record.replay, history, rubyBuffer: this.rubyState.sessionId === session.record.id ? this.rubyState.items : [] }, null, 2)); this.inform('結果をコピーした。');
+            // URLで公開されている題庫はファイル実体を埋め込まずURLで参照する。草稿などURLを持たない題庫は従来どおり埋め込む。
+            const packages = session.record.replay.packages.map((pkg) => {
+                const loaded = this.state.kind === 'ready' ? this.state.data.packages.find((item) => item.record.id === pkg.id) : undefined;
+                return loaded !== undefined && /^https?:\/\//iu.test(loaded.record.source) ? { id: pkg.id, url: loaded.record.source } : pkg;
+            });
+            const replay = { ...session.record.replay, packages };
+            await navigator.clipboard.writeText(JSON.stringify({ summary, seed: session.config.seed, replay, history, rubyBuffer: this.rubyState.sessionId === session.record.id ? this.rubyState.items : [] }, null, 2)); this.inform('結果をコピーした。');
         }));
         panel.append(this.button('メニューへ', async () => { if (this.state.kind === 'ready') this.state = { ...this.state, screen: { kind: 'menu' } }; await this.refreshData(); }));
         const list = element('ol');
